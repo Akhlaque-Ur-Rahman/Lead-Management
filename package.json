@@ -55,5 +55,9 @@
       "scripts": {
             "dev": "vite",
             "build": "npx vite build"
-      }
+      },
+      "engines": {
+  "node": ">=18.x"
+}
+
 }
