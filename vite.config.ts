@@ -4,27 +4,31 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  
-  // Base path for assets – important for deployment on Vercel
+
+  // Base path for assets – ensures correct paths on Vercel
   base: '/',
 
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {
-      '@': path.resolve(__dirname, './src'), // use '@' for src
-      // Optional: add more aliases here if needed, no versions required
+      // Use '@' to reference your src folder
+      '@': path.resolve(__dirname, './src'),
+
+      // Only alias packages if you really need it, without versions
+      // Example: '@radix-ui/react-switch': '@radix-ui/react-switch',
+      // Otherwise, you can remove package aliases entirely
     },
   },
 
   build: {
     target: 'esnext',   // modern JS output
-    outDir: 'build',    // Vercel static-build folder
+    outDir: 'build',    // matches Vercel static-build folder
     sourcemap: false,   // optional: disable sourcemaps for smaller build
     chunkSizeWarningLimit: 2000, // optional: suppress chunk size warnings
   },
 
   server: {
     port: 3000,   // local dev server port
-    open: true,   // open browser on dev start
+    open: true,   // open browser automatically
   },
 });
