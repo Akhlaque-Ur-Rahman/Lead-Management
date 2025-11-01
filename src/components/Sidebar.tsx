@@ -10,11 +10,13 @@ import {
   XCircle,
   Building2,
   ClipboardList,
-  UserCheck
+  UserCheck,
+  CheckCircle
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
 import { Badge } from './ui/badge';
+import { type RoleKey, getRoleLabel, getRoleBadgeVariant, PERMISSIONS } from '../types/roles';
 
 interface SidebarProps {
   activeTab: string;
@@ -28,10 +30,11 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
     { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
-    { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
-    { id: 'calendar', label: 'Follow-up Calendar', icon: Calendar, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
-    { id: 'lost', label: 'Lost Leads', icon: XCircle, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
-    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'company_admin', 'team_lead'] },
+    { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['super_admin', 'company_admin', 'team_lead'] },
+    { id: 'calendar', label: 'Follow-up Calendar', icon: Calendar, roles: ['company_admin', 'team_lead', 'sales_user'] },
+    { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['company_admin'] },
+    { id: 'lost', label: 'Lost Leads', icon: XCircle, roles: ['company_admin', 'team_lead', 'sales_user'] },
+    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
   ];
 
   // Admin menu items
@@ -55,18 +58,9 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const getRoleBadge = () => {
     if (!user) return null;
     
-    const roleColors: Record<string, { variant: any; label: string }> = {
-      super_admin: { variant: 'destructive', label: 'Super Admin' },
-      company_admin: { variant: 'default', label: 'Admin' },
-      team_lead: { variant: 'secondary', label: 'Team Lead' },
-      sales_user: { variant: 'outline', label: 'Sales User' }
-    };
-
-    const roleConfig = roleColors[user.role] || { variant: 'secondary', label: user.role };
-    
     return (
-      <Badge variant={roleConfig.variant} className="text-xs">
-        {roleConfig.label}
+      <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+        {getRoleLabel(user.role)}
       </Badge>
     );
   };

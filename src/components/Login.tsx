@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { type RoleKey } from '../types/roles';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Lock, Mail, AlertCircle, BarChart3, Building2 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function Login() {
   const { login, isLoading } = useAuth();
@@ -33,7 +34,7 @@ export function Login() {
     }
   };
 
-  const handleDemoLogin = async (role: 'super_admin' | 'company_admin' | 'team_lead' | 'sales_user', companyId?: string) => {
+  const handleDemoLogin = async (role: RoleKey, companyId?: string) => {
     const demoCredentials = {
       super_admin: { email: 'superadmin@lms.com', password: 'super123' },
       company_admin_1: { email: 'rajesh@abcmotors.com', password: 'admin123' },

@@ -24,7 +24,7 @@ import {
 } from './ui/dialog';
 import { Search, RotateCcw, Trash2, Info, AlertCircle, Eye } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function LostLeads() {
   const { user, users } = useAuth();
@@ -47,32 +47,34 @@ export function LostLeads() {
         d.email.toLowerCase().includes(searchTerm.toLowerCase())
       ));
 
-    // Main Admin and Admin can see all lost leads
-    // Regular users can only see leads they marked as lost (non-permanent)
-    if (user?.role === 'main_admin' || user?.role === 'admin') {
+    // Super Admin and Company Admin can see all lost leads
+    // Team Lead and Sales User can only see leads they marked as lost (non-permanent)
+    if (user?.role === 'super_admin' || user?.role === 'company_admin') {
       return matchesSearch;
-    } else {
+    } else if (user?.role === 'team_lead' || user?.role === 'sales_user') {
       return matchesSearch && lostLead.lostBy === user?.id && !lostLead.isPermanent;
     }
+    return false;
   });
 
   const handleRestore = (leadId: string) => {
-    const lostLead = lostLeads.find(l => l.lead.id === leadId);
+    const lostLeadIndex = lostLeads.findIndex(l => l.lead.id === leadId);
     
-    if (!lostLead) return;
+    if (lostLeadIndex === -1) return;
 
+    const lostLead = lostLeads[lostLeadIndex];
     if (lostLead.isPermanent) {
       toast.error('Permanent lost leads cannot be restored. Only Admin can delete them permanently.');
       return;
     }
 
-    restoreLostLead(leadId);
+    restoreLostLead(lostLeadIndex);
     toast.success('Lead restored successfully!');
   };
 
   const handlePermanentDelete = (leadId: string) => {
-    if (user?.role !== 'main_admin') {
-      toast.error('Only Main Admin can permanently delete lost leads!');
+    if (user?.role !== 'company_admin') {
+      toast.error('Only Company Admin can permanently delete lost leads!');
       return;
     }
 
@@ -82,8 +84,11 @@ export function LostLeads() {
 
   const confirmPermanentDelete = () => {
     if (leadToDelete) {
-      permanentlyDeleteLost(leadToDelete);
-      toast.success('Lost lead permanently deleted!');
+      const lostLeadIndex = lostLeads.findIndex(l => l.lead.id === leadToDelete);
+      if (lostLeadIndex !== -1) {
+        permanentlyDeleteLost(lostLeadIndex);
+        toast.success('Lost lead permanently deleted!');
+      }
       setShowConfirmDelete(false);
       setLeadToDelete(null);
     }
@@ -114,7 +119,7 @@ export function LostLeads() {
         <Info className="h-4 w-4" />
         <AlertDescription>
           <strong>Info:</strong> Regular users can restore leads they marked as lost. 
-          Only Main Admin can permanently delete lost leads. Admins can mark leads as permanently lost.
+          Only Company Admin can permanently delete lost leads.
         </AlertDescription>
       </Alert>
 
@@ -209,12 +214,12 @@ export function LostLeads() {
                               <RotateCcw className="h-4 w-4" />
                             </Button>
                           )}
-                          {user?.role === 'main_admin' && (
+                          {user?.role === 'company_admin' && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handlePermanentDelete(lostLead.lead.id)}
-                              title="Permanently Delete (Main Admin Only)"
+                              title="Permanently Delete (Company Admin Only)"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>

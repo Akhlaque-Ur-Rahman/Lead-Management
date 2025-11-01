@@ -42,7 +42,7 @@ import {
   MessageSquare,
   XCircle
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { cn } from './ui/utils';
 
 interface LeadDetailProps {
@@ -53,10 +53,11 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { addDirectorFollowUp, markAsLost } = useLeads();
+  const { addDirectorFollowUp, markAsLost, markAsConverted, updateLead } = useLeads();
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
+  const [showConvertedDialog, setShowConvertedDialog] = useState(false);
   const [selectedDirector, setSelectedDirector] = useState<Director | null>(null);
   const [selectedDirectorId, setSelectedDirectorId] = useState<string>('overall');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -64,6 +65,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const [followUpRemark, setFollowUpRemark] = useState('');
   const [lostRemark, setLostRemark] = useState('');
   const [isPermanentLost, setIsPermanentLost] = useState(false);
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [projectValue, setProjectValue] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState(lead.status);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,7 +110,8 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     return dateStr;
   };
 
-  const getUserName = (userId: string) => {
+  const getUserName = (userId: string | null) => {
+    if (!userId) return 'Not Assigned';
     const foundUser = users.find(u => u.id === userId);
     return foundUser ? foundUser.name : 'Unknown';
   };
@@ -159,14 +164,29 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setSelectedDirectorId('overall');
   };
 
+  const handleStatusChange = (newStatus: string) => {
+    if (newStatus === 'Lost') {
+      setShowLostDialog(true);
+      setSelectedStatus(lead.status); // Reset to current status
+    } else if (newStatus === 'Converted') {
+      setShowConvertedDialog(true);
+      setSelectedStatus(lead.status); // Reset to current status
+    } else {
+      // Hot, Warm, Cold - update directly
+      updateLead(lead.id, { status: newStatus as Lead['status'] });
+      setSelectedStatus(newStatus as Lead['status']);
+      toast.success(`Lead status updated to ${newStatus}`);
+    }
+  };
+
   const handleMarkAsLost = () => {
     if (!lostRemark.trim()) {
       toast.error('Please provide a reason for marking this lead as lost');
       return;
     }
 
-    // Only admins can mark as permanent
-    const permanent = (user?.role === 'main_admin' || user?.role === 'admin') && isPermanentLost;
+    // Only Company Admin can mark as permanent
+    const permanent = user?.role === 'company_admin' && isPermanentLost;
 
     markAsLost(lead.id, lostRemark, user?.id || '', permanent);
     
@@ -180,6 +200,21 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setLostRemark('');
     setIsPermanentLost(false);
     onClose();
+  };
+
+  const handleMarkAsConverted = () => {
+    if (!invoiceNo.trim() || !projectValue.trim()) {
+      toast.error('Please provide invoice number and project value');
+      return;
+    }
+
+    markAsConverted(lead.id, invoiceNo, projectValue, user?.name || user?.id || '');
+    setSelectedStatus('Converted');
+    toast.success('Lead marked as converted!');
+    
+    setShowConvertedDialog(false);
+    setInvoiceNo('');
+    setProjectValue('');
   };
 
   const getNextFollowUp = (director: Director) => {
@@ -214,18 +249,34 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       <div className="space-y-4 sm:space-y-6 max-h-[70vh] overflow-y-auto pr-2">
         {/* Status and Actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <Badge variant={getStatusColor(lead.status)} className="text-sm">
-            {lead.status}
-          </Badge>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <span className="text-sm text-muted-foreground">Status:</span>
+            {user?.role !== 'super_admin' ? (
+              <Select value={selectedStatus} onValueChange={handleStatusChange}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Warm">Warm</SelectItem>
+                  <SelectItem value="Cold">Cold</SelectItem>
+                  <SelectItem value="Converted">Converted</SelectItem>
+                  <SelectItem value="Lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant={getStatusColor(lead.status)} className="text-sm">
+                {lead.status}
+              </Badge>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button onClick={() => setShowLostDialog(true)} variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none">
-              <XCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Mark Lost</span>
-            </Button>
-            <Button onClick={onEdit} variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none">
-              <Edit className="h-4 w-4" />
-              <span className="hidden sm:inline">Edit</span>
-            </Button>
+            {(user?.role === 'company_admin' || user?.role === 'team_lead') && (
+              <Button onClick={onEdit} variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none">
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -310,15 +361,17 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
               <User className="h-4 w-4" />
               Directors {lead.directors && lead.directors.length > 0 && `(${lead.directors.length})`}
             </h3>
-            <Button 
-              onClick={() => handleOpenFollowUpDialog(null)} 
-              size="sm" 
-              className="gap-2"
-              variant="outline"
-            >
-              <Plus className="h-4 w-4" />
-              Add Follow-up
-            </Button>
+            {user?.role !== 'super_admin' && (
+              <Button 
+                onClick={() => handleOpenFollowUpDialog(null)} 
+                size="sm" 
+                className="gap-2"
+                variant="outline"
+              >
+                <Plus className="h-4 w-4" />
+                Add Follow-up
+              </Button>
+            )}
           </div>
           
           {lead.directors && lead.directors.length > 0 ? (
@@ -391,14 +444,16 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                       </div>
 
                       {/* Add Follow-up Button */}
-                      <Button 
-                        onClick={() => handleOpenFollowUpDialog(director)} 
-                        size="sm" 
-                        className="gap-2 w-full sm:w-auto"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Follow-up
-                      </Button>
+                      {user?.role !== 'super_admin' && (
+                        <Button 
+                          onClick={() => handleOpenFollowUpDialog(director)} 
+                          size="sm" 
+                          className="gap-2 w-full sm:w-auto"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Follow-up
+                        </Button>
+                      )}
 
                       {/* Follow-up History */}
                       {director.followUps && director.followUps.length > 0 && (
@@ -503,10 +558,12 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
           <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
             Close
           </Button>
-          <Button onClick={onEdit} className="gap-2 w-full sm:w-auto">
-            <Edit className="h-4 w-4" />
-            Edit Lead
-          </Button>
+          {(user?.role === 'company_admin' || user?.role === 'team_lead') && (
+            <Button onClick={onEdit} className="gap-2 w-full sm:w-auto">
+              <Edit className="h-4 w-4" />
+              Edit Lead
+            </Button>
+          )}
         </div>
       </div>
 
@@ -593,6 +650,51 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Converted Modal */}
+      <Dialog open={showConvertedDialog} onOpenChange={setShowConvertedDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Mark Lead as Converted</DialogTitle>
+            <DialogDescription>
+              Provide invoice and project details for this conversion
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoiceNo">Invoice Number *</Label>
+              <Input
+                id="invoiceNo"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+                placeholder="Enter invoice number..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="projectValue">Total Project Value (₹) *</Label>
+              <Input
+                id="projectValue"
+                type="text"
+                value={projectValue}
+                onChange={(e) => setProjectValue(e.target.value)}
+                placeholder="Enter project value..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowConvertedDialog(false);
+              setInvoiceNo('');
+              setProjectValue('');
+            }} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button onClick={handleMarkAsConverted} className="w-full sm:w-auto">
+              Mark as Converted
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Mark as Lost Dialog */}
       <Dialog open={showLostDialog} onOpenChange={setShowLostDialog}>
         <DialogContent className="sm:max-w-[425px]">
@@ -613,7 +715,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 rows={4}
               />
             </div>
-            {(user?.role === 'main_admin' || user?.role === 'admin') && (
+            {user?.role === 'company_admin' && (
               <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
                 <input
                   type="checkbox"

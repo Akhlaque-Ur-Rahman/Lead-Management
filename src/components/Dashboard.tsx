@@ -19,21 +19,35 @@ export function Dashboard() {
   const { user, users } = useAuth();
   const { leads, lostLeads, getDirectorFollowUpsForDate } = useLeads();
   
+  // Filter leads based on user role - Sales Users see only their own
+  const userLeads = user?.role === 'sales_user' 
+    ? leads.filter(l => l.assignedTo === user.id)
+    : leads;
+    
+  const userLostLeads = user?.role === 'sales_user'
+    ? lostLeads.filter(ll => ll.lostBy === user.id)
+    : lostLeads;
+  
   // Calculate real statistics
   const stats = {
-    totalLeads: leads.length,
-    hotLeads: leads.filter(l => l.status === 'Hot').length,
-    warmLeads: leads.filter(l => l.status === 'Warm').length,
-    coldLeads: leads.filter(l => l.status === 'Cold').length,
-    convertedLeads: leads.filter(l => l.status === 'Converted').length,
-    lostLeadsCount: lostLeads.length,
-    totalDirectors: leads.reduce((sum, lead) => sum + (lead.directors?.length || 0), 0),
+    totalLeads: userLeads.length,
+    hotLeads: userLeads.filter(l => l.status === 'Hot').length,
+    warmLeads: userLeads.filter(l => l.status === 'Warm').length,
+    coldLeads: userLeads.filter(l => l.status === 'Cold').length,
+    convertedLeads: userLeads.filter(l => l.status === 'Converted').length,
+    lostLeadsCount: userLostLeads.length,
+    totalDirectors: userLeads.reduce((sum, lead) => sum + (lead.directors?.length || 0), 0),
   };
 
   // Get today's and upcoming follow-ups
   const today = new Date();
   const todayString = getLocalDateString(today);
-  const todayFollowUps = getDirectorFollowUpsForDate(todayString);
+  let todayFollowUps = getDirectorFollowUpsForDate(todayString);
+  
+  // Filter follow-ups for sales users - only their assigned leads
+  if (user?.role === 'sales_user') {
+    todayFollowUps = todayFollowUps.filter(item => item.lead.assignedTo === user.id);
+  }
   
   // Get next 7 days follow-ups
   const upcomingFollowUps: Array<{
@@ -47,7 +61,12 @@ export function Dashboard() {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
     const dateString = getLocalDateString(date);
-    const dayFollowUps = getDirectorFollowUpsForDate(dateString);
+    let dayFollowUps = getDirectorFollowUpsForDate(dateString);
+    
+    // Filter for sales users
+    if (user?.role === 'sales_user') {
+      dayFollowUps = dayFollowUps.filter(item => item.lead.assignedTo === user.id);
+    }
     
     dayFollowUps.forEach(item => {
       upcomingFollowUps.push({
@@ -65,7 +84,7 @@ export function Dashboard() {
   });
 
   // Get user's assigned leads
-  const myLeads = user?.role === 'user' 
+  const myLeads = user?.role === 'sales_user' 
     ? leads.filter(l => l.assignedTo === user.id)
     : leads;
 
@@ -107,7 +126,8 @@ export function Dashboard() {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
-  const getUserName = (userId: string) => {
+  const getUserName = (userId: string | null) => {
+    if (!userId) return 'Unassigned';
     const foundUser = users.find(u => u.id === userId);
     return foundUser ? foundUser.name : 'Unassigned';
   };

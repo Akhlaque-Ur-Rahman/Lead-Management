@@ -12,6 +12,7 @@ import { Reports } from './components/Reports';
 import { UserManagement } from './components/UserManagement';
 import { CompanyManagement } from './components/CompanyManagement';
 import { LostLeads } from './components/LostLeads';
+import { ConvertedLeads } from './components/ConvertedLeads';
 import { Settings } from './components/Settings';
 import { Toaster } from './components/ui/sonner';
 
@@ -34,6 +35,8 @@ function AppContent() {
         return <AssignedLeads />;
       case 'calendar':
         return <Calendar />;
+      case 'converted':
+        return <ConvertedLeads />;
       case 'lost':
         return <LostLeads />;
       case 'reports':
@@ -50,7 +53,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -72,7 +75,7 @@ function AppContent() {
       </div>
       
       {/* Main content */}
-      <main className="flex-1 overflow-auto w-full">
+      <main className="flex-1 overflow-y-auto w-full">
         {renderContent()}
       </main>
       

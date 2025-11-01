@@ -28,25 +28,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { Plus, Search, Filter, Download, Upload, Eye, Edit, Users, FileDown, Info } from 'lucide-react';
+import { Plus, Search, Filter, Download, Upload, Eye, Edit, FileDown, Info } from 'lucide-react';
 import { LeadForm } from './LeadForm';
 import { LeadDetail } from './LeadDetail';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { hasPermission, canAssignToUser } from '../types/roles';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
-  const { leads, setLeads, fieldConfigs } = useLeads();
+  const { leads, setLeads, fieldConfigs, addLead, updateLead, assignLead } = useLeads();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editMode, setEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Lead Pool logic varies by role
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -57,33 +58,48 @@ export function LeadManagement() {
                            d.email.toLowerCase().includes(searchTerm.toLowerCase())
                          ));
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    const matchesAssignment = assignedFilter === 'all' || lead.assignedTo === assignedFilter;
+
+    // Role-based Lead Pool filtering
+    let hasAccess = false;
     
-    // Users can only see their own leads unless they are admin/main_admin
-    const hasAccess = user?.role === 'main_admin' || user?.role === 'admin' || lead.assignedTo === user?.id;
+    if (user?.role === 'super_admin') {
+      // Super Admin sees only leads assigned to them
+      if (lead.assignedTo === user.id) {
+        hasAccess = true;
+      }
+    } else if (user?.role === 'company_admin' || user?.role === 'team_lead') {
+      // Company Admin and Team Lead see UNASSIGNED leads in their company
+      if ((!lead.isAssigned && lead.assignedTo === null) && 
+          !!user.companyId && lead.companyId === user.companyId) {
+        hasAccess = true;
+      }
+    } else if (user?.role === 'sales_user') {
+      // Sales User sees only leads ASSIGNED TO THEM
+      if (lead.assignedTo === user.id) {
+        hasAccess = true;
+      }
+    }
     
-    return matchesSearch && matchesStatus && matchesAssignment && hasAccess;
+    return matchesSearch && matchesStatus && hasAccess;
   });
 
-  const handleAddLead = (leadData: Omit<Lead, 'id' | 'createdAt'>) => {
-    const newLead: Lead = {
+  const handleAddLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
+    // Ensure tenant and uploader info
+    const payload = {
       ...leadData,
-      id: (leads.length + 1).toString(),
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setLeads([...leads, newLead]);
+      companyId: leadData.companyId || (user?.companyId || ''),
+      uploadedBy: user?.id || ''
+    } as Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>;
+
+    // Auto-assign manual leads to creator
+    addLead(payload, user?.id, true);
     setShowLeadForm(false);
-    toast.success('Lead added successfully!');
+    toast.success('Lead added and assigned to you successfully!');
   };
 
-  const handleEditLead = (leadData: Omit<Lead, 'id' | 'createdAt'>) => {
+  const handleEditLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
     if (selectedLead) {
-      const updatedLeads = leads.map(lead => 
-        lead.id === selectedLead.id 
-          ? { ...lead, ...leadData }
-          : lead
-      );
-      setLeads(updatedLeads);
+      updateLead(selectedLead.id, { ...leadData });
       setShowLeadForm(false);
       setEditMode(false);
       setSelectedLead(null);
@@ -103,10 +119,36 @@ export function LeadManagement() {
   };
 
   const handleAssignLead = (leadId: string, userId: string) => {
-    const updatedLeads = leads.map(lead => 
-      lead.id === leadId ? { ...lead, assignedTo: userId } : lead
-    );
-    setLeads(updatedLeads);
+    // Validate assignment permission
+    if (!user?.role) {
+      toast.error('Unable to determine your role');
+      return;
+    }
+
+    // Check if user has permission to assign leads
+    if (!hasPermission(user.role, 'ASSIGN_LEADS')) {
+      toast.error("You don't have permission to assign leads.");
+      return;
+    }
+
+    // Find target user to check their role
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) {
+      toast.error('Target user not found');
+      return;
+    }
+
+    // Validate if current user can assign to target user
+    if (!canAssignToUser(user.role, targetUser.role)) {
+      if (user.role === 'team_lead') {
+        toast.error('Team Leaders can only assign leads to Sales Users');
+      } else {
+        toast.error('You cannot assign leads to this user');
+      }
+      return;
+    }
+
+    assignLead(leadId, userId);
     toast.success('Lead assigned successfully!');
   };
 
@@ -121,18 +163,31 @@ export function LeadManagement() {
     }
   };
 
-  const getAssignedUserName = (userId: string) => {
+  const getAssignedUserName = (userId: string | null) => {
+    if (!userId) return 'Not Assigned';
     const assignedUser = users.find(user => user.id === userId);
-    return assignedUser ? assignedUser.name : 'Unassigned';
+    return assignedUser ? assignedUser.name : 'Not Assigned';
   };
 
   const handleImportExcel = () => {
+    // Check permission before allowing import
+    if (!user?.role || !hasPermission(user.role, 'IMPORT_LEADS')) {
+      toast.error("You don't have permission to import leads.");
+      return;
+    }
     fileInputRef.current?.click();
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Validate permission
+    if (!user?.role || !hasPermission(user.role, 'IMPORT_LEADS')) {
+      toast.error("You don't have permission to import leads.");
+      event.target.value = '';
+      return;
+    }
 
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     
@@ -175,7 +230,13 @@ export function LeadManagement() {
         const importedLeads = processImportedData(jsonData);
         
         if (importedLeads.length > 0) {
-          setLeads(prevLeads => [...prevLeads, ...importedLeads]);
+          setLeads(prevLeads => [...prevLeads, ...importedLeads.map(l => ({
+            ...l,
+            companyId: l.companyId || (user?.companyId || ''),
+            uploadedBy: l.uploadedBy || (user?.id || ''),
+            isAssigned: l.isAssigned ?? false,
+            assignedTo: l.assignedTo ?? null
+          }))]);
           const totalRows = jsonData.length;
           const skipped = totalRows - importedLeads.length;
           
@@ -330,7 +391,7 @@ export function LeadManagement() {
             const leadData: any = {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
               createdAt: new Date().toISOString().split('T')[0],
-              assignedTo: user?.id || '1',
+              assignedTo: null,
               followUpHistory: [],
               directors: []
             };
@@ -726,9 +787,11 @@ export function LeadManagement() {
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1>Lead Management</h1>
+          <h1>Lead Pool</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
-            Total: {leads.length} • Showing: {filteredLeads.length}
+            {user?.role === 'sales_user' || user?.role === 'super_admin'
+              ? `Showing: ${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`
+              : `Available for assignment: ${filteredLeads.length}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -736,10 +799,12 @@ export function LeadManagement() {
             <FileDown className="h-4 w-4" />
             <span className="hidden sm:inline">Template</span>
           </Button>
-          <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleImportExcel}>
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
+          {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
+            <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleImportExcel}>
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Import</span>
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleExportExcel}>
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export</span>
@@ -751,25 +816,31 @@ export function LeadManagement() {
         </div>
       </div>
 
-      {/* Import Instructions */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Import Tips:</strong> Download the template first to see the correct format. Your Excel file must have a "Company Name" column. 
-          <br/>
-          <strong>Multiple Directors:</strong> For companies with multiple directors, put the CIN in the first director's row, then leave the CIN column empty in subsequent director rows. All rows with empty CINs will be grouped with the previous CIN automatically.
-          <br/>
-          <strong>Example:</strong> Row 1: CIN=U12345, Director A | Row 2: CIN=(empty), Director B | Row 3: CIN=U67890, Director C - This creates 2 companies: First with Directors A & B, Second with Director C.
-          <br/>
-          Supported columns: CIN, Company Name, Authorised Capital, Paid up Capital, Date of Incorporation, Registered Address, Company Email, DIN, F Name, L Name, Mobile, Director Email.
-        </AlertDescription>
-      </Alert>
+      {/* Import Instructions - Only for roles that can import */}
+      {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Import Tips:</strong> Download the template first to see the correct format. Your Excel file must have a "Company Name" column. 
+            <br/>
+            <strong>Multiple Directors:</strong> For companies with multiple directors, put the CIN in the first director's row, then leave the CIN column empty in subsequent director rows. All rows with empty CINs will be grouped with the previous CIN automatically.
+            <br/>
+            <strong>Example:</strong> Row 1: CIN=U12345, Director A | Row 2: CIN=(empty), Director B | Row 3: CIN=U67890, Director C - This creates 2 companies: First with Directors A & B, Second with Director C.
+            <br/>
+            Supported columns: CIN, Company Name, Authorised Capital, Paid up Capital, Date of Incorporation, Registered Address, Company Email, DIN, F Name, L Name, Mobile, Director Email.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
-          <CardTitle>All Leads</CardTitle>
+          <CardTitle>Lead Pool</CardTitle>
           <CardDescription>
-            Manage and track your lead pipeline
+            {user?.role === 'sales_user' 
+              ? 'Your assigned leads' 
+              : user?.role === 'super_admin'
+              ? 'Leads assigned to you'
+              : 'Unassigned leads available for assignment'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -798,20 +869,6 @@ export function LeadManagement() {
                 <SelectItem value="Lost">Lost</SelectItem>
               </SelectContent>
             </Select>
-            {(user?.role === 'main_admin' || user?.role === 'admin') && (
-              <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <Users className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Filter by assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Assignees</SelectItem>
-                  {users.filter(u => u.isActive).map(user => (
-                    <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
           </div>
 
           {/* Table */}
@@ -867,18 +924,27 @@ export function LeadManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {(user?.role === 'main_admin' || user?.role === 'admin') ? (
+                      {(user?.role && hasPermission(user.role, 'ASSIGN_LEADS')) ? (
                         <Select 
-                          value={lead.assignedTo} 
-                          onValueChange={(value) => handleAssignLead(lead.id, value)}
+                          value={lead.assignedTo || undefined} 
+                          onValueChange={(value: string) => handleAssignLead(lead.id, value)}
                         >
                           <SelectTrigger className="w-40">
-                            <SelectValue />
+                            <SelectValue placeholder="Assign to..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {users.filter(u => u.isActive).map(user => (
-                              <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
-                            ))}
+                            {users
+                              .filter(u => u.isActive && user.role && canAssignToUser(user.role, u.role))
+                              .filter(u => {
+                                // For non-super admins, only show users from same company
+                                if (user.role === 'super_admin') return true;
+                                return u.companyId === user.companyId;
+                              })
+                              .map(targetUser => (
+                                <SelectItem key={targetUser.id} value={targetUser.id}>
+                                  {targetUser.name} ({targetUser.role})
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       ) : (
@@ -895,13 +961,15 @@ export function LeadManagement() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClick(lead)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {(user?.role === 'company_admin' || user?.role === 'team_lead') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditClick(lead)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

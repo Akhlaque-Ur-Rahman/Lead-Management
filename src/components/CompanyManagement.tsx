@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Building2, Plus, Edit, Trash2, Users, AlertCircle, Phone, Mail } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function CompanyManagement() {
   const { user, getUsersByCompany } = useAuth();

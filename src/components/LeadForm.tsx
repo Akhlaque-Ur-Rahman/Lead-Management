@@ -15,7 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { X, Plus } from 'lucide-react';
 import { Card } from './ui/card';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface LeadFormProps {
   onSubmit: (leadData: Omit<Lead, 'id' | 'createdAt'>) => void;
@@ -376,7 +376,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
           <div className="grid grid-cols-2 gap-4">
             {followUpFields.find(c => c.key === 'status') && renderField(followUpFields.find(c => c.key === 'status')!)}
             
-            {(user?.role === 'main_admin' || user?.role === 'admin') && (
+            {(user?.role === 'super_admin' || user?.role === 'company_admin' || user?.role === 'team_lead') && (
               <div className="space-y-2">
                 <Label htmlFor="assignedTo">Assign To *</Label>
                 <Select 
@@ -387,8 +387,11 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
                     <SelectValue placeholder="Select user" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.filter(u => u.isActive).map(user => (
-                      <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
+                    {(user?.role === 'super_admin'
+                      ? users.filter(u => u.isActive)
+                      : users.filter(u => u.isActive && u.companyId === user?.companyId)
+                    ).map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

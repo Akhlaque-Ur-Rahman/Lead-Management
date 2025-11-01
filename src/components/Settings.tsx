@@ -9,7 +9,7 @@ import { Switch } from './ui/switch';
 import { Alert, AlertDescription } from './ui/alert';
 import { Separator } from './ui/separator';
 import { Settings as SettingsIcon, Save, AlertCircle, Eye, FileSpreadsheet, FormInput } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function Settings() {
   const { user } = useAuth();

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth, User } from './AuthContext';
 import { useCompanies } from './CompanyContext';
+import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission } from '../types/roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -31,7 +32,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Users, Plus, Edit, Trash2, AlertCircle, Mail, Shield } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function UserManagement() {
   const { user, users, addUser, updateUser, deleteUser } = useAuth();
@@ -43,7 +44,7 @@ export function UserManagement() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'sales_user' as 'super_admin' | 'company_admin' | 'team_lead' | 'sales_user',
+    role: 'sales_user' as RoleKey,
     companyId: '',
     password: '',
     isActive: true,
@@ -177,25 +178,7 @@ export function UserManagement() {
     }
   };
 
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case 'super_admin': return 'destructive';
-      case 'company_admin': return 'default';
-      case 'team_lead': return 'secondary';
-      case 'sales_user': return 'outline';
-      default: return 'secondary';
-    }
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'super_admin': return 'Super Admin';
-      case 'company_admin': return 'Company Admin';
-      case 'team_lead': return 'Team Lead';
-      case 'sales_user': return 'Sales User';
-      default: return role;
-    }
-  };
+  // Using utility functions from roles.ts for role labels and badge variants
 
   // Stats
   const activeUsers = displayUsers.filter(u => u.isActive).length;
@@ -412,7 +395,7 @@ export function UserManagement() {
               <Label htmlFor="role">Role *</Label>
               <Select
                 value={formData.role}
-                onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                onValueChange={(value: RoleKey) => setFormData({ ...formData, role: value })}
               >
                 <SelectTrigger id="role">
                   <SelectValue />
@@ -433,7 +416,7 @@ export function UserManagement() {
                 <Label htmlFor="company">Company *</Label>
                 <Select
                   value={formData.companyId}
-                  onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, companyId: value })}
                 >
                   <SelectTrigger id="company">
                     <SelectValue placeholder="Select company" />
@@ -524,7 +507,7 @@ export function UserManagement() {
               <Label htmlFor="edit-role">Role *</Label>
               <Select
                 value={formData.role}
-                onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                onValueChange={(value: RoleKey) => setFormData({ ...formData, role: value })}
               >
                 <SelectTrigger id="edit-role">
                   <SelectValue />
@@ -545,7 +528,7 @@ export function UserManagement() {
                 <Label htmlFor="edit-company">Company *</Label>
                 <Select
                   value={formData.companyId}
-                  onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, companyId: value })}
                 >
                   <SelectTrigger id="edit-company">
                     <SelectValue placeholder="Select company" />

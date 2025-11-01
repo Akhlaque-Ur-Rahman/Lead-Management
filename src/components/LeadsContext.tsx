@@ -67,6 +67,17 @@ export interface Lead {
   
   // Follow-up History
   followUpHistory?: FollowUp[];
+  
+  // Converted Lead Fields
+  invoiceNo?: string;
+  projectValue?: string;
+  convertedBy?: string;
+  convertedAt?: string;
+  
+  // Lost Lead Fields
+  lostRemark?: string;
+  lostBy?: string;
+  lostAt?: string;
 }
 
 export interface FieldConfig {
@@ -90,7 +101,7 @@ interface LeadsContextType {
   setFieldConfigs: React.Dispatch<React.SetStateAction<FieldConfig[]>>;
   
   // Lead Operations
-  addLead: (lead: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => void;
+  addLead: (lead: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>, createdByUserId?: string, isManualCreation?: boolean) => void;
   updateLead: (leadId: string, updates: Partial<Lead>) => void;
   assignLead: (leadId: string, userId: string) => void;
   unassignLead: (leadId: string) => void;
@@ -103,11 +114,15 @@ interface LeadsContextType {
   restoreLostLead: (lostLeadIndex: number) => void;
   permanentlyDeleteLost: (lostLeadIndex: number) => void;
   
+  // Converted Lead Operations
+  markAsConverted: (leadId: string, invoiceNo: string, projectValue: string, userId: string) => void;
+  
   // Queries
   getLeadsByCompany: (companyId: string) => Lead[];
   getUnassignedLeads: (companyId: string) => Lead[];
   getAssignedLeads: (companyId: string) => Lead[];
   getLeadsAssignedToUser: (userId: string) => Lead[];
+  getConvertedLeads: (companyId: string) => Lead[];
   getDirectorFollowUpsForDate: (date: string, companyId?: string) => Array<{lead: Lead; director: Director; followUp: FollowUp}>;
 }
 
@@ -268,14 +283,22 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('lms_fieldConfigs', JSON.stringify(fieldConfigs));
   }, [fieldConfigs]);
 
-  const addLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
+  const addLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>, createdByUserId?: string, isManualCreation: boolean = true) => {
     const today = new Date();
+    const createdAt = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // Auto-assign manual leads to creator, leave imported leads unassigned
+    const isAssigned = isManualCreation && !!createdByUserId;
+    const assignedTo = isAssigned ? createdByUserId : null;
+    const assignedAt = isAssigned ? createdAt : undefined;
+    
     const newLead: Lead = {
       ...leadData,
       id: `lead-${Date.now()}`,
-      createdAt: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
-      isAssigned: false,
-      assignedTo: null,
+      createdAt,
+      isAssigned,
+      assignedTo,
+      assignedAt,
     };
     setLeads(prev => [...prev, newLead]);
   };
@@ -345,7 +368,13 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       const lostDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       
       const lostLead: LostLead = {
-        lead: { ...lead, status: 'Lost' },
+        lead: { 
+          ...lead, 
+          status: 'Lost',
+          lostRemark: remark,
+          lostBy: userId,
+          lostAt: lostDate
+        },
         lostBy: userId,
         lostDate: lostDate,
         lostRemark: remark,
@@ -355,6 +384,24 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       setLostLeads(prev => [...prev, lostLead]);
       setLeads(prev => prev.filter(l => l.id !== leadId));
     }
+  };
+
+  const markAsConverted = (leadId: string, invoiceNo: string, projectValue: string, userId: string) => {
+    const today = new Date();
+    const convertedAt = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    setLeads(prev => prev.map(lead =>
+      lead.id === leadId
+        ? {
+            ...lead,
+            status: 'Converted',
+            invoiceNo,
+            projectValue,
+            convertedBy: userId,
+            convertedAt
+          }
+        : lead
+    ));
   };
 
   const restoreLostLead = (lostLeadIndex: number) => {
@@ -383,6 +430,10 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const getLeadsAssignedToUser = (userId: string) => {
     return leads.filter(lead => lead.assignedTo === userId);
+  };
+
+  const getConvertedLeads = (companyId: string) => {
+    return leads.filter(lead => lead.companyId === companyId && lead.status === 'Converted');
   };
 
   const getDirectorFollowUpsForDate = (date: string, companyId?: string) => {
@@ -420,12 +471,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         unassignLead,
         addDirectorFollowUp,
         markAsLost,
+        markAsConverted,
         restoreLostLead,
         permanentlyDeleteLost,
         getLeadsByCompany,
         getUnassignedLeads,
         getAssignedLeads,
         getLeadsAssignedToUser,
+        getConvertedLeads,
         getDirectorFollowUpsForDate,
       }}
     >

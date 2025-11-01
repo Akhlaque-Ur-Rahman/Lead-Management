@@ -33,7 +33,7 @@ import {
   Filter,
   X
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { cn } from './ui/utils';
 
 interface FollowUpEntry {
@@ -91,10 +91,16 @@ export function Calendar() {
 
   const getFollowUpsForDay = (date: Date) => {
     const dateString = getLocalDateString(date);
-    const followUps = getDirectorFollowUpsForDate(
+    let followUps = getDirectorFollowUpsForDate(
       dateString,
       user.companyId || undefined
     );
+    
+    // Filter for sales users - only show their assigned leads' follow-ups
+    if (user.role === 'sales_user') {
+      followUps = followUps.filter(item => item.lead.assignedTo === user.id);
+    }
+    
     return followUps;
   };
 
@@ -151,10 +157,15 @@ export function Calendar() {
   const monthName = currentDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   
   // Get follow-ups for selected date
-  const selectedDateFollowUps = selectedDate ? getDirectorFollowUpsForDate(
+  let selectedDateFollowUps = selectedDate ? getDirectorFollowUpsForDate(
     selectedDate,
     user.companyId || undefined
   ) : [];
+  
+  // Filter for sales users
+  if (user.role === 'sales_user' && selectedDate) {
+    selectedDateFollowUps = selectedDateFollowUps.filter(item => item.lead.assignedTo === user.id);
+  }
 
   // Group by hour
   const followUpsByHour: Record<string, FollowUpEntry[]> = {};

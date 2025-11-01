@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
+import { canAssignToUser } from '../types/roles';
 import {
   Table,
   TableBody,
@@ -22,11 +23,11 @@ import {
 } from './ui/select';
 import { Building2, User, Search, Phone, Mail, Calendar, ArrowLeft } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function AssignedLeads() {
   const { user, users } = useAuth();
-  const { getAssignedLeads, getLeadsAssignedToUser } = useLeads();
+  const { getAssignedLeads, getLeadsAssignedToUser, assignLead } = useLeads();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -34,11 +35,22 @@ export function AssignedLeads() {
   if (!user) return null;
 
   // Get leads based on user role
-  const allAssignedLeads = user.role === 'sales_user' 
-    ? getLeadsAssignedToUser(user.id)
-    : user.companyId 
-    ? getAssignedLeads(user.companyId)
-    : [];
+  let allAssignedLeads: Lead[] = [];
+  
+  if (user.role === 'sales_user') {
+    // Sales Users see only their own leads
+    allAssignedLeads = getLeadsAssignedToUser(user.id);
+  } else if (user.role === 'team_lead') {
+    // Team Leaders see their own leads + Sales Users' leads in their company
+    const companyLeads = user.companyId ? getAssignedLeads(user.companyId) : [];
+    allAssignedLeads = companyLeads.filter(lead => {
+      const assignedUser = users.find(u => u.id === lead.assignedTo);
+      return lead.assignedTo === user.id || (assignedUser && assignedUser.role === 'sales_user');
+    });
+  } else if (user.role === 'company_admin' || user.role === 'super_admin') {
+    // Company Admin and Super Admin see all leads in their company
+    allAssignedLeads = user.companyId ? getAssignedLeads(user.companyId) : [];
+  }
 
   // Filter by selected user (for admins)
   const leads = selectedUser === 'all' 
@@ -58,6 +70,33 @@ export function AssignedLeads() {
     if (!userId) return 'Unassigned';
     const foundUser = users.find(u => u.id === userId);
     return foundUser ? foundUser.name : 'Unknown';
+  };
+
+  const handleReassign = (leadId: string, newUserId: string) => {
+    // Validation
+    if (!user?.role) {
+      toast.error('Unable to determine your role');
+      return;
+    }
+
+    const targetUser = users.find(u => u.id === newUserId);
+    if (!targetUser) {
+      toast.error('Target user not found');
+      return;
+    }
+
+    // Check if current user can assign to target user
+    if (!canAssignToUser(user.role, targetUser.role)) {
+      if (user.role === 'team_lead') {
+        toast.error('Team Leaders can only reassign leads to Sales Users.');
+      } else {
+        toast.error('You cannot assign leads to this user');
+      }
+      return;
+    }
+
+    assignLead(leadId, newUserId);
+    toast.success(`Lead reassigned to ${targetUser.name}`);
   };
 
   const getStatusColor = (status: string) => {
@@ -90,12 +129,22 @@ export function AssignedLeads() {
     return { date: earliestDate, time: earliestTime };
   };
 
-  // Stats by user
-  const companyUsers = user.companyId ? users.filter(u => u.companyId === user.companyId) : [];
-  const userStats = companyUsers.map(u => ({
-    user: u,
-    count: allAssignedLeads.filter(l => l.assignedTo === u.id).length
-  }));
+  // Stats by user - filter based on role
+  let companyUsers = user.companyId ? users.filter(u => u.companyId === user.companyId) : [];
+  
+  // Team Leaders should only see themselves and Sales Users in the distribution
+  if (user.role === 'team_lead') {
+    companyUsers = companyUsers.filter(u => 
+      u.id === user.id || u.role === 'sales_user'
+    );
+  }
+  
+  const userStats = companyUsers
+    .map(u => ({
+      user: u,
+      count: allAssignedLeads.filter(l => l.assignedTo === u.id).length
+    }))
+    .filter(stat => stat.count > 0); // Only show users with assigned leads
 
   if (selectedLead) {
     return (
@@ -337,18 +386,43 @@ export function AssignedLeads() {
                           </Badge>
                         </TableCell>
                         {user.role !== 'sales_user' && (
-                          <TableCell className="hidden sm:table-cell">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">{getUserName(lead.assignedTo)}</span>
-                            </div>
+                          <TableCell className="hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                            {(user.role === 'company_admin' || user.role === 'team_lead') ? (
+                              <Select 
+                                value={lead.assignedTo || undefined} 
+                                onValueChange={(value: string) => handleReassign(lead.id, value)}
+                              >
+                                <SelectTrigger className="w-[160px]">
+                                  <SelectValue placeholder="Reassign..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {users
+                                    .filter(u => u.isActive && canAssignToUser(user.role!, u.role))
+                                    .filter(u => {
+                                      // For non-super admins, only show users from same company
+                                      if (user.role === 'super_admin') return true;
+                                      return u.companyId === user.companyId;
+                                    })
+                                    .map(targetUser => (
+                                      <SelectItem key={targetUser.id} value={targetUser.id}>
+                                        {targetUser.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{getUserName(lead.assignedTo)}</span>
+                              </div>
+                            )}
                           </TableCell>
                         )}
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={(e) => {
+                            onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
                               setSelectedLead(lead);
                             }}

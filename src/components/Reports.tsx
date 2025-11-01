@@ -27,25 +27,34 @@ import {
 import { Download, TrendingUp, Users, Calendar, Target, FileDown, BarChart3 } from 'lucide-react';
 import { useLeads } from './LeadsContext';
 import { useAuth } from './AuthContext';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function Reports() {
   const { leads, lostLeads } = useLeads();
-  const { users } = useAuth();
+  const { user, users } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('all');
 
+  // Filter data for sales users - only their own leads
+  const userLeadsData = user?.role === 'sales_user'
+    ? leads.filter(l => l.assignedTo === user.id)
+    : leads;
+    
+  const userLostLeadsData = user?.role === 'sales_user'
+    ? lostLeads.filter(ll => ll.lostBy === user.id)
+    : lostLeads;
+
   // Calculate real statistics
-  const totalLeads = leads.length;
-  const convertedCount = leads.filter(l => l.status === 'Converted').length;
-  const lostCount = lostLeads.length;
+  const totalLeads = userLeadsData.length;
+  const convertedCount = userLeadsData.filter(l => l.status === 'Converted').length;
+  const lostCount = userLostLeadsData.length;
   const totalProcessed = convertedCount + lostCount;
   const conversionRate = totalProcessed > 0 ? ((convertedCount / totalProcessed) * 100).toFixed(1) : '0';
 
   // Status distribution with real data
   const statusDistribution = [
-    { name: 'Hot', value: leads.filter(l => l.status === 'Hot').length, color: '#ef4444' },
-    { name: 'Warm', value: leads.filter(l => l.status === 'Warm').length, color: '#f97316' },
-    { name: 'Cold', value: leads.filter(l => l.status === 'Cold').length, color: '#6366f1' },
+    { name: 'Hot', value: userLeadsData.filter(l => l.status === 'Hot').length, color: '#ef4444' },
+    { name: 'Warm', value: userLeadsData.filter(l => l.status === 'Warm').length, color: '#f97316' },
+    { name: 'Cold', value: userLeadsData.filter(l => l.status === 'Cold').length, color: '#6366f1' },
     { name: 'Converted', value: convertedCount, color: '#10b981' },
     { name: 'Lost', value: lostCount, color: '#64748b' }
   ].filter(item => item.value > 0); // Only show non-zero values
@@ -61,7 +70,7 @@ export function Reports() {
       leads: userLeads.length,
       converted: userConverted,
       lost: userLost,
-      conversionRate: userLeads.length > 0 ? ((userConverted / (userConverted + userLost)) * 100).toFixed(0) : 0
+      conversionRate: userLeads.length > 0 ? ((userConverted / (userConverted + userLost)) * 100).toFixed(0) : '0'
     };
   }).filter(user => user.leads > 0); // Only show users with leads
 
@@ -91,9 +100,9 @@ export function Reports() {
 
   // Lead status by stage
   const stageData = [
-    { stage: 'New', count: leads.filter(l => l.status === 'Cold').length },
-    { stage: 'Contacted', count: leads.filter(l => l.status === 'Warm').length },
-    { stage: 'Qualified', count: leads.filter(l => l.status === 'Hot').length },
+    { stage: 'New', count: userLeadsData.filter(l => l.status === 'Cold').length },
+    { stage: 'Contacted', count: userLeadsData.filter(l => l.status === 'Warm').length },
+    { stage: 'Qualified', count: userLeadsData.filter(l => l.status === 'Hot').length },
     { stage: 'Converted', count: convertedCount },
   ];
 

@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { type RoleKey, type RoleId, getRoleId } from '../types/roles';
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'super_admin' | 'company_admin' | 'team_lead' | 'sales_user';
+  role: RoleKey;
+  roleId: RoleId; // Unique identifier for the role
   companyId: string | null; // null for super_admin
   createdAt: string;
   isActive: boolean;
@@ -15,8 +17,8 @@ interface AuthContextType {
   users: User[];
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  addUser: (userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => void;
-  updateUser: (userId: string, updates: Partial<User> & { password?: string }) => void;
+  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => void;
+  updateUser: (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => void;
   deleteUser: (userId: string) => void;
   getUsersByCompany: (companyId: string) => User[];
   isLoading: boolean;
@@ -40,6 +42,7 @@ const initialUsers: User[] = [
     name: 'Super Admin',
     email: 'superadmin@lms.com',
     role: 'super_admin',
+    roleId: 1,
     companyId: null,
     createdAt: '2024-01-01',
     isActive: true,
@@ -51,6 +54,7 @@ const initialUsers: User[] = [
     name: 'Rajesh Kumar',
     email: 'rajesh@abcmotors.com',
     role: 'company_admin',
+    roleId: 2,
     companyId: 'company-1',
     createdAt: '2024-01-15',
     isActive: true,
@@ -60,6 +64,7 @@ const initialUsers: User[] = [
     name: 'Priya Sharma',
     email: 'priya@abcmotors.com',
     role: 'team_lead',
+    roleId: 3,
     companyId: 'company-1',
     createdAt: '2024-01-20',
     isActive: true,
@@ -69,6 +74,7 @@ const initialUsers: User[] = [
     name: 'Amit Singh',
     email: 'amit@abcmotors.com',
     role: 'sales_user',
+    roleId: 4,
     companyId: 'company-1',
     createdAt: '2024-01-25',
     isActive: true,
@@ -80,6 +86,7 @@ const initialUsers: User[] = [
     name: 'Vikram Patel',
     email: 'vikram@xyzauto.com',
     role: 'company_admin',
+    roleId: 2,
     companyId: 'company-2',
     createdAt: '2024-02-20',
     isActive: true,
@@ -89,6 +96,7 @@ const initialUsers: User[] = [
     name: 'Sneha Reddy',
     email: 'sneha@xyzauto.com',
     role: 'sales_user',
+    roleId: 4,
     companyId: 'company-2',
     createdAt: '2024-02-25',
     isActive: true,
@@ -100,6 +108,7 @@ const initialUsers: User[] = [
     name: 'Arjun Mehta',
     email: 'arjun@pqrenterprises.com',
     role: 'company_admin',
+    roleId: 2,
     companyId: 'company-3',
     createdAt: '2024-03-10',
     isActive: true,
@@ -169,11 +178,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('lms_currentUser');
   };
 
-  const addUser = (userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => {
+  const addUser = (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {
     const { password, ...userDataWithoutPassword } = userData;
     const today = new Date();
+    const roleId = getRoleId(userData.role) || 4; // Default to sales_user if not found
     const newUser: User = {
       ...userDataWithoutPassword,
+      roleId,
       id: `user-${Date.now()}`,
       createdAt: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
     };
@@ -184,9 +195,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  const updateUser = (userId: string, updates: Partial<User> & { password?: string }) => {
+  const updateUser = (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => {
     const { password, ...userUpdates } = updates;
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...userUpdates } : u));
+    // If role is being updated, update roleId as well
+    const roleId = updates.role ? getRoleId(updates.role) : undefined;
+    const fullUpdates = roleId ? { ...userUpdates, roleId } : userUpdates;
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...fullUpdates } : u));
     
     if (password && password.trim()) {
       const userToUpdate = users.find(u => u.id === userId);
