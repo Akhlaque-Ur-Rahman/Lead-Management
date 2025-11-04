@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
+import { hasPermission } from '../types/roles';
 
 interface LeadDetailProps {
   lead: Lead;
@@ -169,6 +170,12 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       setShowLostDialog(true);
       setSelectedStatus(lead.status); // Reset to current status
     } else if (newStatus === 'Converted') {
+      // Only Company Admin can mark as converted (requires financial data)
+      if (user?.role !== 'company_admin') {
+        toast.error('Only Company Admin can mark leads as converted');
+        setSelectedStatus(lead.status);
+        return;
+      }
       setShowConvertedDialog(true);
       setSelectedStatus(lead.status); // Reset to current status
     } else {
@@ -260,7 +267,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                   <SelectItem value="Hot">Hot</SelectItem>
                   <SelectItem value="Warm">Warm</SelectItem>
                   <SelectItem value="Cold">Cold</SelectItem>
-                  <SelectItem value="Converted">Converted</SelectItem>
+                  {user?.role === 'company_admin' && (
+                    <SelectItem value="Converted">Converted</SelectItem>
+                  )}
                   <SelectItem value="Lost">Lost</SelectItem>
                 </SelectContent>
               </Select>
@@ -539,6 +548,60 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
             </div>
           </div>
         </div>
+
+        {/* Converted Lead Information - Financial data hidden for Team Leaders */}
+        {lead.status === 'Converted' && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2">
+                <IndianRupee className="h-4 w-4" />
+                Conversion Details
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {user?.role && hasPermission(user.role, 'VIEW_FINANCIAL_DATA') ? (
+                  <>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Invoice Number</p>
+                      <p className="font-mono">{lead.invoiceNo || 'N/A'}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <IndianRupee className="h-3 w-3" />
+                        Project Value
+                      </p>
+                      <p>₹ {lead.projectValue || 'N/A'}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-2 p-3 bg-muted/50 rounded-md border border-border">
+                    <p className="text-sm text-muted-foreground">
+                      Financial data is restricted. Contact your Company Admin for details.
+                    </p>
+                  </div>
+                )}
+                
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Converted By
+                  </p>
+                  <p>{lead.convertedBy || 'N/A'}</p>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Converted On
+                  </p>
+                  <p>{lead.convertedAt ? formatDate(lead.convertedAt) : 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Notes */}
         {lead.notes && (

@@ -289,10 +289,141 @@ const assignableRoles = getAssignableRoles(user.role);
 
 ---
 
+## 🔒 Team Leader Financial Data Restrictions (November 4, 2025)
+
+### Overview
+Enhanced role-based access control to restrict Team Leaders from viewing financial data and performing certain administrative actions while maintaining operational access.
+
+### New Permissions Added
+
+#### 1. `VIEW_CONVERTED_LEADS`
+- **Purpose**: Controls access to the Converted Leads page
+- **Granted to**: Super Admin, Company Admin
+- **Denied to**: Team Lead, Sales User
+- **Impact**: Team Leaders can no longer access the Converted Leads page which contains financial information
+
+#### 2. `VIEW_FINANCIAL_DATA`
+- **Purpose**: Controls visibility of financial fields (Invoice No., Project Value)
+- **Granted to**: Super Admin, Company Admin
+- **Denied to**: Team Lead, Sales User
+- **Impact**: Team Leaders cannot see financial data anywhere in the application
+
+#### 3. `DELETE_LOST_LEADS_PERMANENT`
+- **Purpose**: Controls permanent deletion of lost leads
+- **Granted to**: Super Admin, Company Admin
+- **Denied to**: Team Lead, Sales User
+- **Impact**: Team Leaders can only view and restore lost leads, not permanently delete them
+
+### Files Modified
+
+#### 1. `src/types/roles.ts`
+**Changes**:
+- ✅ Added `VIEW_CONVERTED_LEADS: ['super_admin', 'company_admin']`
+- ✅ Added `VIEW_FINANCIAL_DATA: ['super_admin', 'company_admin']`
+- ✅ Added `DELETE_LOST_LEADS_PERMANENT: ['super_admin', 'company_admin']`
+- ✅ Updated existing `VIEW_CONVERTED_LEADS` permission (was `['company_admin']` only)
+
+**Impact**: Centralized permission system now enforces financial data restrictions
+
+---
+
+#### 2. `src/components/LeadDetail.tsx`
+**Changes**:
+- ✅ Imported `hasPermission` helper from roles
+- ✅ Added Conversion Details section with conditional rendering:
+  - Invoice Number and Project Value only shown if `VIEW_FINANCIAL_DATA` permission
+  - Shows restriction message for Team Leaders: *"Financial data is restricted. Contact your Company Admin for details."*
+  - Converted By and Converted Date visible to all roles
+- ✅ Restricted "Mark as Converted" action to Company Admin only
+- ✅ Added validation in `handleStatusChange` to prevent Team Leaders from marking leads as converted
+- ✅ Removed "Converted" option from status dropdown for Team Leaders and Sales Users
+
+**Impact**: Team Leaders can view converted lead metadata but not financial information
+
+---
+
+#### 3. `src/components/LostLeads.tsx`
+**Changes**:
+- ✅ Imported `hasPermission` helper
+- ✅ Updated `handlePermanentDelete` to use `DELETE_LOST_LEADS_PERMANENT` permission
+- ✅ Changed error message to: *"You don't have permission to permanently delete lost leads."*
+- ✅ Updated info alert with role-specific messages:
+  - Team Leaders: *"You can view and restore leads marked as lost by your team. Permanent deletion is restricted to Company Admins."*
+  - Other roles: Original message
+- ✅ Permanent delete button now uses `hasPermission()` instead of hardcoded role check
+
+**Impact**: Consistent permission enforcement for permanent deletion
+
+---
+
+#### 4. `src/components/ConvertedLeads.tsx`
+**Changes**:
+- ✅ Imported `hasPermission` helper
+- ✅ Updated access control from `user.role !== 'company_admin'` to `!hasPermission(user.role, 'VIEW_CONVERTED_LEADS')`
+- ✅ Enhanced denial message: *"Access denied. This page contains financial data and is only available to authorized administrators."*
+
+**Impact**: Uses centralized permission system for consistency
+
+---
+
+### Team Leader Access Summary
+
+#### ✅ Team Leaders CAN:
+- Access Dashboard (with company leads stats)
+- View and manage Lead Pool
+- View and manage Assigned Leads
+- Access Follow-Up Calendar (their team's follow-ups)
+- View Lost Leads (restore temporarily lost leads)
+- Access Reports & Analytics (performance metrics only)
+- Manage Users (create Sales Users only)
+- Assign leads (to Sales Users only)
+
+#### 🚫 Team Leaders CANNOT:
+- View the Converted Leads page
+- See Invoice Numbers or Project Values
+- Mark leads as Converted (requires financial data entry)
+- Permanently delete lost leads
+- Assign leads to Company Admins or other Team Leaders
+- Access company Settings page
+- View financial summaries or revenue totals
+
+### Permission Enforcement
+
+All restrictions are enforced through the `hasPermission()` helper function:
+```typescript
+import { hasPermission } from '../types/roles';
+
+// Check permission
+if (hasPermission(user.role, 'VIEW_FINANCIAL_DATA')) {
+  // Show financial data
+} else {
+  // Show restriction message
+}
+```
+
+### Updated Permission Matrix
+
+| Permission | Super Admin | Company Admin | Team Lead | Sales User |
+|-----------|------------|---------------|-----------|------------|
+| VIEW_CONVERTED_LEADS | ✅ | ✅ | ❌ | ❌ |
+| DELETE_LOST_LEADS_PERMANENT | ✅ | ✅ | ❌ | ❌ |
+| VIEW_FINANCIAL_DATA | ✅ | ✅ | ❌ | ❌ |
+
+### Benefits
+
+1. **Data Security**: Sensitive financial information protected from unauthorized access
+2. **Role Clarity**: Clear separation between operational and financial responsibilities
+3. **Compliance**: Better audit trail and access control for financial data
+4. **Consistency**: Centralized permission system prevents bypass attempts
+5. **User Experience**: Clear messages inform users of restrictions
+
+---
+
 ## 🎉 Completion Status
 
 ✅ **All tasks completed successfully!**
 
+### Original Role Identifier System
 - ✅ Role configuration file created with identifiers
 - ✅ AuthContext updated with roleId field
 - ✅ Sidebar component updated to use role utilities
@@ -300,7 +431,15 @@ const assignableRoles = getAssignableRoles(user.role);
 - ✅ Login component updated with RoleKey type
 - ✅ Bug fixes applied (LostLeads and Dashboard)
 - ✅ Documentation created (ROLE_IDENTIFIERS.md)
-- ✅ Summary document created (this file)
+
+### Team Leader Financial Data Restrictions (Nov 4, 2025)
+- ✅ Added 3 new permissions (VIEW_CONVERTED_LEADS, VIEW_FINANCIAL_DATA, DELETE_LOST_LEADS_PERMANENT)
+- ✅ Updated LeadDetail.tsx with financial data restrictions
+- ✅ Updated LostLeads.tsx with permanent delete restrictions
+- ✅ Updated ConvertedLeads.tsx with permission-based access
+- ✅ Updated roles.ts permission matrix
+- ✅ All components using `hasPermission()` helper consistently
+- ✅ Documentation updated (this file)
 
 ---
 
@@ -312,6 +451,6 @@ const assignableRoles = getAssignableRoles(user.role);
 
 ---
 
-**Last Updated**: November 1, 2025
-**Version**: 1.0.0
+**Last Updated**: November 4, 2025
+**Version**: 1.1.0
 **Status**: ✅ Complete

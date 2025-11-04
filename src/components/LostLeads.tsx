@@ -25,6 +25,7 @@ import {
 import { Search, RotateCcw, Trash2, Info, AlertCircle, Eye } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
 import { toast } from 'sonner';
+import { hasPermission } from '../types/roles';
 
 export function LostLeads() {
   const { user, users } = useAuth();
@@ -73,8 +74,8 @@ export function LostLeads() {
   };
 
   const handlePermanentDelete = (leadId: string) => {
-    if (user?.role !== 'company_admin') {
-      toast.error('Only Company Admin can permanently delete lost leads!');
+    if (!user?.role || !hasPermission(user.role, 'DELETE_LOST_LEADS_PERMANENT')) {
+      toast.error('You don\'t have permission to permanently delete lost leads.');
       return;
     }
 
@@ -118,8 +119,9 @@ export function LostLeads() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Info:</strong> Regular users can restore leads they marked as lost. 
-          Only Company Admin can permanently delete lost leads.
+          <strong>Info:</strong> {user?.role === 'team_lead' 
+            ? 'You can view and restore leads marked as lost by your team. Permanent deletion is restricted to Company Admins.' 
+            : 'Regular users can restore leads they marked as lost. Only Company Admin can permanently delete lost leads.'}
         </AlertDescription>
       </Alert>
 
@@ -214,12 +216,12 @@ export function LostLeads() {
                               <RotateCcw className="h-4 w-4" />
                             </Button>
                           )}
-                          {user?.role === 'company_admin' && (
+                          {user?.role && hasPermission(user.role, 'DELETE_LOST_LEADS_PERMANENT') && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handlePermanentDelete(lostLead.lead.id)}
-                              title="Permanently Delete (Company Admin Only)"
+                              title="Permanently Delete (Admin Only)"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>

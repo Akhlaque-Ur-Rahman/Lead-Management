@@ -202,14 +202,21 @@ interface Company {
 #### 3. Team Lead (Level 2)
 - **ID**: 3
 - **Key**: `team_lead`
-- **Access**: Team management and oversight
+- **Access**: Team management and oversight (NO financial data access)
 - **Permissions**:
   - Create Sales Users
   - View team performance
-  - Assign leads to team members
+  - Assign leads to Sales Users only
   - Edit team leads
-  - Access reports
+  - Access reports (performance metrics only, no financial data)
   - Manage team follow-ups
+  - Restore lost leads (cannot permanently delete)
+- **Restrictions**:
+  - ❌ Cannot view Converted Leads page
+  - ❌ Cannot see Invoice Numbers or Project Values
+  - ❌ Cannot mark leads as Converted
+  - ❌ Cannot permanently delete lost leads
+  - ❌ Cannot assign to Company Admins or other Team Leaders
 
 #### 4. Sales User (Level 1)
 - **ID**: 4
@@ -230,14 +237,16 @@ interface Company {
 | VIEW_LEAD_POOL | ✅ (All) | ✅ (Unassigned) | ✅ (Unassigned) | ✅ (Self) |
 | VIEW_ASSIGNED_LEADS | ✅ | ✅ | ✅ | ❌ |
 | VIEW_CALENDAR | ✅ (All) | ✅ (Company) | ✅ (Team) | ✅ (Self) |
-| VIEW_LOST_LEADS | ✅ (All) | ✅ (All) | ✅ (Self) | ✅ (Self) |
+| VIEW_LOST_LEADS | ✅ (All) | ✅ (All) | ✅ (Team) | ✅ (Self) |
 | VIEW_REPORTS | ✅ (All) | ✅ (Company) | ✅ (Team) | ✅ (Self) |
-| VIEW_CONVERTED_LEADS | ❌ | ✅ | ❌ | ❌ |
-| MANAGE_USERS | ✅ | ✅ | ✅ | ❌ |
+| **VIEW_CONVERTED_LEADS** | ✅ | ✅ | ❌ | ❌ |
+| **VIEW_FINANCIAL_DATA** | ✅ | ✅ | ❌ | ❌ |
+| **DELETE_LOST_LEADS_PERMANENT** | ✅ | ✅ | ❌ | ❌ |
+| MANAGE_USERS | ✅ | ✅ | ✅ (Sales Only) | ❌ |
 | MANAGE_COMPANIES | ✅ | ❌ | ❌ | ❌ |
 | MANAGE_SETTINGS | ✅ | ✅ | ❌ | ❌ |
-| DELETE_LOST_LEADS | ❌ | ✅ | ❌ | ❌ |
-| RESTORE_LOST_LEADS | ✅ | ✅ | ✅ (Own) | ✅ (Own) |
+| DELETE_LOST_LEADS | ✅ | ❌ | ❌ | ❌ |
+| RESTORE_LOST_LEADS | ✅ | ✅ | ✅ | ✅ (Own) |
 | ASSIGN_LEADS | ✅ (Anyone) | ✅ (Anyone) | ✅ (Sales Only) | ❌ |
 | EDIT_LEADS | ❌ | ✅ | ✅ | ❌ |
 | IMPORT_LEADS | ❌ | ✅ | ✅ | ❌ |
@@ -1025,7 +1034,73 @@ const { companies } = useCompanies();
 - **Result**: Sidebar stays fixed while content scrolls independently
 - **Files Modified**: `App.tsx`, `Sidebar.tsx`
 
-### Role Identifier System (Previous)
+### Team Leader Financial Data Restrictions (November 4, 2025)
+
+#### Overview
+Implemented comprehensive financial data access restrictions for Team Leaders to protect sensitive business information while maintaining full operational capabilities.
+
+#### New Permissions Added
+1. **VIEW_CONVERTED_LEADS** - Access to Converted Leads page (Company Admin only)
+2. **VIEW_FINANCIAL_DATA** - Visibility of Invoice Numbers and Project Values (Company Admin only)
+3. **DELETE_LOST_LEADS_PERMANENT** - Permanent deletion of lost leads (Company Admin only)
+
+#### Components Updated
+- **LeadDetail.tsx**
+  - Added Conversion Details section with conditional financial data display
+  - Team Leaders see: "Financial data is restricted. Contact your Company Admin for details."
+  - Blocked "Converted" status option for Team Leaders
+  - Prevented marking leads as Converted (requires financial data entry)
+  
+- **LostLeads.tsx**
+  - Permanent delete button hidden for Team Leaders
+  - Role-specific info messages
+  - Permission-based button visibility
+  
+- **ConvertedLeads.tsx**
+  - Page access controlled via `VIEW_CONVERTED_LEADS` permission
+  - Enhanced access denial message
+  
+- **roles.ts**
+  - Added 3 new permission flags
+  - Updated permission matrix
+
+#### Team Leader Access Control
+**✅ Can Access:**
+- Dashboard (company performance metrics)
+- Lead Pool (assign to Sales Users)
+- Assigned Leads (full team view)
+- Follow-Up Calendar (team schedules)
+- Lost Leads (view and restore)
+- Reports & Analytics (performance only)
+- User Management (create Sales Users)
+
+**❌ Cannot Access:**
+- Converted Leads page
+- Invoice Numbers
+- Project Values
+- Financial summaries
+- Permanent delete functions
+- Company Settings
+- Lead conversion marking
+
+#### Benefits
+- **Data Security**: Financial information isolated from operational roles
+- **Compliance**: Clear audit trail for financial data access
+- **Role Clarity**: Distinct operational vs. financial responsibilities
+- **Consistent Enforcement**: Centralized `hasPermission()` checks throughout application
+
+#### Files Modified
+- `src/types/roles.ts`
+- `src/components/LeadDetail.tsx`
+- `src/components/LostLeads.tsx`
+- `src/components/ConvertedLeads.tsx`
+- `CHANGES_SUMMARY.md`
+- `ROLE_IDENTIFIERS.md`
+- `PROJECT_DOCUMENTATION.md`
+
+---
+
+### Role Identifier System (November 1, 2025)
 - Implemented unique numeric identifiers for roles
 - Created centralized role management system
 - Added permission matrix
@@ -1107,8 +1182,8 @@ const { companies } = useCompanies();
 - Project maintained by Akhlaque-Ur-Rahman
 
 ### Version Information
-- **Current Version**: 0.1.0
-- **Last Updated**: November 1, 2025
+- **Current Version**: 0.2.0
+- **Last Updated**: November 4, 2025
 - **Node Version**: 20.x
 - **React Version**: 18.3.1
 

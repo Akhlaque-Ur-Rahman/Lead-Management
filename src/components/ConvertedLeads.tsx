@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Building2, Search, CheckCircle, IndianRupee, Calendar, User, Info, Download, ArrowUpDown } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
 import { toast } from 'sonner';
+import { hasPermission } from '../types/roles';
 
 export function ConvertedLeads() {
   const { user, users } = useAuth();
@@ -33,10 +34,10 @@ export function ConvertedLeads() {
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  if (!user || user.role !== 'company_admin') {
+  if (!user?.role || !hasPermission(user.role, 'VIEW_CONVERTED_LEADS')) {
     return (
       <div className="p-6 text-center">
-        <p className="text-muted-foreground">Access denied. This page is only available to Company Admins.</p>
+        <p className="text-muted-foreground">Access denied. This page contains financial data and is only available to authorized administrators.</p>
       </div>
     );
   }
