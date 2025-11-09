@@ -37,6 +37,7 @@ export function Login() {
   const handleDemoLogin = async (role: RoleKey, companyId?: string) => {
     const demoCredentials = {
       super_admin: { email: 'superadmin@lms.com', password: 'super123' },
+      platform_admin: { email: 'platformadmin@lms.com', password: 'platform123' },
       company_admin_1: { email: 'rajesh@abcmotors.com', password: 'admin123' },
       company_admin_2: { email: 'vikram@xyzauto.com', password: 'admin123' },
       company_admin_3: { email: 'arjun@pqrenterprises.com', password: 'admin123' },
@@ -47,6 +48,8 @@ export function Login() {
     let creds;
     if (role === 'super_admin') {
       creds = demoCredentials.super_admin;
+    } else if (role === 'platform_admin') {
+      creds = demoCredentials.platform_admin;
     } else if (role === 'company_admin') {
       creds = companyId === 'company-1' 
         ? demoCredentials.company_admin_1 
@@ -170,6 +173,19 @@ export function Login() {
                         <span className="font-medium">Super Admin</span>
                         <span className="text-xs text-muted-foreground">
                           superadmin@lms.com / super123
+                        </span>
+                      </div>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left h-auto py-2"
+                      onClick={() => handleDemoLogin('platform_admin')}
+                      type="button"
+                    >
+                      <div className="flex flex-col items-start w-full">
+                        <span className="font-medium">Platform Admin</span>
+                        <span className="text-xs text-muted-foreground">
+                          platformadmin@lms.com / platform123
                         </span>
                       </div>
                     </Button>

@@ -52,8 +52,8 @@ export function UserManagement() {
 
   if (!user) return null;
 
-  // Check access rights
-  const canManageUsers = ['super_admin', 'company_admin', 'team_lead'].includes(user.role);
+  // Check access rights using proper permission system
+  const canManageUsers = hasPermission(user.role, 'MANAGE_USERS');
   
   if (!canManageUsers) {
     return (

@@ -42,6 +42,9 @@ export function ConvertedLeads() {
     );
   }
 
+  // Check for financial data access
+  const canViewFinancialData = hasPermission(user.role, 'VIEW_FINANCIAL_DATA');
+
   // Get converted leads for the company
   const convertedLeads = user.companyId ? getConvertedLeads(user.companyId) : [];
 
@@ -182,15 +185,18 @@ export function ConvertedLeads() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Project Value</CardTitle>
+            <CardTitle className="text-sm">Total Value</CardTitle>
             <IndianRupee className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₹{calculateTotalValue().toLocaleString('en-IN')}
+              {canViewFinancialData 
+                ? `₹${calculateTotalValue().toLocaleString('en-IN')}`
+                : 'Access Restricted'
+              }
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Across all conversions
+              Combined project value
             </p>
           </CardContent>
         </Card>
@@ -202,9 +208,12 @@ export function ConvertedLeads() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₹{convertedLeads.length > 0 
-                ? Math.round(calculateTotalValue() / convertedLeads.length).toLocaleString('en-IN')
-                : '0'}
+              {canViewFinancialData
+                ? `₹${convertedLeads.length > 0 
+                    ? Math.round(calculateTotalValue() / convertedLeads.length).toLocaleString('en-IN')
+                    : '0'}`
+                : 'Access Restricted'
+              }
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Per conversion
@@ -311,13 +320,15 @@ export function ConvertedLeads() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <p className="font-mono text-sm">{lead.invoiceNo || 'N/A'}</p>
+                        <p className="font-mono text-sm">
+                          {canViewFinancialData ? (lead.invoiceNo || 'N/A') : 'Access Restricted'}
+                        </p>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <IndianRupee className="h-3 w-3 text-muted-foreground" />
                           <span className="font-semibold text-green-600">
-                            {formatCurrency(lead.projectValue)}
+                            {canViewFinancialData ? formatCurrency(lead.projectValue) : 'Access Restricted'}
                           </span>
                         </div>
                       </TableCell>

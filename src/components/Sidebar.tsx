@@ -11,7 +11,8 @@ import {
   Building2,
   ClipboardList,
   UserCheck,
-  CheckCircle
+  CheckCircle,
+  Globe
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
@@ -28,32 +29,49 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   
   // Base menu items for all users
   const baseMenuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
-    { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: [ 'company_admin', 'team_lead', 'sales_user'] },
-    { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: [ 'company_admin', 'team_lead'] },
+    { id: 'super-dashboard', label: 'Super Dashboard', icon: Globe, roles: ['super_admin', 'platform_admin'] },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] },
+    { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: ['company_admin', 'team_lead', 'sales_user'] },
+    { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['company_admin', 'team_lead'] },
     { id: 'calendar', label: 'Follow-up Calendar', icon: Calendar, roles: ['company_admin', 'team_lead', 'sales_user'] },
-    { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['company_admin'] },
+    { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['super_admin', 'platform_admin', 'company_admin'] },
     { id: 'lost', label: 'Lost Leads', icon: XCircle, roles: ['company_admin', 'team_lead', 'sales_user'] },
-    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] },
+    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] },
   ];
 
   // Admin menu items
   const adminMenuItems = [
-    { id: 'users', label: 'User Management', icon: UserCog, roles: ['super_admin', 'company_admin', 'team_lead'] },
-    { id: 'companies', label: 'Companies', icon: Building2, roles: ['super_admin'] },
-    { id: 'settings', label: 'Settings', icon: Settings, roles: ['super_admin', 'company_admin'] },
+    { id: 'users', label: 'User Management', icon: UserCog, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] },
+    { id: 'companies', label: 'Companies', icon: Building2, roles: ['super_admin', 'platform_admin'] },
+    { id: 'settings', label: 'Settings', icon: Settings, roles: ['super_admin', 'platform_admin', 'company_admin'] },
   ];
 
   // Filter menu items based on user role
-  const filteredBaseItems = baseMenuItems.filter(item => 
-    user && item.roles.includes(user.role)
-  );
+  let menuItems: Array<{id: string, label: string, icon: any, roles: string[]}> = [];
+  let filteredAdminItems: Array<{id: string, label: string, icon: any, roles: string[]}> = [];
   
-  const filteredAdminItems = adminMenuItems.filter(item => 
-    user && item.roles.includes(user.role)
-  );
-
-  const menuItems = [...filteredBaseItems, ...filteredAdminItems];
+  if (user?.role === 'super_admin' || user?.role === 'platform_admin') {
+    // Super Admin and Platform Admin see only specific items
+    menuItems = [
+      { id: 'super-dashboard', label: 'Super Dashboard', icon: Globe, roles: ['super_admin', 'platform_admin'] },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'platform_admin'] },
+      { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'platform_admin'] },
+      { id: 'users', label: 'User Management', icon: UserCog, roles: ['super_admin', 'platform_admin'] },
+      { id: 'companies', label: 'Companies', icon: Building2, roles: ['super_admin', 'platform_admin'] },
+      { id: 'settings', label: 'Settings', icon: Settings, roles: ['super_admin', 'platform_admin'] },
+    ];
+  } else {
+    // Other users see filtered items based on their roles
+    const filteredBaseItems = baseMenuItems.filter(item => 
+      user && item.roles.includes(user.role)
+    );
+    
+    filteredAdminItems = adminMenuItems.filter(item => 
+      user && item.roles.includes(user.role)
+    );
+    
+    menuItems = [...filteredBaseItems, ...filteredAdminItems];
+  }
 
   const getRoleBadge = () => {
     if (!user) return null;
@@ -102,8 +120,8 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           })}
         </ul>
 
-        {/* Divider */}
-        {filteredAdminItems.length > 0 && (
+        {/* Divider - only show for non-admin users who have separate admin menu items */}
+        {(user?.role !== 'super_admin' && user?.role !== 'platform_admin') && filteredAdminItems.length > 0 && (
           <div className="my-4 border-t border-border" />
         )}
       </nav>

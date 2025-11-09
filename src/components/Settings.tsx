@@ -9,6 +9,7 @@ import { Switch } from './ui/switch';
 import { Alert, AlertDescription } from './ui/alert';
 import { Separator } from './ui/separator';
 import { Settings as SettingsIcon, Save, AlertCircle, Eye, FileSpreadsheet, FormInput } from 'lucide-react';
+import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
 
 export function Settings() {
@@ -18,8 +19,8 @@ export function Settings() {
 
   if (!user) return null;
 
-  // Only company_admin and super_admin can access settings
-  const canAccessSettings = ['super_admin', 'company_admin'].includes(user.role);
+  // Check if user can manage settings
+  const canAccessSettings = hasPermission(user.role, 'MANAGE_SETTINGS');
 
   if (!canAccessSettings) {
     return (

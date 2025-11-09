@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CompanyProvider } from './components/CompanyContext';
 import { LeadsProvider } from './components/LeadsContext';
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
+import { SuperDashboard } from './components/SuperDashboard';
 import { LeadManagement } from './components/LeadManagement';
 import { AssignedLeads } from './components/AssignedLeads';
 import { Calendar } from './components/CalendarView';
@@ -20,6 +21,15 @@ function AppContent() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hasRedirected, setHasRedirected] = useState(false);
+
+  // Redirect super_admin and platform_admin to Super Dashboard on initial login only
+  useEffect(() => {
+    if (user && ['super_admin', 'platform_admin'].includes(user.role) && !hasRedirected) {
+      setActiveTab('super-dashboard');
+      setHasRedirected(true);
+    }
+  }, [user, hasRedirected]);
 
   if (!user) {
     return <Login />;
@@ -27,6 +37,8 @@ function AppContent() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'super-dashboard':
+        return <SuperDashboard />;
       case 'dashboard':
         return <Dashboard />;
       case 'leads':

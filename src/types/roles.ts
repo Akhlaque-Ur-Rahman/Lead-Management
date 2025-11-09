@@ -7,34 +7,41 @@ export const ROLES = {
     key: 'super_admin',
     label: 'Super Admin',
     description: 'Platform administrator with full access to all companies',
-    level: 4, // Highest permission level
+    level: 5, // Highest permission level
+  },
+  PLATFORM_ADMIN: {
+    id: 2,
+    key: 'platform_admin',
+    label: 'Platform Admin',
+    description: 'Platform administrator with access to all companies except financial data',
+    level: 4,
   },
   COMPANY_ADMIN: {
-    id: 2,
+    id: 3,
     key: 'company_admin',
     label: 'Company Admin',
     description: 'Company administrator with full access to company data',
     level: 3,
   },
   TEAM_LEAD: {
-    id: 3,
+    id: 4,
     key: 'team_lead',
     label: 'Team Lead',
     description: 'Team leader with access to team management and reports',
     level: 2,
   },
   SALES_USER: {
-    id: 4,
+    id: 5,
     key: 'sales_user',
     label: 'Sales User',
     description: 'Sales user with access to assigned leads',
     level: 1, // Base permission level
-  },
+  }
 } as const;
 
 // Type definitions
-export type RoleKey = 'super_admin' | 'company_admin' | 'team_lead' | 'sales_user';
-export type RoleId = 1 | 2 | 3 | 4;
+export type RoleKey = 'super_admin' | 'platform_admin' | 'company_admin' | 'team_lead' | 'sales_user';
+export type RoleId = 1 | 2 | 3 | 4 | 5;
 
 export interface RoleConfig {
   id: RoleId;
@@ -81,6 +88,11 @@ export const canManageRole = (userRole: RoleKey, targetRole: RoleKey): boolean =
   // Super admin can manage all roles
   if (userRole === 'super_admin') return true;
   
+  // Platform admin can manage company admin, team lead and sales user
+  if (userRole === 'platform_admin' && ['company_admin', 'team_lead', 'sales_user'].includes(targetRole)) {
+    return true;
+  }
+  
   // Company admin can manage team leads and sales users
   if (userRole === 'company_admin' && ['team_lead', 'sales_user'].includes(targetRole)) {
     return true;
@@ -96,22 +108,23 @@ export const canManageRole = (userRole: RoleKey, targetRole: RoleKey): boolean =
 
 // Permission checks
 export const PERMISSIONS = {
-  VIEW_DASHBOARD: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
-  VIEW_LEAD_POOL: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
-  VIEW_ASSIGNED_LEADS: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
-  VIEW_CALENDAR: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
-  VIEW_LOST_LEADS: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
-  VIEW_REPORTS: ['super_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
-  VIEW_CONVERTED_LEADS: ['super_admin', 'company_admin'] as RoleKey[],
+  VIEW_SUPER_DASHBOARD: ['super_admin', 'platform_admin'] as RoleKey[],
+  VIEW_DASHBOARD: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
+  VIEW_LEAD_POOL: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
+  VIEW_ASSIGNED_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
+  VIEW_CALENDAR: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
+  VIEW_LOST_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
+  VIEW_REPORTS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] as RoleKey[],
+  VIEW_CONVERTED_LEADS: ['super_admin', 'platform_admin', 'company_admin'] as RoleKey[],
   VIEW_FINANCIAL_DATA: ['super_admin', 'company_admin'] as RoleKey[],
   DELETE_LOST_LEADS_PERMANENT: ['super_admin', 'company_admin'] as RoleKey[],
-  MANAGE_USERS: ['super_admin', 'company_admin', 'team_lead'] as RoleKey[],
-  MANAGE_COMPANIES: ['super_admin'] as RoleKey[],
-  MANAGE_SETTINGS: ['super_admin', 'company_admin'] as RoleKey[],
+  MANAGE_USERS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
+  MANAGE_COMPANIES: ['super_admin', 'platform_admin'] as RoleKey[],
+  MANAGE_SETTINGS: ['super_admin', 'platform_admin', 'company_admin'] as RoleKey[],
   DELETE_LOST_LEADS: ['super_admin'] as RoleKey[],
-  RESTORE_LOST_LEADS: ['super_admin', 'company_admin'] as RoleKey[],
-  ASSIGN_LEADS: ['super_admin', 'company_admin', 'team_lead'] as RoleKey[],
-  EDIT_ALL_LEADS: ['super_admin', 'company_admin', 'team_lead'] as RoleKey[],
+  RESTORE_LOST_LEADS: ['super_admin', 'platform_admin', 'company_admin'] as RoleKey[],
+  ASSIGN_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
+  EDIT_ALL_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
   EDIT_ASSIGNED_LEADS: ['sales_user'] as RoleKey[],
   IMPORT_LEADS: ['company_admin', 'team_lead'] as RoleKey[],
 };
@@ -124,6 +137,11 @@ export const hasPermission = (userRole: RoleKey, permission: keyof typeof PERMIS
 export const canAssignToUser = (assignerRole: RoleKey, targetUserRole: RoleKey): boolean => {
   // Super Admin can assign to anyone
   if (assignerRole === 'super_admin') return true;
+  
+  // Platform Admin can assign to anyone (Platform Admin, Company Admin, Team Lead, Sales User)
+  if (assignerRole === 'platform_admin') {
+    return ['platform_admin', 'company_admin', 'team_lead', 'sales_user'].includes(targetUserRole);
+  }
   
   // Company Admin can assign to anyone (Company Admin, Team Lead, Sales User)
   if (assignerRole === 'company_admin') {
@@ -148,6 +166,8 @@ export const getAllRoles = (): RoleConfig[] => {
 export const getAssignableRoles = (userRole: RoleKey): RoleConfig[] => {
   if (userRole === 'super_admin') {
     return getAllRoles();
+  } else if (userRole === 'platform_admin') {
+    return [ROLES.PLATFORM_ADMIN, ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'company_admin') {
     return [ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'team_lead') {
@@ -160,6 +180,7 @@ export const getAssignableRoles = (userRole: RoleKey): RoleConfig[] => {
 export const getRoleBadgeVariant = (key: RoleKey): 'destructive' | 'default' | 'secondary' | 'outline' => {
   switch (key) {
     case 'super_admin': return 'destructive';
+    case 'platform_admin': return 'default';
     case 'company_admin': return 'default';
     case 'team_lead': return 'secondary';
     case 'sales_user': return 'outline';

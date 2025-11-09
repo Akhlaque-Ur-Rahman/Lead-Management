@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { Building2, Plus, Edit, Trash2, Users, AlertCircle, Phone, Mail } from 'lucide-react';
+import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
 
 export function CompanyManagement() {
@@ -51,14 +52,14 @@ export function CompanyManagement() {
     isActive: true,
   });
 
-  // Check if user is Super Admin
-  if (user?.role !== 'super_admin') {
+  // Check if user can manage companies
+  if (!user || !hasPermission(user.role, 'MANAGE_COMPANIES')) {
     return (
       <div className="p-4 sm:p-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Access Denied: Only Super Admin can manage companies.
+            Access Denied: Only authorized users can manage companies.
           </AlertDescription>
         </Alert>
       </div>

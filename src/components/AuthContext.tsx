@@ -21,6 +21,7 @@ interface AuthContextType {
   updateUser: (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => void;
   deleteUser: (userId: string) => void;
   getUsersByCompany: (companyId: string) => User[];
+  getAllUsers: () => User[]; // Add this line
   isLoading: boolean;
 }
 
@@ -43,6 +44,18 @@ const initialUsers: User[] = [
     email: 'superadmin@lms.com',
     role: 'super_admin',
     roleId: 1,
+    companyId: null,
+    createdAt: '2024-01-01',
+    isActive: true,
+  },
+  
+  // Platform Admin (Platform Level)
+  {
+    id: 'platform-1',
+    name: 'Platform Admin',
+    email: 'platformadmin@lms.com',
+    role: 'platform_admin',
+    roleId: 2,
     companyId: null,
     createdAt: '2024-01-01',
     isActive: true,
@@ -118,6 +131,7 @@ const initialUsers: User[] = [
 // Initial credentials
 const initialCredentials: Record<string, string> = {
   'superadmin@lms.com': 'super123',
+  'platformadmin@lms.com': 'platform123',
   'rajesh@abcmotors.com': 'admin123',
   'priya@abcmotors.com': 'lead123',
   'amit@abcmotors.com': 'user123',
@@ -130,11 +144,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('lms_users');
-    return saved ? JSON.parse(saved) : initialUsers;
+    try {
+      const parsed = saved ? JSON.parse(saved) : [];
+      // Ensure platform admin user is always available
+      const hasPlatformAdmin = parsed.some((u: User) => u.email === 'platformadmin@lms.com');
+      if (!hasPlatformAdmin) {
+        return [...initialUsers, ...parsed];
+      }
+      return parsed.length > 0 ? parsed : initialUsers;
+    } catch (error) {
+      console.error('Error loading users from localStorage:', error);
+      return initialUsers;
+    }
   });
   const [credentials, setCredentials] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem('lms_credentials');
-    return saved ? JSON.parse(saved) : initialCredentials;
+    try {
+      const parsed = saved ? JSON.parse(saved) : {};
+      // Ensure platform admin credentials are always available
+      return {
+        ...initialCredentials,
+        ...parsed
+      };
+    } catch (error) {
+      console.error('Error loading credentials from localStorage:', error);
+      return initialCredentials;
+    }
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -156,9 +191,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     if (credentials[email] === password) {
       const loggedInUser = users.find(u => u.email === email && u.isActive);
       if (loggedInUser) {
@@ -168,7 +203,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return true;
       }
     }
-    
+
     setIsLoading(false);
     return false;
   };
@@ -239,6 +274,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return users.filter(u => u.companyId === companyId);
   };
 
+  const getAllUsers = () => {
+    return users.filter(u => u.role !== 'super_admin');
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -250,6 +289,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         updateUser,
         deleteUser,
         getUsersByCompany,
+        getAllUsers,
         isLoading,
       }}
     >
