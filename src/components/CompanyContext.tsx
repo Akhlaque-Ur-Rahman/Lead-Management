@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 export interface Company {
   id: string;
+  companyId: string; // Unique readable company ID (e.g., CO_20251110_5A7B)
   name: string;
   email: string;
   phone: string;
@@ -9,13 +10,14 @@ export interface Company {
   logo?: string;
   createdAt: string;
   isActive: boolean;
+  blockReason?: string; // Reason why company was disabled
   subscriptionPlan: 'basic' | 'professional' | 'enterprise';
   maxUsers: number;
 }
 
 interface CompanyContextType {
   companies: Company[];
-  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => void;
+  addCompany: (company: Omit<Company, 'id' | 'companyId' | 'createdAt'>) => Company;
   updateCompany: (companyId: string, updates: Partial<Company>) => void;
   deleteCompany: (companyId: string) => void;
   getCompany: (companyId: string) => Company | undefined;
@@ -31,10 +33,19 @@ export const useCompanies = () => {
   return context;
 };
 
+// Generate unique company ID
+const generateCompanyId = (): string => {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `CO_${dateStr}_${randomStr}`;
+};
+
 // Mock initial companies
 const initialCompanies: Company[] = [
   {
     id: 'company-1',
+    companyId: 'CO_20240115_ABC1',
     name: 'ABC Motors Pvt Ltd',
     email: 'info@abcmotors.com',
     phone: '+91 98765 43210',
@@ -46,6 +57,7 @@ const initialCompanies: Company[] = [
   },
   {
     id: 'company-2',
+    companyId: 'CO_20240220_XYZ2',
     name: 'XYZ Auto Solutions',
     email: 'contact@xyzauto.com',
     phone: '+91 98765 43211',
@@ -57,6 +69,7 @@ const initialCompanies: Company[] = [
   },
   {
     id: 'company-3',
+    companyId: 'CO_20240310_PQR3',
     name: 'PQR Enterprises',
     email: 'admin@pqrenterprises.com',
     phone: '+91 98765 43212',
@@ -78,14 +91,16 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('lms_companies', JSON.stringify(companies));
   }, [companies]);
 
-  const addCompany = (companyData: Omit<Company, 'id' | 'createdAt'>) => {
+  const addCompany = (companyData: Omit<Company, 'id' | 'companyId' | 'createdAt'>): Company => {
     const today = new Date();
     const newCompany: Company = {
       ...companyData,
       id: `company-${Date.now()}`,
+      companyId: generateCompanyId(),
       createdAt: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
     };
     setCompanies(prev => [...prev, newCompany]);
+    return newCompany;
   };
 
   const updateCompany = (companyId: string, updates: Partial<Company>) => {

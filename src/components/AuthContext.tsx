@@ -15,7 +15,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   users: User[];
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => void;
   updateUser: (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => void;
@@ -174,11 +174,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('lms_currentUser');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    const validateAndSetUser = async () => {
+      const savedUser = localStorage.getItem('lms_currentUser');
+      if (!savedUser) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const user = JSON.parse(savedUser) as User;
+        const validation = validateUserSession(user);
+        
+        if (validation.success) {
+          setUser(user);
+        } else {
+          // Auto-logout if session is no longer valid
+          localStorage.removeItem('lms_currentUser');
+          setUser(null);
+          
+          // Show toast with the reason for auto-logout
+          if (validation.error) {
+            // Using setTimeout to ensure toast shows after the component mounts
+            setTimeout(() => {
+              toast.error(validation.error);
+            }, 500);
+          }
+        }
+      } catch (error) {
+        console.error('Error validating session:', error);
+        localStorage.removeItem('lms_currentUser');
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    validateAndSetUser();
   }, []);
 
   useEffect(() => {
@@ -189,28 +220,112 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('lms_credentials', JSON.stringify(credentials));
   }, [credentials]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
+  interface LoginResult {
+    success: boolean;
+    error?: string;
+    user?: User;
+  }
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+  const validateUserSession = (user: User): LoginResult => {
+    // 1. Check if user is active
+    if (!user.isActive) {
+      return {
+        success: false,
+        error: 'Your user account is inactive. Contact your company admin.'
+      };
+    }
 
-    if (credentials[email] === password) {
-      const loggedInUser = users.find(u => u.email === email && u.isActive);
-      if (loggedInUser) {
-        setUser(loggedInUser);
-        localStorage.setItem('lms_currentUser', JSON.stringify(loggedInUser));
-        setIsLoading(false);
-        return true;
+    // 2. For non-platform users, validate company status
+    if (user.companyId) {
+      try {
+        const companiesData = localStorage.getItem('lms_companies');
+        if (!companiesData) {
+          return {
+            success: false,
+            error: 'Invalid email or password.'
+          };
+        }
+
+        const companies = JSON.parse(companiesData);
+        const userCompany = companies.find((c: any) => c.id === user.companyId);
+        
+        // 3. Check if company exists
+        if (!userCompany) {
+          return {
+            success: false,
+            error: 'Invalid email or password.'
+          };
+        }
+        
+        // 4. Check if company is active
+        if (!userCompany.isActive) {
+          const reason = userCompany.blockReason ? 
+            `Reason: ${userCompany.blockReason}` : 
+            'No reason provided';
+            
+          return { 
+            success: false, 
+            error: `Your company account has been disabled. ${reason} Contact support to reactivate.`
+          };
+        }
+      } catch (error) {
+        console.error('Error validating user session:', error);
+        return {
+          success: false,
+          error: 'An error occurred while validating your session. Please try again.'
+        };
       }
     }
 
-    setIsLoading(false);
-    return false;
+    return { success: true, user };
   };
 
-  const logout = () => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
+    setIsLoading(true);
+
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // 1. Find user by email
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    // 2. Early return if user not found or credentials don't match
+    if (!user || credentials[email] !== password) {
+      setIsLoading(false);
+      return { 
+        success: false, 
+        error: 'Invalid email or password.' 
+      };
+    }
+
+    // 3. Validate user session (checks isActive, company status, etc.)
+    const validation = validateUserSession(user);
+    if (!validation.success) {
+      setIsLoading(false);
+      return validation;
+    }
+
+    // 4. Login successful
+    setUser(user);
+    localStorage.setItem('lms_currentUser', JSON.stringify(user));
+    localStorage.setItem('lms_lastLogin', new Date().toISOString());
+    
+    setIsLoading(false);
+    return { 
+      success: true,
+      user
+    };
+  };
+
+  const logout = (message?: string) => {
     setUser(null);
     localStorage.removeItem('lms_currentUser');
+    
+    if (message) {
+      toast(message, {
+        duration: 5000,
+      });
+    }
   };
 
   const addUser = (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {

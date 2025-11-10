@@ -5,7 +5,6 @@ import { LeadsProvider } from './components/LeadsContext';
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
-import { SuperDashboard } from './components/SuperDashboard';
 import { LeadManagement } from './components/LeadManagement';
 import { AssignedLeads } from './components/AssignedLeads';
 import { Calendar } from './components/CalendarView';
@@ -23,10 +22,10 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hasRedirected, setHasRedirected] = useState(false);
 
-  // Redirect super_admin and platform_admin to Super Dashboard on initial login only
+  // Set initial tab to dashboard for all users
   useEffect(() => {
-    if (user && ['super_admin', 'platform_admin'].includes(user.role) && !hasRedirected) {
-      setActiveTab('super-dashboard');
+    if (user && !hasRedirected) {
+      setActiveTab('dashboard');
       setHasRedirected(true);
     }
   }, [user, hasRedirected]);
@@ -37,8 +36,6 @@ function AppContent() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'super-dashboard':
-        return <SuperDashboard />;
       case 'dashboard':
         return <Dashboard />;
       case 'leads':

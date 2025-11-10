@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { type RoleKey } from '../types/roles';
 import { Button } from './ui/button';
@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import { Lock, Mail, AlertCircle, BarChart3, Building2 } from 'lucide-react';
+import { Lock, Mail, AlertCircle, BarChart3, Building2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Login() {
@@ -16,21 +16,40 @@ export function Login() {
   const [error, setError] = useState('');
   const [showDemoCredentials, setShowDemoCredentials] = useState(false);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Clear error when form fields change
+  useEffect(() => {
+    setError('');
+  }, [email, password]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
+    
+    // Basic validation
     if (!email || !password) {
       setError('Please enter both email and password');
       return;
     }
 
-    const success = await login(email, password);
-    if (!success) {
-      setError('Invalid email or password. Please try again.');
-      toast.error('Login failed! Check your credentials.');
-    } else {
-      toast.success('Login successful! Welcome to LMS.');
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const result = await login(email, password);
+      
+      if (result.success) {
+        toast.success('Login successful! Welcome to LMS.');
+      } else {
+        // Error message is already set by the AuthContext
+        setError(result.error || 'Login failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('An unexpected error occurred. Please try again.');
+      toast.error('Login failed!');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -65,9 +84,12 @@ export function Login() {
     setEmail(creds.email);
     setPassword(creds.password);
     
-    const success = await login(creds.email, creds.password);
-    if (success) {
+    const result = await login(creds.email, creds.password);
+    if (result.success) {
       toast.success(`Logged in as ${role.replace('_', ' ')}!`);
+    } else {
+      setError(result.error || 'Login failed');
+      toast.error('Login failed!');
     }
   };
 
@@ -96,9 +118,13 @@ export function Login() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
+                <Alert variant="destructive" className="mt-4">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                    <AlertDescription className="text-sm">
+                      {error}
+                    </AlertDescription>
+                  </div>
                 </Alert>
               )}
 
@@ -139,9 +165,16 @@ export function Login() {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={isLoading}
+                disabled={isLoading || isSubmitting}
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading || isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </form>
 

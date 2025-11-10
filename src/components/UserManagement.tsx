@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAuth, User } from './AuthContext';
+import { useState, useMemo } from 'react';
+import { useAuth, type User } from './AuthContext';
 import { useCompanies } from './CompanyContext';
 import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission } from '../types/roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -31,8 +31,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Users, Plus, Edit, Trash2, AlertCircle, Mail, Shield } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Separator } from './ui/separator';
+import { 
+  Users, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  AlertCircle, 
+  Mail, 
+  Shield, 
+  Search, 
+  X, 
+  Filter, 
+  BarChart3, 
+  Building2,
+  CheckCircle2,
+  XCircle,
+  User as UserIcon,
+  ChevronDown,
+  SlidersHorizontal
+} from 'lucide-react';
 import { toast } from 'sonner';
+
+// Helper function to normalize company IDs for comparison
+const normalizeCompanyId = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).trim().toLowerCase();
+};
 
 export function UserManagement() {
   const { user, users, addUser, updateUser, deleteUser } = useAuth();
@@ -41,11 +69,44 @@ export function UserManagement() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   
-  const [formData, setFormData] = useState({
+  // Filter states
+  const [filters, setFilters] = useState({
+    company: 'all',
+    role: 'all',
+    status: 'all',
+    search: '',
+  });
+
+  // Reset all filters
+  const resetFilters = () => {
+    setFilters({
+      company: 'all',
+      role: 'all',
+      status: 'all',
+      search: '',
+    });
+  };
+
+  // Check if any filter is active
+  const isFilterActive = 
+    filters.company !== 'all' || 
+    filters.role !== 'all' || 
+    filters.status !== 'all' || 
+    filters.search !== '';
+  
+  const [formData, setFormData] = useState<{
+    id?: string;
+    name: string;
+    email: string;
+    role: RoleKey;
+    companyId: string;
+    password: string;
+    isActive: boolean;
+  }>({
     name: '',
     email: '',
-    role: 'sales_user' as RoleKey,
-    companyId: '',
+    role: 'sales_user',
+    companyId: user?.companyId || '',
     password: '',
     isActive: true,
   });
@@ -53,7 +114,7 @@ export function UserManagement() {
   if (!user) return null;
 
   // Check access rights using proper permission system
-  const canManageUsers = hasPermission(user.role, 'MANAGE_USERS');
+  const canManageUsers = hasPermission(user?.role, 'MANAGE_USERS');
   
   if (!canManageUsers) {
     return (
@@ -68,24 +129,106 @@ export function UserManagement() {
     );
   }
 
-  // Get users based on role
-  const displayUsers = user.role === 'super_admin'
-    ? users // Super admin sees all users
-    : user.role === 'platform_admin'
-    ? users.filter(u => u.role !== 'super_admin') // Platform admin sees all users except super admin
-    : users.filter(u => u.companyId === user.companyId); // Company users see only their company
+  // Get base users based on role
+  const baseUsers = useMemo(() => {
+    if (!users) return [];
+    
+    if (user.role === 'super_admin') {
+      return [...users]; // Super admin sees all users
+    } else if (user.role === 'platform_admin') {
+      return users.filter(u => u.role !== 'super_admin'); // Platform admin sees all except super_admin
+    } else {
+      return users.filter(u => u.companyId === user.companyId); // Company users see only their company
+    }
+  }, [users, user.role, user.companyId]);
+
+  // Create company name lookup
+  const companyNameLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    const seen = new Set<string>();
+
+    companies.forEach(company => {
+      const normalizedId = normalizeCompanyId(company.id);
+      if (!normalizedId || seen.has(normalizedId)) {
+        return;
+      }
+      seen.add(normalizedId);
+      map.set(normalizedId, company.name);
+    });
+
+    return map;
+  }, [companies]);
+
+  // Apply filters
+  const filteredUsers = useMemo(() => {
+    if (!baseUsers.length) return [];
+
+    const normalizedSearch = filters.search.trim().toLowerCase();
+    
+    return baseUsers.filter(u => {
+      // Filter by company
+      if (filters.company !== 'all' && u.companyId !== filters.company) return false;
+      
+      // Filter by role
+      if (filters.role !== 'all' && u.role !== filters.role) return false;
+      
+      // Filter by status
+      if (filters.status === 'active' && !u.isActive) return false;
+      if (filters.status === 'inactive' && u.isActive) return false;
+      
+      // Filter by search term (name or email)
+      if (normalizedSearch) {
+        const normalizedName = String(u.name || '').toLowerCase();
+        const normalizedEmail = String(u.email || '').toLowerCase();
+        
+        if (!normalizedName.includes(normalizedSearch) && 
+            !normalizedEmail.includes(normalizedSearch)) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [baseUsers, filters]);
+
+  // Calculate statistics
+  const stats = useMemo(() => ({
+    totalUsers: filteredUsers.length,
+    activeUsers: filteredUsers.filter(u => u.isActive).length,
+    inactiveUsers: filteredUsers.filter(u => !u.isActive).length,
+    adminsCount: filteredUsers.filter(u => ['company_admin', 'platform_admin'].includes(u.role)).length,
+    teamLeads: filteredUsers.filter(u => u.role === 'team_lead').length,
+    salesUsers: filteredUsers.filter(u => u.role === 'sales_user').length,
+  }), [filteredUsers]);
+
+  // Get company name for a user
+  const getCompanyName = (companyId: string | null): string => {
+    if (!companyId) return 'Platform';
+    const normalizedId = normalizeCompanyId(companyId);
+    return companyNameLookup.get(normalizedId) || companyId;
+  };
+
+  // Alias for display
+  const displayUsers = filteredUsers || [];
 
   // Get available companies for user creation
-  const availableCompanies = user.role === 'super_admin'
-    ? companies
-    : companies.filter(c => c.id === user.companyId);
+  const availableCompanies = useMemo(() => {
+    if (!user) return [];
+    return user?.role === 'super_admin' 
+      ? companies 
+      : companies.filter(c => c.id === user?.companyId);
+  }, [user, companies]);
+
+  if (!user) return null;
 
   const resetForm = () => {
+    if (!user) return;
+    
     setFormData({
       name: '',
       email: '',
       role: 'sales_user',
-      companyId: user.role === 'super_admin' ? '' : user.companyId || '',
+      companyId: user?.role === 'super_admin' ? '' : user?.companyId || '',
       password: '',
       isActive: true,
     });
@@ -97,7 +240,7 @@ export function UserManagement() {
       return;
     }
 
-    if (user.role !== 'super_admin' && formData.role === 'super_admin') {
+    if (user?.role !== 'super_admin' && formData.role === 'super_admin') {
       toast.error('Only Super Admin can create Super Admin users');
       return;
     }
@@ -129,14 +272,11 @@ export function UserManagement() {
   };
 
   const handleEdit = (userToEdit: User) => {
-    // Platform admin cannot edit super admin
-    if (user.role === 'platform_admin' && userToEdit.role === 'super_admin') {
-      toast.error("Platform Admin cannot edit Super Admin users");
-      return;
-    }
-
+    if (!user) return;
+    
     setSelectedUser(userToEdit);
     setFormData({
+      id: userToEdit.id,
       name: userToEdit.name,
       email: userToEdit.email,
       role: userToEdit.role,
@@ -147,8 +287,20 @@ export function UserManagement() {
     setShowEditDialog(true);
   };
 
-  const handleUpdate = () => {
-    if (!selectedUser) return;
+  const handleUpdate = async () => {
+    if (!selectedUser || !user) return;
+    
+    // Check if the current user is trying to edit a super admin
+    if (selectedUser.role === 'super_admin' && user?.role !== 'super_admin') {
+      toast.error('You do not have permission to edit this user.');
+      return;
+    }
+    
+    // Check if a platform admin is trying to edit a super admin
+    if (user?.role === 'platform_admin' && selectedUser.role === 'super_admin') {
+      toast.error('You do not have permission to edit super admin users.');
+      return;
+    }
 
     if (!formData.name || !formData.email) {
       toast.error('Please fill in all required fields');
@@ -181,7 +333,7 @@ export function UserManagement() {
     }
 
     // Platform admin cannot delete super admin
-    if (user.role === 'platform_admin' && userToDelete.role === 'super_admin') {
+    if (user?.role === 'platform_admin' && userToDelete.role === 'super_admin') {
       toast.error("Platform Admin cannot delete Super Admin users");
       return;
     }
@@ -194,170 +346,357 @@ export function UserManagement() {
 
   // Using utility functions from roles.ts for role labels and badge variants
 
-  // Stats
-  const activeUsers = displayUsers.filter(u => u.isActive).length;
-  const adminUsers = displayUsers.filter(u => ['super_admin', 'company_admin'].includes(u.role)).length;
-  const salesUsers = displayUsers.filter(u => u.role === 'sales_user').length;
+  
+  // Get unique companies for filter dropdown
+  const companyOptions = useMemo(() => [
+    { value: 'all', label: 'All Companies' },
+    ...(user.role === 'super_admin' 
+      ? [
+          { value: 'platform', label: 'Platform Users' },
+          ...companies.map(c => ({
+            value: c.id,
+            label: c.name
+          }))
+        ]
+      : user.role === 'platform_admin'
+      ? [
+          { value: 'platform', label: 'Platform Users' },
+          ...companies.map(c => ({
+            value: c.id,
+            label: c.name
+          }))
+        ]
+      : companies
+          .filter(c => c.id === user.companyId)
+          .map(c => ({
+            value: c.id,
+            label: c.name
+          }))
+    )
+  ], [companies, user.role, user.companyId]);
+  
+  // Role options for filter
+  const roleOptions = useMemo(() => [
+    { value: 'all', label: 'All Roles' },
+    ...(user.role === 'super_admin' ? [{ value: 'super_admin', label: 'Super Admin' }] : []),
+    { value: 'platform_admin', label: 'Platform Admin' },
+    { value: 'company_admin', label: 'Company Admin' },
+    { value: 'team_lead', label: 'Team Lead' },
+    { value: 'sales_user', label: 'Sales User' },
+  ], [user.role]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1>User Management</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            {user.role === 'super_admin' ? 'Manage all platform users' : 'Manage your team members'}
-          </p>
-        </div>
-        <Button onClick={() => setShowAddDialog(true)} className="gap-2 w-full sm:w-auto">
-          <Plus className="h-4 w-4" />
-          Add User
-        </Button>
-      </div>
-
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              Total Users
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{displayUsers.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <p className="text-xs text-muted-foreground">
               {user.role === 'super_admin' ? 'Across all companies' : 'In your company'}
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Active Users</CardTitle>
-            <Users className="h-4 w-4 text-green-600" />
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              Active Users
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{activeUsers}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Currently active
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-bold">{stats.activeUsers}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.inactiveUsers} inactive
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Admins</CardTitle>
-            <Shield className="h-4 w-4 text-primary" />
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Shield className="h-4 w-4 text-amber-500" />
+              Admins
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{adminUsers}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Admin level access
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-bold">{stats.adminsCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Platform & Company Admins
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Sales Team</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <UserIcon className="h-4 w-4 text-blue-500" />
+              Team Members
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{salesUsers}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Sales users
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-bold">
+              {stats.teamLeads + stats.salesUsers}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {stats.teamLeads} team leads, {stats.salesUsers} sales users
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Users Table */}
+      {/* User Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            {displayUsers.length} user{displayUsers.length !== 1 ? 's' : ''} found
-          </CardDescription>
+        <CardHeader className="p-4 pb-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle>User Management</CardTitle>
+              <CardDescription className="mt-1">
+                {stats.totalUsers} user{stats.totalUsers !== 1 ? 's' : ''} found
+                {isFilterActive && ' (filtered)'}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {isFilterActive && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="text-muted-foreground"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear Filters
+                </Button>
+              )}
+              <Button 
+                onClick={() => setShowAddDialog(true)} 
+                size="sm"
+                className="gap-1 w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4" />
+                Add User
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="flex-1">
+              <div className="relative">
+                <input
+                  type="search"
+                  placeholder="Search by name or email..."
+                  className="w-full h-10 px-4 py-2 text-sm bg-background/95 backdrop-blur-sm rounded-md border border-border transition-colors duration-200 ease-in-out
+                    hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-ring focus:ring-offset-1
+                    placeholder:text-muted-foreground/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                />
+              </div>
+            </div>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="gap-2 h-10 px-4 border-border/60 hover:border-primary/60 hover:bg-accent/50 transition-colors duration-200"
+                >
+                  <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Filters</span>
+                  {isFilterActive && (
+                    <span className="h-5 min-w-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                      {[filters.company, filters.role, filters.status].filter(Boolean).length - 1}
+                    </span>
+                  )}
+                  <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-4" align="end">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Filters</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Narrow down user list
+                    </p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="company-filter" className="mb-2 block">Company</Label>
+                      <Select
+                        value={filters.company}
+                        onValueChange={(value: string) => 
+                          setFilters({ ...filters, company: value })
+                        }
+                      >
+                        <SelectTrigger id="company-filter" className="w-full">
+                          <Building2 className="h-4 w-4 text-muted-foreground mr-2" />
+                          <SelectValue placeholder="All Companies" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companyOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="role-filter" className="mb-2 block">Role</Label>
+                      <Select
+                        value={filters.role}
+                        onValueChange={(value: string) => 
+                          setFilters({ ...filters, role: value as RoleKey })
+                        }
+                      >
+                        <SelectTrigger id="role-filter" className="w-full">
+                          <Shield className="h-4 w-4 text-muted-foreground mr-2" />
+                          <SelectValue placeholder="All Roles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roleOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="status-filter" className="mb-2 block">Status</Label>
+                      <Select
+                        value={filters.status}
+                        onValueChange={(value: 'all' | 'active' | 'inactive') => 
+                          setFilters({ ...filters, status: value })
+                        }
+                      >
+                        <SelectTrigger id="status-filter" className="w-full">
+                          <Users className="h-4 w-4 text-muted-foreground mr-2" />
+                          <SelectValue placeholder="All Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full mt-2"
+                      onClick={resetFilters}
+                      disabled={!isFilterActive}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Clear Filters
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead className="hidden md:table-cell">Email</TableHead>
-                  <TableHead className="hidden lg:table-cell">Company</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayUsers.map((u) => {
-                  const company = u.companyId ? getCompany(u.companyId) : null;
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">
-                              {u.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium">{u.name}</p>
-                            <p className="text-xs text-muted-foreground md:hidden">
-                              {u.email}
-                            </p>
-                          </div>
+                {displayUsers.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-sm font-medium text-primary">
+                            {u.name.charAt(0).toUpperCase()}
+                          </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <div className="flex items-center gap-1">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{u.email}</span>
+                        <div>
+                          <p className="font-medium">{u.name}</p>
+                          <p className="text-xs text-muted-foreground md:hidden">
+                            {u.email}
+                          </p>
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {company ? (
-                          <span className="text-sm">{company.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-sm">{u.email}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getRoleBadgeVariant(u.role)}>
+                        {getRoleLabel(u.role)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {u.companyId ? (
+                          <>
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <span>{getCompanyName(u.companyId)}</span>
+                          </>
                         ) : (
-                          <span className="text-sm text-muted-foreground">Platform</span>
+                          <span className="text-muted-foreground">Platform</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(u.role)}>
-                          {getRoleLabel(u.role)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={u.isActive ? 'default' : 'secondary'}>
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {!(user.role === 'platform_admin' && u.role === 'super_admin') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(u)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {u.id !== user.id && !(user.role === 'platform_admin' && u.role === 'super_admin') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(u)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {u.isActive ? (
+                          <>
+                            <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                            <span>Active</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-2 w-2 rounded-full bg-gray-400"></div>
+                            <span>Inactive</span>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(u)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {u.id !== user?.id && !(user?.role === 'platform_admin' && u.role === 'super_admin') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(u)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -366,11 +705,11 @@ export function UserManagement() {
 
       {/* Add User Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
-              Create a new user account
+              Add a new user to the system. Required fields are marked with *
             </DialogDescription>
           </DialogHeader>
           
@@ -480,11 +819,11 @@ export function UserManagement() {
 
       {/* Edit User Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Update user information
+              Update user details. Leave password empty to keep the current one.
             </DialogDescription>
           </DialogHeader>
           

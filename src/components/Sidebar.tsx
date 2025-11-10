@@ -29,7 +29,6 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   
   // Base menu items for all users
   const baseMenuItems = [
-    { id: 'super-dashboard', label: 'Super Dashboard', icon: Globe, roles: ['super_admin', 'platform_admin'] },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] },
     { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: ['company_admin', 'team_lead', 'sales_user'] },
     { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['company_admin', 'team_lead'] },
@@ -53,7 +52,6 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   if (user?.role === 'super_admin' || user?.role === 'platform_admin') {
     // Super Admin and Platform Admin see only specific items
     menuItems = [
-      { id: 'super-dashboard', label: 'Super Dashboard', icon: Globe, roles: ['super_admin', 'platform_admin'] },
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'platform_admin'] },
       { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'platform_admin'] },
       { id: 'users', label: 'User Management', icon: UserCog, roles: ['super_admin', 'platform_admin'] },
