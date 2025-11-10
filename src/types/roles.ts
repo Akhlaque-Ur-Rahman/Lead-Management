@@ -26,7 +26,7 @@ export const ROLES = {
   TEAM_LEAD: {
     id: 4,
     key: 'team_lead',
-    label: 'Team Lead',
+    label: 'Team Leader',
     description: 'Team leader with access to team management and reports',
     level: 2,
   },
@@ -138,17 +138,17 @@ export const canAssignToUser = (assignerRole: RoleKey, targetUserRole: RoleKey):
   // Super Admin can assign to anyone
   if (assignerRole === 'super_admin') return true;
   
-  // Platform Admin can assign to anyone (Platform Admin, Company Admin, Team Lead, Sales User)
+  // Platform Admin can assign to anyone (Platform Admin, Company Admin, Team Leader, Sales User)
   if (assignerRole === 'platform_admin') {
     return ['platform_admin', 'company_admin', 'team_lead', 'sales_user'].includes(targetUserRole);
   }
   
-  // Company Admin can assign to anyone (Company Admin, Team Lead, Sales User)
+  // Company Admin can assign to anyone (Company Admin, Team Leader, Sales User)
   if (assignerRole === 'company_admin') {
     return ['company_admin', 'team_lead', 'sales_user'].includes(targetUserRole);
   }
   
-  // Team Lead can only assign to Sales Users
+  // Team Leader can only assign to Sales Users
   if (assignerRole === 'team_lead') {
     return targetUserRole === 'sales_user';
   }

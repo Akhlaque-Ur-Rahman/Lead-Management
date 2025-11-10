@@ -71,6 +71,8 @@ export function UserManagement() {
   // Get users based on role
   const displayUsers = user.role === 'super_admin'
     ? users // Super admin sees all users
+    : user.role === 'platform_admin'
+    ? users.filter(u => u.role !== 'super_admin') // Platform admin sees all users except super admin
     : users.filter(u => u.companyId === user.companyId); // Company users see only their company
 
   // Get available companies for user creation
@@ -127,6 +129,12 @@ export function UserManagement() {
   };
 
   const handleEdit = (userToEdit: User) => {
+    // Platform admin cannot edit super admin
+    if (user.role === 'platform_admin' && userToEdit.role === 'super_admin') {
+      toast.error("Platform Admin cannot edit Super Admin users");
+      return;
+    }
+
     setSelectedUser(userToEdit);
     setFormData({
       name: userToEdit.name,
@@ -169,6 +177,12 @@ export function UserManagement() {
   const handleDelete = (userToDelete: User) => {
     if (userToDelete.id === user.id) {
       toast.error("You cannot delete your own account");
+      return;
+    }
+
+    // Platform admin cannot delete super admin
+    if (user.role === 'platform_admin' && userToDelete.role === 'super_admin') {
+      toast.error("Platform Admin cannot delete Super Admin users");
       return;
     }
 
@@ -321,14 +335,16 @@ export function UserManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(u)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {u.id !== user.id && (
+                          {!(user.role === 'platform_admin' && u.role === 'super_admin') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(u)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {u.id !== user.id && !(user.role === 'platform_admin' && u.role === 'super_admin') && (
                             <Button
                               variant="ghost"
                               size="sm"

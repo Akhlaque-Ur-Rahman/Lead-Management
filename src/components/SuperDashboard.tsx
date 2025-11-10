@@ -20,35 +20,11 @@ export function SuperDashboard() {
   const { user, users } = useAuth();
   const { companies } = useCompanies();
 
-  const defaultCompanyId = useMemo(() => {
-    if (!companies.length) {
-      return '';
-    }
-    return String(companies[0].id ?? '');
-  }, [companies]);
-
   // State for filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string[]>([]);
-  const [companyFilter, setCompanyFilter] = useState<string>(defaultCompanyId);
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
-
-  useEffect(() => {
-    if (!defaultCompanyId) {
-      return;
-    }
-
-    setCompanyFilter(prev => {
-      const normalizedPrev = normalizeCompanyId(prev);
-      const hasMatchingCompany = companies.some(company => normalizeCompanyId(company.id) === normalizedPrev);
-
-      if (hasMatchingCompany) {
-        return prev;
-      }
-
-      return defaultCompanyId;
-    });
-  }, [companies, defaultCompanyId]);
 
   // Get users safely (exclude super admins)
   const allUsers = useMemo(() => {
@@ -81,8 +57,6 @@ export function SuperDashboard() {
 
     const normalizedStatus = statusFilter;
     const normalizedRoles = roleFilter;
-    const normalizedCompanyFilter = normalizeCompanyId(companyFilter);
-    const shouldApplyCompanyFilter = normalizedCompanyFilter !== '';
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return allUsers.filter(user => {
@@ -100,10 +74,16 @@ export function SuperDashboard() {
       }
 
       // Company filter
-      const normalizedUserCompanyId = normalizeCompanyId(user.companyId);
-
-      if (shouldApplyCompanyFilter) {
-        if (normalizedUserCompanyId !== normalizedCompanyFilter) {
+      if (companyFilter === 'all') {
+        // Show all users - skip company filtering
+      } else if (companyFilter === 'platform') {
+        // Show only platform users (no companyId)
+        if (user.companyId !== null && user.companyId !== undefined && String(user.companyId).trim() !== '') {
+          return false;
+        }
+      } else {
+        // Show users matching specific company - direct comparison
+        if (user.companyId !== companyFilter) {
           return false;
         }
       }
@@ -126,11 +106,15 @@ export function SuperDashboard() {
   }, [allUsers, statusFilter, roleFilter, companyFilter, searchTerm]);
 
   const companyFilterLabel = useMemo(() => {
-    const normalizedId = normalizeCompanyId(companyFilter);
-    if (!normalizedId) {
-      return 'No company selected';
+    if (companyFilter === 'all') {
+      return 'Viewing all companies';
+    }
+    
+    if (companyFilter === 'platform') {
+      return 'Viewing platform users';
     }
 
+    const normalizedId = normalizeCompanyId(companyFilter);
     const companyName = companyNameLookup.get(normalizedId);
 
     return companyName
@@ -142,7 +126,7 @@ export function SuperDashboard() {
   const resetFilters = () => {
     setStatusFilter('all');
     setRoleFilter([]);
-    setCompanyFilter(defaultCompanyId);
+    setCompanyFilter('all');
     setSearchTerm('');
   };
 
@@ -157,7 +141,7 @@ export function SuperDashboard() {
   const roleOptions = [
     { value: 'platform_admin', label: 'Platform Admin' },
     { value: 'company_admin', label: 'Company Admin' },
-    { value: 'team_lead', label: 'Team Lead' },
+    { value: 'team_lead', label: 'Team Leader' },
     { value: 'sales_user', label: 'Sales User' },
   ];
 
@@ -220,6 +204,7 @@ export function SuperDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Companies</SelectItem>
+              <SelectItem value="platform">Platform</SelectItem>
               {companies.map(company => (
                 <SelectItem key={company.id} value={company.id}>
                   {company.name}
