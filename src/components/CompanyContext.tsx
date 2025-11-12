@@ -1,5 +1,17 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+interface PlanPricingBase {
+  basic: number;
+  professional: number;
+  enterprise: number;
+  custom?: number; // Optional custom plan price
+}
+
+export interface PlanPricing {
+  prices: PlanPricingBase;
+  maxUsers: PlanPricingBase;
+}
+
 export interface Company {
   id: string;
   companyId: string; // Unique readable company ID (e.g., CO_20251110_5A7B)
@@ -11,13 +23,31 @@ export interface Company {
   createdAt: string;
   isActive: boolean;
   blockReason?: string; // Reason why company was disabled
-  subscriptionPlan: 'basic' | 'professional' | 'enterprise';
+  subscriptionPlan: 'basic' | 'professional' | 'enterprise' | 'custom';
   maxUsers: number;
+  monthlyPrice?: number; // Only for custom plans
 }
+
+export const DEFAULT_PLAN_PRICES: PlanPricing = {
+  prices: {
+    basic: 99,
+    professional: 299,
+    enterprise: 999,
+    custom: 0
+  },
+  maxUsers: {
+    basic: 10,
+    professional: 50,
+    enterprise: 200,
+    custom: 0
+  }
+};
 
 interface CompanyContextType {
   companies: Company[];
   isLoading: boolean;
+  planPricing: PlanPricing;
+  updatePlanPricing: (pricing: Partial<PlanPricing>) => void;
   addCompany: (company: Omit<Company, 'id' | 'companyId' | 'createdAt'>) => Company;
   updateCompany: (companyId: string, updates: Partial<Company>) => void;
   deleteCompany: (companyId: string) => void;
@@ -77,48 +107,59 @@ const initialCompanies: Company[] = [
     address: 'Andheri West, Mumbai, MH 400058',
     createdAt: '2024-03-10',
     isActive: true,
-    subscriptionPlan: 'basic',
-    maxUsers: 20
+    subscriptionPlan: 'custom',
+    maxUsers: 200,
+    monthlyPrice: 1500
   }
 ];
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [planPricing, setPlanPricing] = useState<PlanPricing>(DEFAULT_PLAN_PRICES);
 
-  // Load companies from localStorage on mount
+  // Load companies and plan pricing from localStorage on mount
   useEffect(() => {
-    const loadCompanies = () => {
+    const loadData = () => {
       try {
         setIsLoading(true);
-        const saved = localStorage.getItem('lms_companies');
-        if (saved) {
-          setCompanies(JSON.parse(saved));
+        
+        // Load companies
+        const savedCompanies = localStorage.getItem('lms_companies');
+        if (savedCompanies) {
+          setCompanies(JSON.parse(savedCompanies));
         } else {
           // Initialize with mock data if no saved data
           setCompanies(initialCompanies);
         }
+        
+        // Load plan pricing
+        const savedPricing = localStorage.getItem('lms_plan_pricing');
+        if (savedPricing) {
+          setPlanPricing(JSON.parse(savedPricing));
+        }
+        setIsLoading(false);
       } catch (error) {
-        console.error('Error loading companies:', error);
-        setCompanies(initialCompanies);
-      } finally {
+        console.error('Error loading data:', error);
+        setCompanies([]);
+        setPlanPricing(DEFAULT_PLAN_PRICES);
         setIsLoading(false);
       }
     };
 
-    loadCompanies();
+    loadData();
   }, []);
 
-  // Save companies to localStorage when they change
+  // Save data to localStorage whenever they change
   useEffect(() => {
-    if (!isLoading) { // Only save after initial load
-      try {
-        localStorage.setItem('lms_companies', JSON.stringify(companies));
-      } catch (error) {
-        console.error('Error saving companies:', error);
-      }
+    if (companies.length > 0) {
+      localStorage.setItem('lms_companies', JSON.stringify(companies));
     }
-  }, [companies, isLoading]);
+  }, [companies]);
+  
+  useEffect(() => {
+    localStorage.setItem('lms_plan_pricing', JSON.stringify(planPricing));
+  }, [planPricing]);
 
   const addCompany = (companyData: Omit<Company, 'id' | 'companyId' | 'createdAt'>): Company => {
     const today = new Date();
@@ -139,6 +180,8 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteCompany = (companyId: string) => {
+    // We'll handle the user deletion in the component where we call deleteCompany
+    // by using the useAuth hook there
     setCompanies(prev => prev.filter(company => company.id !== companyId));
   };
 
@@ -146,11 +189,41 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     return companies.find(c => c.id === companyId);
   };
 
+  const updatePlanPricing = (updates: Partial<PlanPricing>) => {
+    setPlanPricing(prev => {
+      const newPricing = { ...prev };
+      
+      // Update prices if provided
+      if (updates.prices) {
+        newPricing.prices = {
+          ...prev.prices,
+          ...updates.prices
+        };
+      }
+      
+      // Update maxUsers if provided
+      if (updates.maxUsers) {
+        newPricing.maxUsers = {
+          ...prev.maxUsers,
+          ...updates.maxUsers
+        };
+      }
+      
+      // Update any other top-level properties
+      const { prices, maxUsers, ...otherUpdates } = updates;
+      Object.assign(newPricing, otherUpdates);
+      
+      return newPricing;
+    });
+  };
+
   return (
     <CompanyContext.Provider
       value={{
         companies,
         isLoading,
+        planPricing,
+        updatePlanPricing,
         addCompany,
         updateCompany,
         deleteCompany,

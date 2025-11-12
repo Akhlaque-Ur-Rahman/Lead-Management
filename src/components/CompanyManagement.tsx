@@ -36,7 +36,7 @@ import { toast } from 'sonner';
 
 export function CompanyManagement() {
   const { user, getUsersByCompany, users, addUser, updateUser } = useAuth();
-  const { companies, addCompany, updateCompany, deleteCompany } = useCompanies();
+  const { companies, addCompany, updateCompany, deleteCompany, planPricing, updatePlanPricing } = useCompanies();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -52,10 +52,41 @@ export function CompanyManagement() {
     email: '',
     phone: '',
     address: '',
-    subscriptionPlan: 'basic' as 'basic' | 'professional' | 'enterprise',
-    maxUsers: 20,
+    subscriptionPlan: 'basic' as 'basic' | 'professional' | 'enterprise' | 'custom',
+    maxUsers: planPricing.maxUsers.basic,
+    monthlyPrice: planPricing.prices.basic,
     isActive: true,
   });
+
+  const handleSubscriptionPlanChange = (value: string) => {
+    const plan = value as 'basic' | 'professional' | 'enterprise' | 'custom';
+    
+    const planConfig = {
+      basic: { 
+        maxUsers: planPricing.maxUsers.basic, 
+        monthlyPrice: planPricing.prices.basic 
+      },
+      professional: { 
+        maxUsers: planPricing.maxUsers.professional, 
+        monthlyPrice: planPricing.prices.professional 
+      },
+      enterprise: { 
+        maxUsers: planPricing.maxUsers.enterprise, 
+        monthlyPrice: planPricing.prices.enterprise 
+      },
+      custom: { 
+        maxUsers: formData.maxUsers, 
+        monthlyPrice: formData.monthlyPrice || 0 
+      }
+    }[plan];
+    
+    setFormData(prev => ({
+      ...prev,
+      subscriptionPlan: plan,
+      maxUsers: planConfig.maxUsers,
+      monthlyPrice: planConfig.monthlyPrice
+    }));
+  };
 
   // Primary admin form state
   const [adminFormData, setAdminFormData] = useState({
@@ -97,7 +128,8 @@ export function CompanyManagement() {
       phone: '',
       address: '',
       subscriptionPlan: 'basic',
-      maxUsers: 20,
+      maxUsers: planPricing.maxUsers.basic,
+      monthlyPrice: planPricing.prices.basic,
       isActive: true,
     });
     setAdminFormData({
@@ -118,9 +150,15 @@ export function CompanyManagement() {
     });
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!formData.name || !formData.email || !formData.phone) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // Validate custom plan
+    if (formData.subscriptionPlan === 'custom' && (!formData.maxUsers || formData.maxUsers <= 0)) {
+      toast.error('Please enter a valid number of users for the custom plan');
       return;
     }
 
@@ -130,53 +168,66 @@ export function CompanyManagement() {
       return;
     }
 
-    // Validate admin details if provided
-    const createAdmin = adminFormData.adminEmail || adminFormData.adminName;
-    if (createAdmin) {
-      if (!adminFormData.adminName || !adminFormData.adminEmail || !adminFormData.adminPassword) {
-        toast.error('Please fill in all admin fields or leave them all empty');
-        return;
-      }
-
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(adminFormData.adminEmail)) {
-        toast.error('Please enter a valid admin email address');
-        return;
-      }
-
-      // Check if admin email already exists
-      if (users.some(u => u.email.toLowerCase() === adminFormData.adminEmail.toLowerCase())) {
-        toast.error('This admin email is already in use');
-        return;
-      }
-    }
-
-    // Create the company
-    const newCompany = addCompany(formData);
-
-    // Create primary admin if details provided
-    if (createAdmin) {
-      addUser({
-        name: adminFormData.adminName,
-        email: adminFormData.adminEmail,
-        role: 'company_admin',
-        companyId: newCompany.id,
-        password: adminFormData.adminPassword,
+    try {
+      // Prepare company data
+      const companyData = {
+        ...formData,
         isActive: true,
+        // Only include monthlyPrice for custom plans
+        ...(formData.subscriptionPlan !== 'custom' ? { monthlyPrice: undefined } : {})
+      };
+
+      // Add the company
+      const newCompany = addCompany(companyData);
+
+      // Validate admin details if provided
+      const createAdmin = adminFormData.adminEmail || adminFormData.adminName;
+      if (createAdmin) {
+        if (!adminFormData.adminName || !adminFormData.adminEmail || !adminFormData.adminPassword) {
+          toast.error('Please fill in all admin fields or leave them all empty');
+          return;
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(adminFormData.adminEmail)) {
+          toast.error('Please enter a valid admin email address');
+          return;
+        }
+
+        // Check if admin email already exists
+        if (users.some(u => u.email.toLowerCase() === adminFormData.adminEmail.toLowerCase())) {
+          toast.error('This admin email is already in use');
+          return;
+        }
+      }
+
+      // Create primary admin if details provided
+      if (createAdmin) {
+        addUser({
+          name: adminFormData.adminName,
+          email: adminFormData.adminEmail,
+          role: 'company_admin',
+          companyId: newCompany.id,
+          password: adminFormData.adminPassword,
+          isActive: true,
+        });
+      }
+
+      // Show success message with company details
+      setCreatedCompany({
+        companyId: newCompany.companyId,
+        name: newCompany.name,
+        adminEmail: createAdmin ? adminFormData.adminEmail : undefined,
       });
+
+      toast.success(`Company "${formData.name}" created successfully!`);
+      setShowAddDialog(false);
+      resetForm();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to create company');
     }
-
-    // Show success message with company details
-    setCreatedCompany({
-      companyId: newCompany.companyId,
-      name: newCompany.name,
-      adminEmail: createAdmin ? adminFormData.adminEmail : undefined,
-    });
-
-    toast.success(`Company "${formData.name}" created successfully!`);
-    setShowAddDialog(false);
-    resetForm();
   };
 
   const handleEdit = (company: Company) => {
@@ -185,9 +236,10 @@ export function CompanyManagement() {
       name: company.name,
       email: company.email,
       phone: company.phone,
-      address: company.address,
+      address: company.address || '',
       subscriptionPlan: company.subscriptionPlan,
       maxUsers: company.maxUsers,
+      monthlyPrice: company.monthlyPrice || 0,
       isActive: company.isActive,
     });
     setShowEditDialog(true);
@@ -195,29 +247,37 @@ export function CompanyManagement() {
 
   const handleUpdate = () => {
     if (!selectedCompany) return;
-
-    if (!formData.name || !formData.email || !formData.phone) {
-      toast.error('Please fill in all required fields');
+    
+    // Validate custom plan
+    if (formData.subscriptionPlan === 'custom' && (!formData.maxUsers || formData.maxUsers <= 0)) {
+      toast.error('Please enter a valid number of users for the custom plan');
       return;
     }
-
-    updateCompany(selectedCompany.id, formData);
-    toast.success(`Company "${formData.name}" updated successfully!`);
+    
+    // Prepare update data
+    const updateData = {
+      ...formData,
+      // Only include monthlyPrice for custom plans
+      ...(formData.subscriptionPlan !== 'custom' ? { monthlyPrice: undefined } : {})
+    };
+    
+    updateCompany(selectedCompany.id, updateData);
+    
     setShowEditDialog(false);
     setSelectedCompany(null);
     resetForm();
   };
 
-  const handleDelete = (company: Company) => {
+  const { deleteUsersByCompanyId } = useAuth();
+  
+  const handleDeleteCompany = async (company: Company) => {
     const companyUsers = getUsersByCompany(company.id);
     const userCount = companyUsers.length;
     
-    const confirmMessage = `⚠️ PERMANENT DELETION WARNING ⚠️\n\n` +
-      `You are about to permanently delete "${company.name}".\n\n` +
+    const confirmMessage = 
+      `WARNING: You are about to delete the company "${company.name}" and all its data.\n\n` +
       `This will:\n` +
-      `• Delete the company record\n` +
-      `• Deactivate ${userCount} user account(s)\n` +
-      `• Block all users from logging in\n` +
+      `• Permanently delete all ${userCount} user account(s)\n` +
       `• Remove all associated data\n\n` +
       `This action CANNOT be undone.\n\n` +
       `Type "DELETE" to confirm.`;
@@ -225,15 +285,18 @@ export function CompanyManagement() {
     const userInput = prompt(confirmMessage);
     
     if (userInput === 'DELETE') {
-      // Deactivate all company users
-      companyUsers.forEach(user => {
-        updateUser(user.id, { isActive: false });
-      });
-      
-      // Delete the company
-      deleteCompany(company.id);
-      
-      toast.success(`Company "${company.name}" deleted successfully. ${userCount} user account(s) deactivated.`);
+      try {
+        // Delete all company users
+        deleteUsersByCompanyId(company.id);
+        
+        // Delete the company
+        deleteCompany(company.id);
+        
+        toast.success(`Company "${company.name}" and ${userCount} user account(s) deleted successfully.`);
+      } catch (error) {
+        console.error('Error deleting company:', error);
+        toast.error('Failed to delete company. Please try again.');
+      }
     } else if (userInput !== null) {
       toast.error('Deletion cancelled. You must type "DELETE" to confirm.');
     }
@@ -622,7 +685,7 @@ export function CompanyManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(company)}
+                            onClick={() => handleDeleteCompany(company)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -695,31 +758,102 @@ export function CompanyManagement() {
               <Label htmlFor="plan">Subscription Plan</Label>
               <Select
                 value={formData.subscriptionPlan}
-                onValueChange={(value: any) => {
-                  const maxUsers = value === 'enterprise' ? 100 : value === 'professional' ? 50 : 20;
-                  setFormData({ ...formData, subscriptionPlan: value, maxUsers });
-                }}
+                onValueChange={handleSubscriptionPlanChange}
               >
                 <SelectTrigger id="plan">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="basic">Basic (20 users)</SelectItem>
-                  <SelectItem value="professional">Professional (50 users)</SelectItem>
-                  <SelectItem value="enterprise">Enterprise (100 users)</SelectItem>
+                  <SelectItem value="basic">
+                    <div className="flex justify-between w-full">
+                      <span>Basic</span>
+                      <span className="text-muted-foreground">₹{planPricing.prices.basic}/mo</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Up to {planPricing.maxUsers.basic} users</p>
+                  </SelectItem>
+                  <SelectItem value="professional">
+                    <div className="flex justify-between w-full">
+                      <span>Professional</span>
+                      <span className="text-muted-foreground">₹{planPricing.prices.professional}/mo</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Up to {planPricing.maxUsers.professional} users</p>
+                  </SelectItem>
+                  <SelectItem value="enterprise">
+                    <div className="flex justify-between w-full">
+                      <span>Enterprise</span>
+                      <span className="text-muted-foreground">₹{planPricing.prices.enterprise}/mo</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Up to {planPricing.maxUsers.enterprise} users</p>
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    <div className="flex justify-between w-full">
+                      <span>Custom</span>
+                      <span className="text-muted-foreground">Custom pricing</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Custom number of users</p>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="maxUsers">Max Users</Label>
-              <Input
-                id="maxUsers"
-                type="number"
-                value={formData.maxUsers}
-                onChange={(e) => setFormData({ ...formData, maxUsers: parseInt(e.target.value) })}
-              />
-            </div>
+            {formData.subscriptionPlan === 'custom' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="maxUsers">Max Users *</Label>
+                  <Input
+                    id="maxUsers"
+                    type="number"
+                    min="1"
+                    value={formData.maxUsers || ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      maxUsers: parseInt(e.target.value) || 0
+                    }))}
+                    placeholder="Enter number of users"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="monthlyPrice">Monthly Price (₹)</Label>
+                  <div className="relative">
+                    <Input
+                      id="monthlyPrice"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.monthlyPrice || ''}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        monthlyPrice: parseFloat(e.target.value) || 0
+                      }))}
+                      className="pl-8"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Plan Details</Label>
+                  <span className="text-sm font-medium">
+                    {formData.subscriptionPlan === 'basic' ? `₹${planPricing.prices.basic}/month` : 
+                     formData.subscriptionPlan === 'professional' ? `₹${planPricing.prices.professional}/month` :
+                     formData.subscriptionPlan === 'enterprise' ? `₹${planPricing.prices.enterprise}/month` :
+                     formData.monthlyPrice ? `₹${formData.monthlyPrice}/month` : 'Custom pricing'}
+                  </span>
+                </div>
+                <div className="bg-muted/50 p-4 rounded-md space-y-2">
+                  <p className="text-sm">
+                    <span className="font-medium">{formData.maxUsers} users</span> included
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.subscriptionPlan === 'enterprise' 
+                      ? 'Contact us for additional users or custom requirements.'
+                      : 'Additional users can be added for ₹500/user/month.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Divider */}
             <div className="border-t pt-4 mt-4">
@@ -961,21 +1095,102 @@ export function CompanyManagement() {
               <Label htmlFor="edit-plan">Subscription Plan</Label>
               <Select
                 value={formData.subscriptionPlan}
-                onValueChange={(value: any) => {
-                  const maxUsers = value === 'enterprise' ? 100 : value === 'professional' ? 50 : 20;
-                  setFormData({ ...formData, subscriptionPlan: value, maxUsers });
-                }}
+                onValueChange={handleSubscriptionPlanChange}
               >
                 <SelectTrigger id="edit-plan">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="basic">Basic (20 users)</SelectItem>
-                  <SelectItem value="professional">Professional (50 users)</SelectItem>
-                  <SelectItem value="enterprise">Enterprise (100 users)</SelectItem>
+                  <SelectItem value="basic">
+                    <div className="flex justify-between w-full">
+                      <span>Basic</span>
+                      <span className="text-muted-foreground">₹{planPricing.prices.basic}/mo</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Up to {planPricing.maxUsers.basic} users</p>
+                  </SelectItem>
+                  <SelectItem value="professional">
+                    <div className="flex justify-between w-full">
+                      <span>Professional</span>
+                      <span className="text-muted-foreground">₹{planPricing.prices.professional}/mo</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Up to {planPricing.maxUsers.professional} users</p>
+                  </SelectItem>
+                  <SelectItem value="enterprise">
+                    <div className="flex justify-between w-full">
+                      <span>Enterprise</span>
+                      <span className="text-muted-foreground">₹{planPricing.prices.enterprise}/mo</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Up to {planPricing.maxUsers.enterprise} users</p>
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    <div className="flex justify-between w-full">
+                      <span>Custom</span>
+                      <span className="text-muted-foreground">Custom pricing</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Custom number of users</p>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {formData.subscriptionPlan === 'custom' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-maxUsers">Max Users *</Label>
+                  <Input
+                    id="edit-maxUsers"
+                    type="number"
+                    min="1"
+                    value={formData.maxUsers || ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      maxUsers: parseInt(e.target.value) || 0
+                    }))}
+                    placeholder="Enter number of users"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-monthlyPrice">Monthly Price (₹)</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-monthlyPrice"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.monthlyPrice || ''}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        monthlyPrice: parseFloat(e.target.value) || 0
+                      }))}
+                      className="pl-8"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Plan Details</Label>
+                  <span className="text-sm font-medium">
+                    {formData.subscriptionPlan === 'basic' ? `₹${planPricing.prices.basic}/month` : 
+                     formData.subscriptionPlan === 'professional' ? `₹${planPricing.prices.professional}/month` :
+                     formData.subscriptionPlan === 'enterprise' ? `₹${planPricing.prices.enterprise}/month` :
+                     formData.monthlyPrice ? `₹${formData.monthlyPrice}/month` : 'Custom pricing'}
+                  </span>
+                </div>
+                <div className="bg-muted/50 p-4 rounded-md space-y-2">
+                  <p className="text-sm">
+                    <span className="font-medium">{formData.maxUsers} users</span> included
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.subscriptionPlan === 'enterprise' 
+                      ? 'Contact us for additional users or custom requirements.'
+                      : 'Additional users can be added for ₹500/user/month.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="edit-maxUsers">Max Users</Label>

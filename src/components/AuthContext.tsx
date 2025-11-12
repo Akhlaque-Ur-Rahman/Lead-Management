@@ -22,6 +22,7 @@ interface AuthContextType {
   addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => User;
   updateUser: (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => void;
   deleteUser: (userId: string) => void;
+  deleteUsersByCompanyId: (companyId: string) => void;
   getUsersByCompany: (companyId: string) => User[];
   getAllUsers: () => User[];
   getUserCountForCompany: (companyId: string | null) => number;
@@ -509,6 +510,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // If role is being updated, update roleId as well
     const roleId = updates.role ? getRoleId(updates.role) : undefined;
     const fullUpdates = roleId ? { ...userUpdates, roleId } : userUpdates;
+    
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...fullUpdates } : u));
     
     if (password && password.trim()) {
@@ -518,16 +520,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ...prev,
           [userToUpdate.email]: password
         }));
-      }
-    }
-
-    // Update current user session if it's the same user
-    if (user && user.id === userId) {
-      const updatedUser = users.find(u => u.id === userId);
-      if (updatedUser) {
-        const newUserData = { ...updatedUser, ...userUpdates };
-        setUser(newUserData);
-        localStorage.setItem('lms_currentUser', JSON.stringify(newUserData));
       }
     }
   };
@@ -541,6 +533,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         delete newCreds[userToDelete.email];
         return newCreds;
       });
+      
+      // Update local storage
+      const savedUsers = localStorage.getItem('lms_users');
+      if (savedUsers) {
+        const parsedUsers = JSON.parse(savedUsers);
+        delete parsedUsers[userId];
+        localStorage.setItem('lms_users', JSON.stringify(parsedUsers));
+      }
+    }
+  };
+
+  const deleteUsersByCompanyId = (companyId: string) => {
+    // Get users to be deleted
+    const usersToDelete = users.filter(user => user.companyId === companyId);
+    
+    // Update state
+    setUsers(prev => prev.filter(user => user.companyId !== companyId));
+    
+    // Update credentials
+    setCredentials(prev => {
+      const newCreds = { ...prev };
+      usersToDelete.forEach(user => {
+        delete newCreds[user.email];
+      });
+      return newCreds;
+    });
+    
+    // Update local storage
+    const savedUsers = localStorage.getItem('lms_users');
+    if (savedUsers) {
+      const parsedUsers = JSON.parse(savedUsers);
+      usersToDelete.forEach(user => {
+        delete parsedUsers[user.id];
+      });
+      localStorage.setItem('lms_users', JSON.stringify(parsedUsers));
     }
   };
 
@@ -562,6 +589,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         addUser,
         updateUser,
         deleteUser,
+        deleteUsersByCompanyId,
         getUsersByCompany,
         getAllUsers,
         getUserCountForCompany,

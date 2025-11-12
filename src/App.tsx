@@ -55,6 +55,7 @@ function AppContent() {
       case 'companies':
         return <CompanyManagement />;
       case 'settings':
+      case 'subscription':
         return <Settings />;
       default:
         return <Dashboard />;

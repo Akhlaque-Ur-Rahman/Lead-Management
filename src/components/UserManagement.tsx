@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth, type User } from './AuthContext';
-import { useCompanies } from './CompanyContext';
+import { useCompanies, type PlanPricing } from './CompanyContext';
 import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission } from '../types/roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -64,7 +64,7 @@ const normalizeCompanyId = (value: string | number | null | undefined): string =
 
 export function UserManagement() {
   const { user, users, addUser, updateUser, deleteUser } = useAuth();
-  const { companies, getCompany } = useCompanies();
+  const { companies, getCompany, planPricing } = useCompanies();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -270,6 +270,23 @@ export function UserManagement() {
     if (users.some(u => u.email === formData.email)) {
       toast.error('Email already exists');
       return;
+    }
+
+    // Check user limit for the company's plan
+    if (formData.companyId) {
+      const company = companies.find(c => c.id === formData.companyId);
+      if (company) {
+        const companyUsers = users.filter(u => u.companyId === company.id);
+        const maxUsers = company.subscriptionPlan === 'basic' ? planPricing.maxUsers.basic :
+                        company.subscriptionPlan === 'professional' ? planPricing.maxUsers.professional :
+                        company.subscriptionPlan === 'enterprise' ? planPricing.maxUsers.enterprise :
+                        company.maxUsers;
+        
+        if (companyUsers.length >= maxUsers) {
+          toast.error(`This company's plan only allows up to ${maxUsers} users. Please upgrade the plan to add more users.`);
+          return;
+        }
+      }
     }
 
     const userData = {
