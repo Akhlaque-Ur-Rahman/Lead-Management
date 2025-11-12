@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { type RoleKey, type RoleId, getRoleId } from '../types/roles';
+import { toast } from 'sonner';
+import { useCompanies, type Company } from './CompanyContext';
 
 export interface User {
   id: string;
@@ -17,11 +19,12 @@ interface AuthContextType {
   users: User[];
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => void;
+  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => User;
   updateUser: (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => void;
   deleteUser: (userId: string) => void;
   getUsersByCompany: (companyId: string) => User[];
-  getAllUsers: () => User[]; // Add this line
+  getAllUsers: () => User[];
+  getUserCountForCompany: (companyId: string | null) => number;
   isLoading: boolean;
 }
 
@@ -37,7 +40,7 @@ export const useAuth = () => {
 
 // Initial users with multi-tenant structure
 const initialUsers: User[] = [
-  // Super Admin (Platform Level)
+  // Super Admins (Platform Level)
   {
     id: 'super-1',
     name: 'Super Admin',
@@ -45,83 +48,207 @@ const initialUsers: User[] = [
     role: 'super_admin',
     roleId: 1,
     companyId: null,
-    createdAt: '2024-01-01',
     isActive: true,
+    createdAt: new Date('2023-01-01').toISOString()
+  },
+  {
+    id: 'super-2',
+    name: 'System Admin',
+    email: 'sysadmin@lms.com',
+    role: 'super_admin',
+    roleId: 1,
+    companyId: null,
+    isActive: true,
+    createdAt: new Date('2023-01-15').toISOString()
   },
   
-  // Platform Admin (Platform Level)
+  // Platform Admins (for different companies)
   {
     id: 'platform-1',
+    name: 'Acme Platform Admin',
+    email: 'admin@acme.com',
+    role: 'platform_admin',
+    roleId: 2,
+    companyId: 'acme-corp',
+    isActive: true,
+    createdAt: new Date('2023-02-01').toISOString()
+  },
+  {
+    id: 'platform-2',
+    name: 'Globex Platform Admin',
+    email: 'admin@globex.com',
+    role: 'platform_admin',
+    roleId: 2,
+    companyId: 'globex-corp',
+    isActive: true,
+    createdAt: new Date('2023-02-15').toISOString()
+  },
+  {
+    id: 'platform-3',
     name: 'Platform Admin',
     email: 'platformadmin@lms.com',
     role: 'platform_admin',
     roleId: 2,
     companyId: null,
-    createdAt: '2024-01-01',
     isActive: true,
+    createdAt: new Date('2023-02-20').toISOString()
   },
   
-  // Company 1 - ABC Motors
+  // Company Admins
   {
-    id: 'user-1-1',
+    id: 'company-1',
+    name: 'Acme Sales Manager',
+    email: 'sales@acme.com',
+    role: 'company_admin',
+    roleId: 3,
+    companyId: 'acme-corp',
+    isActive: true,
+    createdAt: new Date('2023-03-01').toISOString()
+  },
+  {
+    id: 'company-2',
+    name: 'Globex Operations',
+    email: 'ops@globex.com',
+    role: 'company_admin',
+    roleId: 3,
+    companyId: 'globex-corp',
+    isActive: true,
+    createdAt: new Date('2023-03-15').toISOString()
+  },
+  
+  // Team Leads
+  {
+    id: 'lead-1',
+    name: 'John TeamLead',
+    email: 'john.lead@acme.com',
+    role: 'team_lead',
+    roleId: 4,
+    companyId: 'acme-corp',
+    isActive: true,
+    createdAt: new Date('2023-04-01').toISOString()
+  },
+  {
+    id: 'lead-2',
+    name: 'Sarah Manager',
+    email: 'sarah.m@globex.com',
+    role: 'team_lead',
+    roleId: 4,
+    companyId: 'globex-corp',
+    isActive: true,
+    createdAt: new Date('2023-04-15').toISOString()
+  },
+  
+  // Sales Users
+  {
+    id: 'sales-1',
+    name: 'Mike Sales',
+    email: 'mike.sales@acme.com',
+    role: 'sales_user',
+    roleId: 5,
+    companyId: 'acme-corp',
+    isActive: true,
+    createdAt: new Date('2023-05-01').toISOString()
+  },
+  {
+    id: 'sales-2',
+    name: 'Emma Sales',
+    email: 'emma.s@globex.com',
+    role: 'sales_user',
+    roleId: 5,
+    companyId: 'globex-corp',
+    isActive: true,
+    createdAt: new Date('2023-05-15').toISOString()
+  },
+  {
+    id: 'sales-3',
+    name: 'Alex Rep',
+    email: 'alex.rep@acme.com',
+    role: 'sales_user',
+    roleId: 5,
+    companyId: 'acme-corp',
+    isActive: false, // Inactive user
+    createdAt: new Date('2023-06-01').toISOString()
+  },
+  {
+    id: 'sales-4',
+    name: 'Taylor Smith',
+    email: 'taylor.s@globex.com',
+    role: 'sales_user',
+    roleId: 5,
+    companyId: 'globex-corp',
+    isActive: true,
+    createdAt: new Date('2023-06-15').toISOString()
+  },
+  {
+    id: 'sales-5',
+    name: 'Jordan Lee',
+    email: 'jordan.l@acme.com',
+    role: 'sales_user',
+    roleId: 5,
+    companyId: 'acme-corp',
+    isActive: true,
+    createdAt: new Date('2023-07-01').toISOString()
+  },
+  {
+    id: 'user-6',
     name: 'Rajesh Kumar',
     email: 'rajesh@abcmotors.com',
     role: 'company_admin',
-    roleId: 2,
+    roleId: 3,
     companyId: 'company-1',
-    createdAt: '2024-01-15',
     isActive: true,
+    createdAt: new Date('2024-01-15').toISOString()
   },
   {
-    id: 'user-1-2',
+    id: 'user-7',
     name: 'Priya Sharma',
     email: 'priya@abcmotors.com',
     role: 'team_lead',
-    roleId: 3,
+    roleId: 4,
     companyId: 'company-1',
-    createdAt: '2024-01-20',
     isActive: true,
+    createdAt: new Date('2024-01-20').toISOString()
   },
   {
-    id: 'user-1-3',
+    id: 'user-8',
     name: 'Amit Singh',
     email: 'amit@abcmotors.com',
     role: 'sales_user',
-    roleId: 4,
+    roleId: 5,
     companyId: 'company-1',
-    createdAt: '2024-01-25',
     isActive: true,
+    createdAt: new Date('2024-01-25').toISOString()
   },
   
   // Company 2 - XYZ Auto
   {
-    id: 'user-2-1',
+    id: 'user-9',
     name: 'Vikram Patel',
     email: 'vikram@xyzauto.com',
     role: 'company_admin',
-    roleId: 2,
+    roleId: 3,
     companyId: 'company-2',
-    createdAt: '2024-02-20',
     isActive: true,
+    createdAt: new Date('2024-02-20').toISOString()
   },
   {
-    id: 'user-2-2',
+    id: 'user-10',
     name: 'Sneha Reddy',
     email: 'sneha@xyzauto.com',
     role: 'sales_user',
-    roleId: 4,
+    roleId: 5,
     companyId: 'company-2',
-    createdAt: '2024-02-25',
     isActive: true,
+    createdAt: new Date('2024-02-25').toISOString()
   },
   
   // Company 3 - PQR Enterprises
   {
-    id: 'user-3-1',
+    id: 'user-11',
     name: 'Arjun Mehta',
     email: 'arjun@pqrenterprises.com',
     role: 'company_admin',
-    roleId: 2,
+    roleId: 3,
     companyId: 'company-3',
     createdAt: '2024-03-10',
     isActive: true,
@@ -141,6 +268,7 @@ const initialCredentials: Record<string, string> = {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { companies } = useCompanies();
   const [user, setUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('lms_users');
@@ -328,21 +456,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Get current user count for a company (excluding platform admins and super admins)
+  const getUserCountForCompany = (companyId: string | null) => {
+    if (!companyId) return 0; // Platform users don't count towards company limits
+    return users.filter(u => u.companyId === companyId && 
+      u.role !== 'super_admin' && 
+      u.role !== 'platform_admin').length;
+  };
+
   const addUser = (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {
     const { password, ...userDataWithoutPassword } = userData;
     const today = new Date();
     const roleId = getRoleId(userData.role) || 4; // Default to sales_user if not found
+    
+    // Check if the user is a company user (not super admin or platform admin)
+    const isCompanyUser = userData.companyId && 
+      userData.role !== 'super_admin' && 
+      userData.role !== 'platform_admin';
+    
+    // If it's a company user, check company limits
+    if (isCompanyUser) {
+      // Get company details
+      const company = companies?.find((c: Company) => c.id === userData.companyId);
+      if (company) {
+        const currentUserCount = getUserCountForCompany(company.id);
+        
+        // Check if adding this user would exceed the limit
+        if (currentUserCount >= company.maxUsers) {
+          throw new Error(`User limit reached for this company's subscription. Maximum ${company.maxUsers} users allowed.`);
+        }
+      }
+    }
+
     const newUser: User = {
       ...userDataWithoutPassword,
       roleId,
       id: `user-${Date.now()}`,
       createdAt: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
     };
+    
     setUsers(prev => [...prev, newUser]);
     setCredentials(prev => ({
       ...prev,
       [userData.email]: password || 'password123'
     }));
+    
+    return newUser;
   };
 
   const updateUser = (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => {
@@ -405,6 +564,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         deleteUser,
         getUsersByCompany,
         getAllUsers,
+        getUserCountForCompany,
         isLoading,
       }}
     >

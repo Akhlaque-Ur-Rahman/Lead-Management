@@ -17,6 +17,7 @@ export interface Company {
 
 interface CompanyContextType {
   companies: Company[];
+  isLoading: boolean;
   addCompany: (company: Omit<Company, 'id' | 'companyId' | 'createdAt'>) => Company;
   updateCompany: (companyId: string, updates: Partial<Company>) => void;
   deleteCompany: (companyId: string) => void;
@@ -82,14 +83,42 @@ const initialCompanies: Company[] = [
 ];
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
-  const [companies, setCompanies] = useState<Company[]>(() => {
-    const saved = localStorage.getItem('lms_companies');
-    return saved ? JSON.parse(saved) : initialCompanies;
-  });
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
 
+  // Load companies from localStorage on mount
   useEffect(() => {
-    localStorage.setItem('lms_companies', JSON.stringify(companies));
-  }, [companies]);
+    const loadCompanies = () => {
+      try {
+        setIsLoading(true);
+        const saved = localStorage.getItem('lms_companies');
+        if (saved) {
+          setCompanies(JSON.parse(saved));
+        } else {
+          // Initialize with mock data if no saved data
+          setCompanies(initialCompanies);
+        }
+      } catch (error) {
+        console.error('Error loading companies:', error);
+        setCompanies(initialCompanies);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCompanies();
+  }, []);
+
+  // Save companies to localStorage when they change
+  useEffect(() => {
+    if (!isLoading) { // Only save after initial load
+      try {
+        localStorage.setItem('lms_companies', JSON.stringify(companies));
+      } catch (error) {
+        console.error('Error saving companies:', error);
+      }
+    }
+  }, [companies, isLoading]);
 
   const addCompany = (companyData: Omit<Company, 'id' | 'companyId' | 'createdAt'>): Company => {
     const today = new Date();
@@ -121,6 +150,7 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     <CompanyContext.Provider
       value={{
         companies,
+        isLoading,
         addCompany,
         updateCompany,
         deleteCompany,

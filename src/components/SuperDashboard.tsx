@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useDebounce } from 'use-debounce';
 import { useAuth, type User } from './AuthContext';
 import { useCompanies } from './CompanyContext';
 import { Button } from './ui/button';
@@ -7,6 +9,7 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
+import { Loader2 } from 'lucide-react';
 
 const normalizeCompanyId = (value: string | number | null | undefined) => {
   if (value === null || value === undefined) {
@@ -17,14 +20,56 @@ const normalizeCompanyId = (value: string | number | null | undefined) => {
 };
 
 export function SuperDashboard() {
-  const { user, users } = useAuth();
-  const { companies } = useCompanies();
+  const { user, users, isLoading: isAuthLoading } = useAuth();
+  const { companies, isLoading: isCompaniesLoading } = useCompanies();
+  const isLoading = isAuthLoading || isCompaniesLoading;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isFiltering, setIsFiltering] = useState(false);
 
-  // State for filters
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [roleFilter, setRoleFilter] = useState<string[]>([]);
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  // Get filter values from URL or use defaults
+  const getFilterFromUrl = (key: string, defaultValue: string | string[]) => {
+    const value = searchParams.get(key);
+    if (!value) return defaultValue;
+    if (Array.isArray(defaultValue)) {
+      return value.split(',').filter(Boolean);
+    }
+    return value;
+  };
+
+  // State for filters with URL sync
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => getFilterFromUrl('status', 'all') as string
+  );
+  const [roleFilter, setRoleFilter] = useState<string[]>(
+    () => getFilterFromUrl('roles', []) as string[]
+  );
+  const [companyFilter, setCompanyFilter] = useState<string>(
+    () => getFilterFromUrl('company', 'all') as string
+  );
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get('search') || ''
+  );
+  
+  // Debounce search term to prevent too many re-renders
+  const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (roleFilter.length > 0) params.set('roles', roleFilter.join(','));
+    if (companyFilter !== 'all') params.set('company', companyFilter);
+    if (searchTerm) params.set('search', searchTerm);
+    
+    // Only update if there are params to avoid empty ? in URL
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+    
+    if (newSearch !== currentSearch) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [statusFilter, roleFilter, companyFilter, searchTerm, searchParams, setSearchParams]);
 
   // Get users safely (exclude super admins)
   const allUsers = useMemo(() => {
@@ -50,16 +95,20 @@ export function SuperDashboard() {
     return map;
   }, [companies]);
 
+  // Apply filters to users
   const filteredUsers = useMemo(() => {
-    if (!allUsers.length) {
-      return [];
-    }
+    setIsFiltering(true);
+    
+    try {
+      if (!allUsers.length) {
+        return [];
+      }
 
-    const normalizedStatus = statusFilter;
-    const normalizedRoles = roleFilter;
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+      const normalizedStatus = statusFilter;
+      const normalizedRoles = roleFilter;
+      const normalizedSearch = debouncedSearchTerm.trim().toLowerCase();
 
-    return allUsers.filter(user => {
+      const result = allUsers.filter(user => {
       // Status filter
       if (normalizedStatus === 'active' && !user.isActive) {
         return false;
@@ -101,9 +150,17 @@ export function SuperDashboard() {
         }
       }
 
-      return true;
-    });
-  }, [allUsers, statusFilter, roleFilter, companyFilter, searchTerm]);
+        return true;
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Error filtering users:', error);
+      return [];
+    } finally {
+      setIsFiltering(false);
+    }
+  }, [allUsers, statusFilter, roleFilter, companyFilter, debouncedSearchTerm]);
 
   const companyFilterLabel = useMemo(() => {
     if (companyFilter === 'all') {
@@ -123,12 +180,13 @@ export function SuperDashboard() {
   }, [companyFilter, companyNameLookup]);
 
   // Reset all filters
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setStatusFilter('all');
     setRoleFilter([]);
     setCompanyFilter('all');
     setSearchTerm('');
-  };
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   // Helper function to get company name
   const getCompanyName = (companyId: string | null) => {
@@ -155,16 +213,25 @@ export function SuperDashboard() {
     salesUsers: filteredUsers.filter(u => u.role === 'sales_user').length,
   };
 
-  // Show loading if no user data yet
-  if (!user) {
+  // Show loading state
+  if (isLoading) {
     return (
       <div className="p-4">
         <div className="text-center">
           <h1 className="text-2xl font-bold">Super Dashboard</h1>
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="flex justify-center mt-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+          <p className="mt-2 text-muted-foreground">Loading dashboard data...</p>
         </div>
       </div>
     );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    // You might want to use react-router's useNavigate here
+    return null;
   }
 
   return (
@@ -253,11 +320,20 @@ export function SuperDashboard() {
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Search</label>
-          <Input
-            placeholder="Search name or email"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <div className="relative">
+            <Input
+              placeholder="Search name or email"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isFiltering}
+              className={isFiltering ? 'pr-10' : ''}
+            />
+            {isFiltering && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

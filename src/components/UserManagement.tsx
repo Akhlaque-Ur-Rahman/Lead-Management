@@ -93,6 +93,14 @@ export function UserManagement() {
     filters.role !== 'all' || 
     filters.status !== 'all' || 
     filters.search !== '';
+    
+  // Count active filters for the badge
+  const filtersAppliedCount = [
+    filters.company !== 'all',
+    filters.role !== 'all',
+    filters.status !== 'all',
+    filters.search !== ''
+  ].filter(Boolean).length;
   
   const [formData, setFormData] = useState<{
     id?: string;
@@ -167,7 +175,15 @@ export function UserManagement() {
     
     return baseUsers.filter(u => {
       // Filter by company
-      if (filters.company !== 'all' && u.companyId !== filters.company) return false;
+      if (filters.company !== 'all') {
+        if (filters.company === 'platform') {
+          // Show platform users (super_admin and platform_admin with companyId = null)
+          if (u.role !== 'super_admin' && u.role !== 'platform_admin') return false;
+          if (u.companyId !== null) return false;
+        } else if (u.companyId !== filters.company) {
+          return false;
+        }
+      }
       
       // Filter by role
       if (filters.role !== 'all' && u.role !== filters.role) return false;
@@ -463,25 +479,14 @@ export function UserManagement() {
                 {isFilterActive && ' (filtered)'}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {isFilterActive && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetFilters}
-                  className="text-muted-foreground"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear Filters
-                </Button>
-              )}
+            <div className="w-full sm:w-auto">
               <Button 
                 onClick={() => setShowAddDialog(true)} 
                 size="sm"
                 className="gap-1 w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4" />
-                Add User
+                <span>Add User</span>
               </Button>
             </div>
           </div>
@@ -511,7 +516,7 @@ export function UserManagement() {
                   <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Filters</span>
                   {isFilterActive && (
-                    <span className="h-5 min-w-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                    <span className="h-5 min-w-5 flex items-center justify-center rounded-full bg-primary px-2 text-primary-foreground text-xs font-medium">
                       {[filters.company, filters.role, filters.status].filter(Boolean).length - 1}
                     </span>
                   )}
