@@ -1,7 +1,31 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { type RoleKey, type RoleId, getRoleId } from '../types/roles';
 import { toast } from 'sonner';
 import { useCompanies, type Company } from './CompanyContext';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  signOut as firebaseSignOut, 
+  createUserWithEmailAndPassword,
+  updateProfile as updateFirebaseProfile,
+  updateEmail as updateFirebaseEmail,
+  updatePassword as updateFirebasePassword,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  getDocs,
+  onSnapshot,
+  serverTimestamp
+} from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
 
 export interface User {
   id: string;
@@ -12,17 +36,18 @@ export interface User {
   companyId: string | null; // null for super_admin
   createdAt: string;
   isActive: boolean;
+  lastLoginAt?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   users: User[];
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
-  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => User;
-  updateUser: (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => void;
-  deleteUser: (userId: string) => void;
-  deleteUsersByCompanyId: (companyId: string) => void;
+  logout: () => Promise<void>;
+  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => Promise<User>;
+  updateUser: (userId: string, updates: Partial<Omit<User, 'roleId' | 'id'>> & { password?: string }) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  deleteUsersByCompanyId: (companyId: string) => Promise<void>;
   getUsersByCompany: (companyId: string) => User[];
   getAllUsers: () => User[];
   getUserCountForCompany: (companyId: string | null) => number;
@@ -39,544 +64,286 @@ export const useAuth = () => {
   return context;
 };
 
-// Initial users with multi-tenant structure
-const initialUsers: User[] = [
-  // Super Admins (Platform Level)
-  {
-    id: 'super-1',
-    name: 'Super Admin',
-    email: 'superadmin@lms.com',
-    role: 'super_admin',
-    roleId: 1,
-    companyId: null,
-    isActive: true,
-    createdAt: new Date('2023-01-01').toISOString()
-  },
-  {
-    id: 'super-2',
-    name: 'System Admin',
-    email: 'sysadmin@lms.com',
-    role: 'super_admin',
-    roleId: 1,
-    companyId: null,
-    isActive: true,
-    createdAt: new Date('2023-01-15').toISOString()
-  },
-  
-  // Platform Admins (for different companies)
-  {
-    id: 'platform-1',
-    name: 'Acme Platform Admin',
-    email: 'admin@acme.com',
-    role: 'platform_admin',
-    roleId: 2,
-    companyId: 'acme-corp',
-    isActive: true,
-    createdAt: new Date('2023-02-01').toISOString()
-  },
-  {
-    id: 'platform-2',
-    name: 'Globex Platform Admin',
-    email: 'admin@globex.com',
-    role: 'platform_admin',
-    roleId: 2,
-    companyId: 'globex-corp',
-    isActive: true,
-    createdAt: new Date('2023-02-15').toISOString()
-  },
-  {
-    id: 'platform-3',
-    name: 'Platform Admin',
-    email: 'platformadmin@lms.com',
-    role: 'platform_admin',
-    roleId: 2,
-    companyId: null,
-    isActive: true,
-    createdAt: new Date('2023-02-20').toISOString()
-  },
-  
-  // Company Admins
-  {
-    id: 'company-1',
-    name: 'Acme Sales Manager',
-    email: 'sales@acme.com',
-    role: 'company_admin',
-    roleId: 3,
-    companyId: 'acme-corp',
-    isActive: true,
-    createdAt: new Date('2023-03-01').toISOString()
-  },
-  {
-    id: 'company-2',
-    name: 'Globex Operations',
-    email: 'ops@globex.com',
-    role: 'company_admin',
-    roleId: 3,
-    companyId: 'globex-corp',
-    isActive: true,
-    createdAt: new Date('2023-03-15').toISOString()
-  },
-  
-  // Team Leads
-  {
-    id: 'lead-1',
-    name: 'John TeamLead',
-    email: 'john.lead@acme.com',
-    role: 'team_lead',
-    roleId: 4,
-    companyId: 'acme-corp',
-    isActive: true,
-    createdAt: new Date('2023-04-01').toISOString()
-  },
-  {
-    id: 'lead-2',
-    name: 'Sarah Manager',
-    email: 'sarah.m@globex.com',
-    role: 'team_lead',
-    roleId: 4,
-    companyId: 'globex-corp',
-    isActive: true,
-    createdAt: new Date('2023-04-15').toISOString()
-  },
-  
-  // Sales Users
-  {
-    id: 'sales-1',
-    name: 'Mike Sales',
-    email: 'mike.sales@acme.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'acme-corp',
-    isActive: true,
-    createdAt: new Date('2023-05-01').toISOString()
-  },
-  {
-    id: 'sales-2',
-    name: 'Emma Sales',
-    email: 'emma.s@globex.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'globex-corp',
-    isActive: true,
-    createdAt: new Date('2023-05-15').toISOString()
-  },
-  {
-    id: 'sales-3',
-    name: 'Alex Rep',
-    email: 'alex.rep@acme.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'acme-corp',
-    isActive: false, // Inactive user
-    createdAt: new Date('2023-06-01').toISOString()
-  },
-  {
-    id: 'sales-4',
-    name: 'Taylor Smith',
-    email: 'taylor.s@globex.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'globex-corp',
-    isActive: true,
-    createdAt: new Date('2023-06-15').toISOString()
-  },
-  {
-    id: 'sales-5',
-    name: 'Jordan Lee',
-    email: 'jordan.l@acme.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'acme-corp',
-    isActive: true,
-    createdAt: new Date('2023-07-01').toISOString()
-  },
-  {
-    id: 'user-6',
-    name: 'Rajesh Kumar',
-    email: 'rajesh@abcmotors.com',
-    role: 'company_admin',
-    roleId: 3,
-    companyId: 'company-1',
-    isActive: true,
-    createdAt: new Date('2024-01-15').toISOString()
-  },
-  {
-    id: 'user-7',
-    name: 'Priya Sharma',
-    email: 'priya@abcmotors.com',
-    role: 'team_lead',
-    roleId: 4,
-    companyId: 'company-1',
-    isActive: true,
-    createdAt: new Date('2024-01-20').toISOString()
-  },
-  {
-    id: 'user-8',
-    name: 'Amit Singh',
-    email: 'amit@abcmotors.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'company-1',
-    isActive: true,
-    createdAt: new Date('2024-01-25').toISOString()
-  },
-  
-  // Company 2 - XYZ Auto
-  {
-    id: 'user-9',
-    name: 'Vikram Patel',
-    email: 'vikram@xyzauto.com',
-    role: 'company_admin',
-    roleId: 3,
-    companyId: 'company-2',
-    isActive: true,
-    createdAt: new Date('2024-02-20').toISOString()
-  },
-  {
-    id: 'user-10',
-    name: 'Sneha Reddy',
-    email: 'sneha@xyzauto.com',
-    role: 'sales_user',
-    roleId: 5,
-    companyId: 'company-2',
-    isActive: true,
-    createdAt: new Date('2024-02-25').toISOString()
-  },
-  
-  // Company 3 - PQR Enterprises
-  {
-    id: 'user-11',
-    name: 'Arjun Mehta',
-    email: 'arjun@pqrenterprises.com',
-    role: 'company_admin',
-    roleId: 3,
-    companyId: 'company-3',
-    createdAt: '2024-03-10',
-    isActive: true,
-  },
-];
+const USERS_COLLECTION = 'users';
 
-// Initial credentials
-const initialCredentials: Record<string, string> = {
-  'superadmin@lms.com': 'super123',
-  'platformadmin@lms.com': 'platform123',
-  'rajesh@abcmotors.com': 'admin123',
-  'priya@abcmotors.com': 'lead123',
-  'amit@abcmotors.com': 'user123',
-  'vikram@xyzauto.com': 'admin123',
-  'sneha@xyzauto.com': 'user123',
-  'arjun@pqrenterprises.com': 'admin123',
-};
+const mapFirebaseUser = (firebaseUser: any): User => ({
+  id: firebaseUser.id || firebaseUser.uid,
+  name: firebaseUser.name || firebaseUser.displayName || '',
+  email: firebaseUser.email,
+  role: firebaseUser.role,
+  roleId: firebaseUser.roleId,
+  companyId: firebaseUser.companyId || null,
+  isActive: firebaseUser.isActive !== undefined ? firebaseUser.isActive : true,
+  createdAt: firebaseUser.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+  lastLoginAt: firebaseUser.lastLoginAt?.toDate?.()?.toISOString()
+});
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const { companies } = useCompanies();
   const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('lms_users');
-    try {
-      const parsed = saved ? JSON.parse(saved) : [];
-      // Ensure platform admin user is always available
-      const hasPlatformAdmin = parsed.some((u: User) => u.email === 'platformadmin@lms.com');
-      if (!hasPlatformAdmin) {
-        return [...initialUsers, ...parsed];
-      }
-      return parsed.length > 0 ? parsed : initialUsers;
-    } catch (error) {
-      console.error('Error loading users from localStorage:', error);
-      return initialUsers;
-    }
-  });
-  const [credentials, setCredentials] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('lms_credentials');
-    try {
-      const parsed = saved ? JSON.parse(saved) : {};
-      // Ensure platform admin credentials are always available
-      return {
-        ...initialCredentials,
-        ...parsed
-      };
-    } catch (error) {
-      console.error('Error loading credentials from localStorage:', error);
-      return initialCredentials;
-    }
-  });
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { companies } = useCompanies();
+  const firebaseAuth = getAuth();
 
   useEffect(() => {
-    const validateAndSetUser = async () => {
-      const savedUser = localStorage.getItem('lms_currentUser');
-      if (!savedUser) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const user = JSON.parse(savedUser) as User;
-        const validation = validateUserSession(user);
-        
-        if (validation.success) {
-          setUser(user);
-        } else {
-          // Auto-logout if session is no longer valid
-          localStorage.removeItem('lms_currentUser');
-          setUser(null);
-          
-          // Show toast with the reason for auto-logout
-          if (validation.error) {
-            // Using setTimeout to ensure toast shows after the component mounts
-            setTimeout(() => {
-              toast.error(validation.error);
-            }, 500);
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.isActive === false) {
+              await firebaseSignOut(firebaseAuth);
+              setUser(null);
+              return;
+            }
+            setUser(mapFirebaseUser({ ...userData, id: firebaseUser.uid }));
+          } else {
+            console.error('User not found in Firestore');
+            await firebaseSignOut(firebaseAuth);
+            setUser(null);
           }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          setUser(null);
         }
-      } catch (error) {
-        console.error('Error validating session:', error);
-        localStorage.removeItem('lms_currentUser');
+      } else {
         setUser(null);
-      } finally {
-        setIsLoading(false);
       }
-    };
+      setIsLoading(false);
+    });
 
-    validateAndSetUser();
+    const usersQuery = query(collection(db, USERS_COLLECTION), where('isActive', '==', true));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      const usersList: User[] = [];
+      snapshot.forEach((doc) => {
+        usersList.push(mapFirebaseUser({ ...doc.data(), id: doc.id }));
+      });
+      setUsers(usersList);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeUsers();
+    };
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('lms_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('lms_credentials', JSON.stringify(credentials));
-  }, [credentials]);
-
-  interface LoginResult {
-    success: boolean;
-    error?: string;
-    user?: User;
-  }
-
-  const validateUserSession = (user: User): LoginResult => {
-    // 1. Check if user is active
-    if (!user.isActive) {
-      return {
-        success: false,
-        error: 'Your user account is inactive. Contact your company admin.'
-      };
-    }
-
-    // 2. For non-platform users, validate company status
-    if (user.companyId) {
-      try {
-        const companiesData = localStorage.getItem('lms_companies');
-        if (!companiesData) {
-          return {
-            success: false,
-            error: 'Invalid email or password.'
-          };
-        }
-
-        const companies = JSON.parse(companiesData);
-        const userCompany = companies.find((c: any) => c.id === user.companyId);
-        
-        // 3. Check if company exists
-        if (!userCompany) {
-          return {
-            success: false,
-            error: 'Invalid email or password.'
-          };
-        }
-        
-        // 4. Check if company is active
-        if (!userCompany.isActive) {
-          const reason = userCompany.blockReason ? 
-            `Reason: ${userCompany.blockReason}` : 
-            'No reason provided';
-            
-          return { 
-            success: false, 
-            error: `Your company account has been disabled. ${reason} Contact support to reactivate.`
-          };
-        }
-      } catch (error) {
-        console.error('Error validating user session:', error);
-        return {
-          success: false,
-          error: 'An error occurred while validating your session. Please try again.'
-        };
+  const login = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+      const firebaseUser = userCredential.user;
+      const userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
+      if (!userDoc.exists()) {
+        await firebaseSignOut(firebaseAuth);
+        return { success: false, error: 'User not found' };
       }
-    }
-
-    return { success: true, user };
-  };
-
-  const login = async (email: string, password: string): Promise<LoginResult> => {
-    setIsLoading(true);
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // 1. Find user by email
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    // 2. Early return if user not found or credentials don't match
-    if (!user || credentials[email] !== password) {
-      setIsLoading(false);
-      return { 
-        success: false, 
-        error: 'Invalid email or password.' 
-      };
-    }
-
-    // 3. Validate user session (checks isActive, company status, etc.)
-    const validation = validateUserSession(user);
-    if (!validation.success) {
-      setIsLoading(false);
-      return validation;
-    }
-
-    // 4. Login successful
-    setUser(user);
-    localStorage.setItem('lms_currentUser', JSON.stringify(user));
-    localStorage.setItem('lms_lastLogin', new Date().toISOString());
-    
-    setIsLoading(false);
-    return { 
-      success: true,
-      user
-    };
-  };
-
-  const logout = (message?: string) => {
-    setUser(null);
-    localStorage.removeItem('lms_currentUser');
-    
-    if (message) {
-      toast(message, {
-        duration: 5000,
+      const userData = userDoc.data();
+      if (userData.isActive === false) {
+        await firebaseSignOut(firebaseAuth);
+        return { success: false, error: 'This account has been deactivated' };
+      }
+      if (userData.companyId) {
+        const companyDoc = await getDoc(doc(db, 'companies', userData.companyId));
+        if (companyDoc.exists() && !companyDoc.data()?.isActive) {
+          await firebaseSignOut(firebaseAuth);
+          return { success: false, error: 'Your company account is inactive' };
+        }
+      }
+      await updateDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), {
+        lastLoginAt: serverTimestamp()
       });
+      toast.success(`Welcome back, ${userData.name || userData.email}!`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      let errorMessage = 'An error occurred during login';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        errorMessage = 'Invalid email or password';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed login attempts. Please try again later.';
+      } else if (error.code === 'auth/user-disabled') {
+        errorMessage = 'This account has been disabled';
+      }
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Get current user count for a company (excluding platform admins and super admins)
+  const logout = async () => {
+    try {
+      await firebaseSignOut(firebaseAuth);
+      toast.success('Successfully logged out');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Failed to log out. Please try again.');
+    }
+  };
+
   const getUserCountForCompany = (companyId: string | null) => {
-    if (!companyId) return 0; // Platform users don't count towards company limits
-    return users.filter(u => u.companyId === companyId && 
-      u.role !== 'super_admin' && 
-      u.role !== 'platform_admin').length;
+    if (!companyId) return 0;
+    return users.filter(user => user.companyId === companyId).length;
   };
 
-  const addUser = (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {
-    const { password, ...userDataWithoutPassword } = userData;
-    const today = new Date();
-    const roleId = getRoleId(userData.role) || 4; // Default to sales_user if not found
-    
-    // Check if the user is a company user (not super admin or platform admin)
-    const isCompanyUser = userData.companyId && 
-      userData.role !== 'super_admin' && 
-      userData.role !== 'platform_admin';
-    
-    // If it's a company user, check company limits
-    if (isCompanyUser) {
-      // Get company details
-      const company = companies?.find((c: Company) => c.id === userData.companyId);
-      if (company) {
-        const currentUserCount = getUserCountForCompany(company.id);
-        
-        // Check if adding this user would exceed the limit
-        if (currentUserCount >= company.maxUsers) {
-          throw new Error(`User limit reached for this company's subscription. Maximum ${company.maxUsers} users allowed.`);
+  const addUser = async (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {
+    try {
+      setIsLoading(true);
+      const roleId = getRoleId(userData.role);
+      if (!roleId) {
+        throw new Error('Invalid role');
+      }
+      const userCredential = await createUserWithEmailAndPassword(
+        firebaseAuth, 
+        userData.email, 
+        userData.password
+      );
+      const firebaseUser = userCredential.user;
+      const userDoc = {
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        roleId,
+        companyId: userData.companyId || null,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      await setDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), userDoc);
+      await updateFirebaseProfile(firebaseUser, {
+        displayName: userData.name
+      });
+      const newUser: User = {
+        id: firebaseUser.uid,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        roleId,
+        companyId: userData.companyId || null,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      toast.success(`User ${userData.name} created successfully`);
+      return newUser;
+    } catch (error: any) {
+      console.error('Error adding user:', error);
+      let errorMessage = 'Failed to create user';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Email is already in use';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      }
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateUser = async (userId: string, updates: Partial<Omit<User, 'roleId' | 'id'>> & { password?: string }) => {
+    try {
+      setIsLoading(true);
+      const userRef = doc(db, USERS_COLLECTION, userId);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+      const updateData: any = {
+        ...updates,
+        updatedAt: serverTimestamp()
+      };
+      const { password, ...userUpdates } = updateData;
+      await updateDoc(userRef, userUpdates);
+      const firebaseUser = firebaseAuth.currentUser;
+      if (firebaseUser && firebaseUser.uid === userId) {
+        const updates: any = {};
+        if (updates.email && updates.email !== userDoc.data().email) {
+          await updateFirebaseEmail(firebaseUser, updates.email);
+        }
+        if (password) {
+          await updateFirebasePassword(firebaseUser, password);
+        }
+        if (updates.name && updates.name !== userDoc.data().name) {
+          await updateFirebaseProfile(firebaseUser, {
+            displayName: updates.name
+          });
         }
       }
+      toast.success('User updated successfully');
+    } catch (error: any) {
+      console.error('Error updating user:', error);
+      let errorMessage = 'Failed to update user';
+      if (error.code === 'auth/requires-recent-login') {
+        errorMessage = 'Please log in again to update your email or password';
+      } else if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Email is already in use';
+      }
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-
-    const newUser: User = {
-      ...userDataWithoutPassword,
-      roleId,
-      id: `user-${Date.now()}`,
-      createdAt: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
-    };
-    
-    setUsers(prev => [...prev, newUser]);
-    setCredentials(prev => ({
-      ...prev,
-      [userData.email]: password || 'password123'
-    }));
-    
-    return newUser;
   };
 
-  const updateUser = (userId: string, updates: Partial<Omit<User, 'roleId'>> & { password?: string }) => {
-    const { password, ...userUpdates } = updates;
-    // If role is being updated, update roleId as well
-    const roleId = updates.role ? getRoleId(updates.role) : undefined;
-    const fullUpdates = roleId ? { ...userUpdates, roleId } : userUpdates;
-    
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...fullUpdates } : u));
-    
-    if (password && password.trim()) {
-      const userToUpdate = users.find(u => u.id === userId);
-      if (userToUpdate) {
-        setCredentials(prev => ({
-          ...prev,
-          [userToUpdate.email]: password
+  const deleteUser = async (userId: string) => {
+    try {
+      setIsLoading(true);
+      const userRef = doc(db, USERS_COLLECTION, userId);
+      await updateDoc(userRef, {
+        isActive: false,
+        updatedAt: serverTimestamp()
+      });
+      if (user && user.id === userId) {
+        await firebaseSignOut(firebaseAuth);
+      }
+      toast.success('User deactivated successfully');
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      toast.error('Failed to deactivate user');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteUsersByCompanyId = async (companyId: string) => {
+    try {
+      setIsLoading(true);
+      const usersQuery = query(
+        collection(db, USERS_COLLECTION),
+        where('companyId', '==', companyId),
+        where('isActive', '==', true)
+      );
+      const querySnapshot = await getDocs(usersQuery);
+      const batch: Promise<void>[] = [];
+      querySnapshot.forEach((doc) => {
+        batch.push(updateDoc(doc.ref, {
+          isActive: false,
+          updatedAt: serverTimestamp()
         }));
+      });
+      await Promise.all(batch);
+      if (user && user.companyId === companyId) {
+        await firebaseSignOut(firebaseAuth);
       }
-    }
-  };
-
-  const deleteUser = (userId: string) => {
-    const userToDelete = users.find(u => u.id === userId);
-    if (userToDelete) {
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      setCredentials(prev => {
-        const newCreds = { ...prev };
-        delete newCreds[userToDelete.email];
-        return newCreds;
-      });
-      
-      // Update local storage
-      const savedUsers = localStorage.getItem('lms_users');
-      if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        delete parsedUsers[userId];
-        localStorage.setItem('lms_users', JSON.stringify(parsedUsers));
-      }
-    }
-  };
-
-  const deleteUsersByCompanyId = (companyId: string) => {
-    // Get users to be deleted
-    const usersToDelete = users.filter(user => user.companyId === companyId);
-    
-    // Update state
-    setUsers(prev => prev.filter(user => user.companyId !== companyId));
-    
-    // Update credentials
-    setCredentials(prev => {
-      const newCreds = { ...prev };
-      usersToDelete.forEach(user => {
-        delete newCreds[user.email];
-      });
-      return newCreds;
-    });
-    
-    // Update local storage
-    const savedUsers = localStorage.getItem('lms_users');
-    if (savedUsers) {
-      const parsedUsers = JSON.parse(savedUsers);
-      usersToDelete.forEach(user => {
-        delete parsedUsers[user.id];
-      });
-      localStorage.setItem('lms_users', JSON.stringify(parsedUsers));
+      toast.success(`All users from company have been deactivated`);
+    } catch (error) {
+      console.error('Error deactivating company users:', error);
+      toast.error('Failed to deactivate company users');
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const getUsersByCompany = (companyId: string) => {
-    return users.filter(u => u.companyId === companyId);
+    return users.filter(user => user.companyId === companyId);
   };
 
   const getAllUsers = () => {
-    return users.filter(u => u.role !== 'super_admin');
+    return [...users];
   };
 
   return (
