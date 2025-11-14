@@ -68,6 +68,8 @@ export function UserManagement() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -361,20 +363,18 @@ export function UserManagement() {
 
   const handleDelete = (userToDelete: User) => {
     if (userToDelete.id === user.id) {
-      toast.error("You cannot delete your own account");
+      toast.error('You cannot delete your own account');
       return;
     }
 
     // Platform admin cannot delete super admin
     if (user?.role === 'platform_admin' && userToDelete.role === 'super_admin') {
-      toast.error("Platform Admin cannot delete Super Admin users");
+      toast.error('Platform Admin cannot delete Super Admin users');
       return;
     }
 
-    if (confirm(`Are you sure you want to delete user "${userToDelete.name}"?`)) {
-      deleteUser(userToDelete.id);
-      toast.success(`User "${userToDelete.name}" deleted successfully!`);
-    }
+    setUserToDelete(userToDelete);
+    setDeleteConfirmText('');
   };
 
   // Using utility functions from roles.ts for role labels and badge variants
@@ -729,12 +729,11 @@ export function UserManagement() {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
               Add a new user to the system. Required fields are marked with *
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name *</Label>
@@ -848,7 +847,7 @@ export function UserManagement() {
               Update user details. Leave password empty to keep the current one.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name *</Label>
@@ -947,6 +946,70 @@ export function UserManagement() {
             </Button>
             <Button onClick={handleUpdate} className="w-full sm:w-auto">
               Update User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <Dialog
+        open={!!userToDelete}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setUserToDelete(null);
+            setDeleteConfirmText('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this user from the system. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm">
+              Type <span className="font-semibold">DELETE</span> to confirm deleting{' '}
+              <span className="font-semibold">{userToDelete?.name}</span>.
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+            />
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUserToDelete(null);
+                setDeleteConfirmText('');
+              }}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteConfirmText !== 'DELETE' || !userToDelete}
+              onClick={async () => {
+                if (!userToDelete || deleteConfirmText !== 'DELETE') return;
+                try {
+                  await deleteUser(userToDelete.id);
+                  toast.success(`User "${userToDelete.name}" deleted successfully!`);
+                } catch {
+                  // Errors are handled inside deleteUser
+                } finally {
+                  setUserToDelete(null);
+                  setDeleteConfirmText('');
+                }
+              }}
+              className="w-full sm:w-auto"
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

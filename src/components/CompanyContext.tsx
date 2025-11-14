@@ -4,10 +4,10 @@ import {
   doc, 
   setDoc, 
   updateDoc, 
+  deleteDoc,
   onSnapshot, 
-  query, 
-  where,
-  serverTimestamp
+  serverTimestamp,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -65,6 +65,13 @@ interface CompanyContextType {
   updateCompany: (companyId: string, updates: Partial<Omit<Company, 'id' | 'companyId' | 'createdAt'>>) => Promise<void>;
   deleteCompany: (companyId: string) => Promise<void>;
   getCompany: (companyId: string) => Company | undefined;
+  // Test function to verify Firestore integration
+  testFirestoreConnection: () => Promise<{
+    success: boolean;
+    companyId?: string;
+    error?: string;
+    firestoreData?: any;
+  }>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -103,14 +110,12 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     console.log('Setting up Firestore listener for companies');
     
     const companiesRef = collection(db, 'companies');
-    const q = query(companiesRef, where('isDeleted', '!=', true));
-    
     const unsubscribe = onSnapshot(
-      q,
+      companiesRef,
       (snapshot) => {
-        console.log('Companies snapshot received:', snapshot.docs.length, 'companies');
-        
-        const companiesData = snapshot.docs.map(doc => {
+        console.log('Companies snapshot received:', snapshot.docs.length, 'companies (before filtering)');
+        const companiesData = snapshot.docs
+          .map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -123,14 +128,16 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
             createdAt: parseTimestamp(data.createdAt),
             updatedAt: data.updatedAt ? parseTimestamp(data.updatedAt) : undefined,
             isActive: data.isActive !== false, // default to true if not set
-            isDeleted: data.isDeleted || false,
+            // Treat only a strict boolean true as deleted; anything else counts as not deleted
+            isDeleted: data.isDeleted === true,
             subscriptionPlan: data.subscriptionPlan || 'basic',
             maxUsers: data.maxUsers || 0,
             monthlyPrice: data.monthlyPrice,
             blockReason: data.blockReason || null
           } as Company;
-        });
-        
+        })
+          .filter(c => !c.isDeleted);
+        console.log('Companies after filtering isDeleted:', companiesData.length);
         setCompanies(companiesData);
         setIsLoading(false);
       },
@@ -156,30 +163,54 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
       const now = serverTimestamp();
       const companyRef = doc(db, 'companies', companyId);
       
+      // Create a plain object without any Firestore timestamps for logging
+      const companyToLog = {
+        ...companyData,
+        isActive: companyData.isActive !== false,
+        isDeleted: false,
+        blockReason: companyData.blockReason || null,
+        createdAt: '[ServerTimestamp]',
+        updatedAt: '[ServerTimestamp]'
+      };
+      
+      console.log('Attempting to create company in Firestore with ID:', companyId);
+      console.log('Company data to save:', companyToLog);
+      
+      // Create the actual company data with Firestore timestamps
       const companyToSave = {
         ...companyData,
-        // Don't include companyId in the document data as it's already the document ID
         isActive: companyData.isActive !== false,
         isDeleted: false,
         blockReason: companyData.blockReason || null,
         createdAt: now,
         updatedAt: now
       };
-
-      console.log('Creating company in Firestore:', { companyId, ...companyToSave });
       
+      console.log('Saving to Firestore...');
       await setDoc(companyRef, companyToSave);
       
-      console.log('Company created successfully');
+      console.log('Company successfully written to Firestore');
+      
+      // Verify the document was created
+      const docSnap = await getDoc(companyRef);
+      if (!docSnap.exists()) {
+        throw new Error('Failed to verify company creation in Firestore');
+      }
+      console.log('Company document verified in Firestore');
+      
       return { 
         id: companyId,
-        companyId, // Include companyId in the returned object
+        companyId,
         ...companyToSave,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
     } catch (error) {
-      console.error('Error adding company to Firestore:', error);
+      console.error('Error in addCompany:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       throw error;
     }
   };
@@ -201,18 +232,14 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Soft delete a company in Firestore
+  // Permanently delete a company from Firestore
   const deleteCompany = async (companyId: string) => {
-    console.log('Deleting company:', companyId);
+    console.log('Deleting company permanently:', companyId);
     
     try {
       const companyRef = doc(db, 'companies', companyId);
-      await updateDoc(companyRef, {
-        isActive: false,
-        isDeleted: true,
-        updatedAt: serverTimestamp()
-      });
-      console.log('Company soft-deleted successfully');
+      await deleteDoc(companyRef);
+      console.log('Company deleted successfully from Firestore');
     } catch (error) {
       console.error('Error deleting company in Firestore:', error);
       throw error;
@@ -234,6 +261,64 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     }));
   }, []);
 
+  // Test function to verify Firestore connection and permissions
+  const testFirestoreConnection = async () => {
+    const testCompany = {
+      name: 'Test Company ' + Math.random().toString(36).substring(2, 8),
+      email: `test-${Date.now()}@example.com`,
+      phone: '+1234567890',
+      address: '123 Test St, Test City',
+      isActive: true,
+      subscriptionPlan: 'basic' as const,
+      maxUsers: 10
+    };
+
+    try {
+      console.log('Starting Firestore connection test...');
+      
+      // Test 1: Write to Firestore
+      console.log('Creating test company...');
+      const company = await addCompany(testCompany);
+      console.log('Test company created:', company);
+      
+      // Test 2: Read from Firestore
+      console.log('Reading test company from Firestore...');
+      const companyRef = doc(db, 'companies', company.id);
+      const docSnap = await getDoc(companyRef);
+      
+      if (!docSnap.exists()) {
+        throw new Error('Failed to read the test company from Firestore');
+      }
+      
+      const firestoreData = docSnap.data();
+      console.log('Test company data from Firestore:', firestoreData);
+      
+      // Clean up
+      console.log('Cleaning up test company...');
+      await updateDoc(companyRef, { isDeleted: true });
+      
+      return {
+        success: true,
+        companyId: company.id,
+        firestoreData: {
+          ...firestoreData,
+          id: docSnap.id,
+          // Convert Firestore timestamps to strings for logging
+          createdAt: firestoreData.createdAt?.toDate?.()?.toISOString() || firestoreData.createdAt,
+          updatedAt: firestoreData.updatedAt?.toDate?.()?.toISOString() || firestoreData.updatedAt
+        }
+      };
+    } catch (error) {
+      console.error('Firestore test failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        companyId: undefined,
+        firestoreData: undefined
+      };
+    }
+  };
+
   const value = {
     companies,
     isLoading,
@@ -242,7 +327,8 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     addCompany,
     updateCompany,
     deleteCompany,
-    getCompany
+    getCompany,
+    testFirestoreConnection
   };
 
   return (

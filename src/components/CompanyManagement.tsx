@@ -40,6 +40,8 @@ export function CompanyManagement() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -173,12 +175,13 @@ export function CompanyManagement() {
       const companyData = {
         ...formData,
         isActive: true,
-        // Only include monthlyPrice for custom plans
-        ...(formData.subscriptionPlan !== 'custom' ? { monthlyPrice: undefined } : {})
+        ...(formData.subscriptionPlan === 'custom' && formData.monthlyPrice != null
+          ? { monthlyPrice: formData.monthlyPrice }
+          : {})
       };
 
       // Add the company
-      const newCompany = addCompany(companyData);
+      const newCompany = await addCompany(companyData);
 
       // Validate admin details if provided
       const createAdmin = adminFormData.adminEmail || adminFormData.adminName;
@@ -204,7 +207,7 @@ export function CompanyManagement() {
 
       // Create primary admin if details provided
       if (createAdmin) {
-        addUser({
+        await addUser({
           name: adminFormData.adminName,
           email: adminFormData.adminEmail,
           role: 'company_admin',
@@ -271,35 +274,8 @@ export function CompanyManagement() {
   const { deleteUsersByCompanyId } = useAuth();
   
   const handleDeleteCompany = async (company: Company) => {
-    const companyUsers = getUsersByCompany(company.id);
-    const userCount = companyUsers.length;
-    
-    const confirmMessage = 
-      `WARNING: You are about to delete the company "${company.name}" and all its data.\n\n` +
-      `This will:\n` +
-      `• Permanently delete all ${userCount} user account(s)\n` +
-      `• Remove all associated data\n\n` +
-      `This action CANNOT be undone.\n\n` +
-      `Type "DELETE" to confirm.`;
-    
-    const userInput = prompt(confirmMessage);
-    
-    if (userInput === 'DELETE') {
-      try {
-        // Delete all company users
-        deleteUsersByCompanyId(company.id);
-        
-        // Delete the company
-        deleteCompany(company.id);
-        
-        toast.success(`Company "${company.name}" and ${userCount} user account(s) deleted successfully.`);
-      } catch (error) {
-        console.error('Error deleting company:', error);
-        toast.error('Failed to delete company. Please try again.');
-      }
-    } else if (userInput !== null) {
-      toast.error('Deletion cancelled. You must type "DELETE" to confirm.');
-    }
+    setCompanyToDelete(company);
+    setDeleteConfirmText('');
   };
 
   const handleBlockCompany = (company: Company) => {
@@ -328,13 +304,11 @@ export function CompanyManagement() {
   };
 
   const handleUnblockCompany = (company: Company) => {
-    if (confirm(`Are you sure you want to enable "${company.name}"? All users will be able to log in again.`)) {
-      updateCompany(company.id, {
-        isActive: true,
-        blockReason: undefined,
-      });
-      toast.success(`Company "${company.name}" has been enabled. Users can now log in.`);
-    }
+    updateCompany(company.id, {
+      isActive: true,
+      blockReason: undefined,
+    });
+    toast.success(`Company "${company.name}" has been enabled. Users can now log in.`);
   };
 
   const getPlanBadgeVariant = (plan: string) => {
@@ -382,6 +356,8 @@ export function CompanyManagement() {
     setPlanFilter('all');
     setSearchTerm('');
   };
+
+  const deleteDialogUserCount = companyToDelete ? getUsersByCompany(companyToDelete.id).length : 0;
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -911,6 +887,78 @@ export function CompanyManagement() {
             </Button>
             <Button onClick={handleAdd} className="w-full sm:w-auto">
               Add Company
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Company Dialog */}
+      <Dialog
+        open={!!companyToDelete}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setCompanyToDelete(null);
+            setDeleteConfirmText('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Delete Company
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete the company
+              {companyToDelete ? ` "${companyToDelete.name}"` : ''} and all its users
+              ({deleteDialogUserCount} account{deleteDialogUserCount === 1 ? '' : 's'}). This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm">
+              Type <span className="font-semibold">DELETE</span> to confirm.
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+            />
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCompanyToDelete(null);
+                setDeleteConfirmText('');
+              }}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteConfirmText !== 'DELETE' || !companyToDelete}
+              onClick={async () => {
+                if (!companyToDelete || deleteConfirmText !== 'DELETE') return;
+                try {
+                  await deleteUsersByCompanyId(companyToDelete.id);
+                  await deleteCompany(companyToDelete.id);
+                  toast.success(
+                    `Company "${companyToDelete.name}" and ${deleteDialogUserCount} user account(s) deleted successfully.`
+                  );
+                } catch (error) {
+                  console.error('Error deleting company:', error);
+                } finally {
+                  setCompanyToDelete(null);
+                  setDeleteConfirmText('');
+                }
+              }}
+              className="w-full sm:w-auto"
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

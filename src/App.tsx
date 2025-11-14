@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AuthProvider, useAuth } from './components/AuthContext';
-import { CompanyProvider } from './components/CompanyContext';
-import { LeadsProvider } from './components/LeadsContext';
+import { useAuth } from './components/AuthContext';
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -110,13 +108,5 @@ function AppContent() {
 }
 
 export default function App() {
-  return (
-    <AuthProvider>
-      <CompanyProvider>
-        <LeadsProvider>
-          <AppContent />
-        </LeadsProvider>
-      </CompanyProvider>
-    </AuthProvider>
-  );
+  return <AppContent />;
 }

@@ -13,11 +13,13 @@ import {
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { 
   doc, 
   setDoc, 
   getDoc, 
   updateDoc, 
+  deleteDoc,
   collection, 
   query, 
   where, 
@@ -25,7 +27,7 @@ import {
   onSnapshot,
   serverTimestamp
 } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { app as primaryApp, auth, db } from '../firebaseConfig';
 
 export interface User {
   id: string;
@@ -113,8 +115,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     });
 
-    const usersQuery = query(collection(db, USERS_COLLECTION), where('isActive', '==', true));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+    // Load all users (active and inactive) so the UI can show status filters
+    const usersRef = collection(db, USERS_COLLECTION);
+    const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
       const usersList: User[] = [];
       snapshot.forEach((doc) => {
         usersList.push(mapFirebaseUser({ ...doc.data(), id: doc.id }));
@@ -183,7 +186,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const getUserCountForCompany = (companyId: string | null) => {
     if (!companyId) return 0;
-    return users.filter(user => user.companyId === companyId).length;
+    // Count only active users for company-level limits/stats
+    return users.filter(user => user.companyId === companyId && user.isActive).length;
   };
 
   const addUser = async (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {
@@ -193,9 +197,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!roleId) {
         throw new Error('Invalid role');
       }
+      // Use a secondary app/auth instance to avoid switching the current logged-in user
+      const secondaryApp = initializeApp(primaryApp.options, 'secondary-app');
+      const secondaryAuth = getAuth(secondaryApp);
       const userCredential = await createUserWithEmailAndPassword(
-        firebaseAuth, 
-        userData.email, 
+        secondaryAuth,
+        userData.email,
         userData.password
       );
       const firebaseUser = userCredential.user;
@@ -213,6 +220,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await updateFirebaseProfile(firebaseUser, {
         displayName: userData.name
       });
+      // Clean up the secondary app session to avoid interference
+      try { await deleteApp(secondaryApp); } catch {}
       const newUser: User = {
         id: firebaseUser.uid,
         name: userData.name,
@@ -291,17 +300,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       const userRef = doc(db, USERS_COLLECTION, userId);
-      await updateDoc(userRef, {
-        isActive: false,
-        updatedAt: serverTimestamp()
-      });
+      await deleteDoc(userRef);
       if (user && user.id === userId) {
         await firebaseSignOut(firebaseAuth);
       }
-      toast.success('User deactivated successfully');
+      toast.success('User deleted permanently');
     } catch (error) {
-      console.error('Error deactivating user:', error);
-      toast.error('Failed to deactivate user');
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
       throw error;
     } finally {
       setIsLoading(false);
@@ -313,25 +319,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       const usersQuery = query(
         collection(db, USERS_COLLECTION),
-        where('companyId', '==', companyId),
-        where('isActive', '==', true)
+        where('companyId', '==', companyId)
       );
       const querySnapshot = await getDocs(usersQuery);
-      const batch: Promise<void>[] = [];
-      querySnapshot.forEach((doc) => {
-        batch.push(updateDoc(doc.ref, {
-          isActive: false,
-          updatedAt: serverTimestamp()
-        }));
+      const deletions: Promise<void>[] = [];
+      querySnapshot.forEach((userDoc) => {
+        deletions.push(deleteDoc(userDoc.ref));
       });
-      await Promise.all(batch);
+      await Promise.all(deletions);
       if (user && user.companyId === companyId) {
         await firebaseSignOut(firebaseAuth);
       }
-      toast.success(`All users from company have been deactivated`);
+      toast.success(`All users from company have been deleted permanently`);
     } catch (error) {
-      console.error('Error deactivating company users:', error);
-      toast.error('Failed to deactivate company users');
+      console.error('Error deleting company users:', error);
+      toast.error('Failed to delete company users');
       throw error;
     } finally {
       setIsLoading(false);
