@@ -400,7 +400,7 @@ export function Settings() {
   };
 
   // Check if user has permission to access subscription settings
-  const canManageSubscription = hasPermission(user?.role || '', 'MANAGE_SETTINGS');
+  const canManageSubscription = hasPermission(user.role, 'MANAGE_SUBSCRIPTION_PLANS');
 
   const renderBillingSettings = () => {
     return (

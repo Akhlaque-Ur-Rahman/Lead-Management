@@ -1,20 +1,28 @@
 # Lead Management System - Complete Documentation
 
+**Last Updated:** November 15, 2025  
+**Version:** 2.0.0
+
 ## Table of Contents
 1. [Project Overview](#project-overview)
 2. [Architecture & Tech Stack](#architecture--tech-stack)
-3. [Features](#features)
-4. [Multi-Tenant Architecture](#multi-tenant-architecture)
-5. [Role-Based Access Control](#role-based-access-control)
-6. [Data Models](#data-models)
-7. [Context Providers](#context-providers)
-8. [Components Overview](#components-overview)
-9. [UI Components](#ui-components)
-10. [Setup & Installation](#setup--installation)
-11. [Usage Guide](#usage-guide)
-12. [Demo Credentials](#demo-credentials)
-13. [Development Guidelines](#development-guidelines)
-14. [Recent Updates](#recent-updates)
+3. [Security Features](#security-features)
+4. [Subscription Management](#subscription-management)
+5. [Features](#features)
+6. [Multi-Tenant Architecture](#multi-tenant-architecture)
+7. [Role-Based Access Control](#role-based-access-control)
+8. [Data Models](#data-models)
+9. [Context Providers](#context-providers)
+10. [Components Overview](#components-overview)
+11. [UI Components](#ui-components)
+12. [API Reference](#api-reference)
+13. [Setup & Installation](#setup--installation)
+14. [Usage Guide](#usage-guide)
+15. [Demo Credentials](#demo-credentials)
+16. [Development Guidelines](#development-guidelines)
+17. [Testing](#testing)
+18. [Deployment](#deployment)
+19. [Recent Updates](#recent-updates)
 
 ---
 
@@ -24,6 +32,8 @@ The Lead Management System (LMS) is a comprehensive web-based application design
 
 ### Key Highlights
 - **Multi-Tenant Architecture**: Support for multiple companies with data isolation
+- **Advanced Security**: Rate limiting, session management, and input validation
+- **Subscription Management**: Flexible subscription plans with role-based access control
 - **Role-Based Access Control**: 4-tier role hierarchy with granular permissions
 - **Lead Management**: Complete lifecycle management from lead pool to conversion
 - **Director-Based Follow-Ups**: Track multiple directors per company with individual follow-up schedules
@@ -31,6 +41,7 @@ The Lead Management System (LMS) is a comprehensive web-based application design
 - **Reports & Analytics**: Comprehensive reporting with visual charts
 - **Excel Integration**: Import/export leads via Excel
 - **Lost Lead Recovery**: Temporarily or permanently mark leads as lost with restoration capability
+- **Audit Logging**: Comprehensive tracking of all system activities
 
 ---
 
@@ -58,10 +69,14 @@ The Lead Management System (LMS) is a comprehensive web-based application design
 ### Additional Libraries
 - **Recharts 2.15.2** - Data visualization and charts
 - **React Day Picker 8.10.1** - Calendar component
-- **React Hook Form 7.55.0** - Form handling
+- **React Hook Form 7.55.0** - Form handling with validation
 - **XLSX** - Excel file import/export
 - **Sonner** - Toast notifications
 - **next-themes** - Dark/light theme support
+- **express-rate-limit** - API rate limiting
+- **helmet** - Security headers
+- **cors** - Cross-origin resource sharing
+- **express-validator** - Request validation
 
 ### Build & Development
 - **SWC** - Fast TypeScript/JavaScript compiler
@@ -69,22 +84,69 @@ The Lead Management System (LMS) is a comprehensive web-based application design
 
 ---
 
+## Security Features
+
+### Authentication & Authorization
+- **JWT-based Authentication**: Secure token-based authentication
+- **Role-Based Access Control**: Fine-grained permissions system
+- **Session Management**: Automatic token refresh and session timeout
+- **Password Policies**: Enforced complexity requirements and expiration
+- **Account Lockout**: Protection against brute force attacks
+
+### Data Protection
+- **Input Validation**: Server-side validation of all inputs
+- **Data Sanitization**: Protection against XSS and injection attacks
+- **Rate Limiting**: Protection against DDoS and brute force attacks
+- **CSRF Protection**: Cross-Site Request Forgery protection
+- **Secure Headers**: Security headers for web application protection
+
+### Audit & Compliance
+- **Activity Logging**: Comprehensive audit trails
+- **Security Events**: Logging of all security-relevant events
+- **Data Access Logs**: Tracking of all data access operations
+
+## Subscription Management
+
+### Subscription Plans
+- **Basic Plan**: Entry-level features with limited users
+- **Professional Plan**: Advanced features for growing businesses
+- **Enterprise Plan**: Full feature set with custom user limits
+- **Custom Plan**: Tailored solutions with custom pricing
+
+### Plan Features
+- **User Management**: Add/remove users based on plan limits
+- **Feature Toggles**: Enable/disable features per plan
+- **Billing Integration**: Support for multiple payment gateways
+- **Usage Analytics**: Track resource usage and limits
+- **Plan Upgrades/Downgrades**: Seamless plan changes
+
+### Billing & Invoicing
+- **Recurring Billing**: Automated subscription renewals
+- **Invoicing**: Automatic invoice generation
+- **Payment Methods**: Multiple payment options
+- **Trial Periods**: Support for free trials
+
 ## Features
 
 ### 1. User Management
-- Create, update, and delete users
-- Assign roles and companies
-- Password management
-- User activation/deactivation
+- Create, update, and delete users with role-based restrictions
+- Assign roles and companies with permission validation
+- Secure password management with complexity requirements
+- User activation/deactivation with audit logging
 - Role-based user creation restrictions
+- Session management with refresh tokens
+- Failed login attempt tracking
+- Account lockout after multiple failed attempts
 
 ### 2. Lead Pool Management
-- View unassigned leads by company
-- Bulk import from Excel files
-- Manual lead creation via forms
-- Customizable field configurations
+- View unassigned leads by company with filtering
+- Bulk import from Excel files with validation
+- Manual lead creation via forms with input sanitization
+- Customizable field configurations per company
 - Lead status tracking (Hot, Warm, Cold, Converted, Lost)
-- Assign leads to sales users
+- Assign leads to sales users with permission checks
+- Lead assignment history and audit trail
+- Duplicate lead detection and prevention
 
 ### 3. Assigned Leads
 - View leads assigned to specific users
@@ -943,6 +1005,84 @@ const { companies } = useCompanies();
 4. Update documentation
 
 ---
+
+## API Reference
+
+### Authentication
+```typescript
+// Login
+POST /api/auth/login
+// Logout
+POST /api/auth/logout
+// Refresh Token
+POST /api/auth/refresh
+```
+
+### Users
+```typescript
+// Get current user
+GET /api/users/me
+// Update user
+PUT /api/users/:id
+// Delete user
+DELETE /api/users/:id
+```
+
+### Companies
+```typescript
+// Create company
+POST /api/companies
+// Update company
+PUT /api/companies/:id
+// Get company
+GET /api/companies/:id
+```
+
+## Testing
+
+### Unit Testing
+- Jest test framework
+- React Testing Library
+- Test coverage reporting
+
+### Integration Testing
+- API endpoint testing
+- Component integration tests
+- End-to-end testing
+
+### Test Coverage
+- Minimum 80% coverage required
+- Critical paths: 100% coverage
+- Regular CI/CD pipeline testing
+
+## Deployment
+
+### Environment Variables
+```env
+NODE_ENV=production
+PORT=3000
+DATABASE_URL=your_database_url
+JWT_SECRET=your_jwt_secret
+FIREBASE_CONFIG=your_firebase_config
+```
+
+### Build & Deploy
+```bash
+# Install dependencies
+npm install
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+### Monitoring
+- Application performance monitoring
+- Error tracking
+- Log aggregation
+- Alerting system
 
 ## Recent Updates
 

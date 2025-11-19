@@ -13,6 +13,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         "--close-button-bg": "transparent",
         "--close-button-hover-bg": "rgba(0, 0, 0, 0.1)",
       } as React.CSSProperties}
+      position="bottom-right"
+      offset={16}
+      richColors
       closeButton
       {...props}
     />

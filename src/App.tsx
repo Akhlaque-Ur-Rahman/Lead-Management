@@ -29,7 +29,12 @@ function AppContent() {
   }, [user, hasRedirected]);
 
   if (!user) {
-    return <Login />;
+    return (
+      <>
+        <Login />
+        <Toaster />
+      </>
+    );
   }
 
   const renderContent = () => {

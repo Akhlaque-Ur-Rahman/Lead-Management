@@ -124,6 +124,13 @@ interface LeadsContextType {
   getLeadsAssignedToUser: (userId: string) => Lead[];
   getConvertedLeads: (companyId: string) => Lead[];
   getDirectorFollowUpsForDate: (date: string, companyId?: string) => Array<{lead: Lead; director: Director; followUp: FollowUp}>;
+  getGlobalAggregates: (companyId?: string) => {
+    totalCompanies: number;
+    totalLeads: number;
+    convertedLeads: number;
+    conversionRate: number;
+    activeUsers: number;
+  };
 }
 
 const LeadsContext = createContext<LeadsContextType | undefined>(undefined);
@@ -456,6 +463,36 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return result.sort((a, b) => a.followUp.time.localeCompare(b.followUp.time));
   };
 
+  // Aggregation helper: compute global or per-company aggregates
+  const getGlobalAggregates = (companyId?: string) => {
+    const filteredLeads = companyId ? leads.filter(l => l.companyId === companyId) : leads;
+
+    const totalLeads = filteredLeads.length;
+    const convertedLeads = filteredLeads.filter(l => l.status === 'Converted').length;
+
+    const lostCount = companyId
+      ? lostLeads.filter(ll => ll.lead.companyId === companyId).length
+      : lostLeads.length;
+
+    const totalProcessed = convertedLeads + lostCount;
+    const conversionRate = totalProcessed > 0 ? Math.round((convertedLeads / totalProcessed) * 10000) / 100 : 0; // percentage with 2 decimals
+
+    // Active users derived from leads (assignedTo, uploadedBy, convertedBy)
+    const userSet = new Set<string>();
+    filteredLeads.forEach(l => {
+      if (l.assignedTo) userSet.add(l.assignedTo);
+      if (l.uploadedBy) userSet.add(l.uploadedBy);
+      if (l.convertedBy) userSet.add(l.convertedBy);
+    });
+
+    const activeUsers = userSet.size;
+
+    // total companies present in leads data
+    const totalCompanies = new Set(filteredLeads.map(l => l.companyId)).size;
+
+    return { totalCompanies, totalLeads, convertedLeads, conversionRate, activeUsers };
+  };
+
   return (
     <LeadsContext.Provider
       value={{
@@ -480,6 +517,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         getLeadsAssignedToUser,
         getConvertedLeads,
         getDirectorFollowUpsForDate,
+        getGlobalAggregates,
       }}
     >
       {children}

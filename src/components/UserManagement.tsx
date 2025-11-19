@@ -53,6 +53,7 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { toast } from 'sonner';
+import FilterBadge from './ui/filter-badge';
 
 // Helper function to normalize company IDs for comparison
 const normalizeCompanyId = (value: string | number | null | undefined): string => {
@@ -252,7 +253,7 @@ export function UserManagement() {
     });
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!formData.name || !formData.email || !formData.password) {
       toast.error('Please fill in all required fields');
       return;
@@ -300,10 +301,13 @@ export function UserManagement() {
       isActive: formData.isActive,
     };
 
-    addUser(userData);
-    toast.success(`User "${formData.name}" created successfully!`);
-    setShowAddDialog(false);
-    resetForm();
+    try {
+      await addUser(userData);
+      setShowAddDialog(false);
+      resetForm();
+    } catch (err) {
+      // addUser handles toasts for errors/success; keep UI state if needed
+    }
   };
 
   const handleEdit = (userToEdit: User) => {
@@ -354,11 +358,14 @@ export function UserManagement() {
       updates.password = formData.password;
     }
 
-    updateUser(selectedUser.id, updates);
-    toast.success(`User "${formData.name}" updated successfully!`);
-    setShowEditDialog(false);
-    setSelectedUser(null);
-    resetForm();
+    try {
+      await updateUser(selectedUser.id, updates);
+      setShowEditDialog(false);
+      setSelectedUser(null);
+      resetForm();
+    } catch (err) {
+      // updateUser will show toasts; keep UI state if needed
+    }
   };
 
   const handleDelete = (userToDelete: User) => {
@@ -430,7 +437,7 @@ export function UserManagement() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <div className="text-2xl font-bold">{filteredUsers.filter(u => u.role !== 'super_admin').length}</div>
             <p className="text-xs text-muted-foreground">
               {user.role === 'super_admin' ? 'Across all companies' : 'In your company'}
             </p>
@@ -532,11 +539,7 @@ export function UserManagement() {
                 >
                   <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Filters</span>
-                  {isFilterActive && (
-                    <span className="h-5 min-w-5 flex items-center justify-center rounded-full bg-primary px-2 text-primary-foreground text-xs font-medium">
-                      {[filters.company, filters.role, filters.status].filter(Boolean).length - 1}
-                    </span>
-                  )}
+                  {isFilterActive && <FilterBadge count={filtersAppliedCount} />}
                   <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
                 </Button>
               </PopoverTrigger>
@@ -999,7 +1002,6 @@ export function UserManagement() {
                 if (!userToDelete || deleteConfirmText !== 'DELETE') return;
                 try {
                   await deleteUser(userToDelete.id);
-                  toast.success(`User "${userToDelete.name}" deleted successfully!`);
                 } catch {
                   // Errors are handled inside deleteUser
                 } finally {

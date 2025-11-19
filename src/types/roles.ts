@@ -121,6 +121,7 @@ export const PERMISSIONS = {
   MANAGE_USERS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
   MANAGE_COMPANIES: ['super_admin', 'platform_admin'] as RoleKey[],
   MANAGE_SETTINGS: ['super_admin', 'platform_admin', 'company_admin'] as RoleKey[],
+  MANAGE_SUBSCRIPTION_PLANS: ['super_admin'] as RoleKey[],
   DELETE_LOST_LEADS: ['super_admin'] as RoleKey[],
   RESTORE_LOST_LEADS: ['super_admin', 'platform_admin', 'company_admin'] as RoleKey[],
   ASSIGN_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],

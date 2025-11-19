@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { type RoleKey, type RoleId, getRoleId } from '../types/roles';
 import { toast } from 'sonner';
 import { useCompanies, type Company } from './CompanyContext';
@@ -38,6 +38,7 @@ export interface User {
   companyId: string | null; // null for super_admin
   createdAt: string;
   isActive: boolean;
+  deactivatedByCompany?: boolean;
   lastLoginAt?: string;
 }
 
@@ -76,6 +77,7 @@ const mapFirebaseUser = (firebaseUser: any): User => ({
   roleId: firebaseUser.roleId,
   companyId: firebaseUser.companyId || null,
   isActive: firebaseUser.isActive !== undefined ? firebaseUser.isActive : true,
+  deactivatedByCompany: firebaseUser.deactivatedByCompany === true,
   createdAt: firebaseUser.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
   lastLoginAt: firebaseUser.lastLoginAt?.toDate?.()?.toISOString()
 });
@@ -86,6 +88,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { companies } = useCompanies();
   const firebaseAuth = getAuth();
+  const suppressSignOutToastRef = useRef(false);
+
+  const suppressSignOutToast = (ms = 1200) => {
+    suppressSignOutToastRef.current = true;
+    setTimeout(() => { suppressSignOutToastRef.current = false; }, ms);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
@@ -94,16 +102,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            // Debug: log fetched user doc for troubleshooting
+            // eslint-disable-next-line no-console
+            console.debug('Auth: fetched userDoc for', firebaseUser.uid, userData);
+
+            // Enforce explicit active flags: deny access if user or company is inactive.
             if (userData.isActive === false) {
+              suppressSignOutToast();
               await firebaseSignOut(firebaseAuth);
               setUser(null);
+              setIsLoading(false);
               return;
             }
+
+            // If user belongs to a company, ensure the company is active
+            if (userData.companyId) {
+              const companyDoc = await getDoc(doc(db, 'companies', userData.companyId));
+              if (companyDoc.exists() && companyDoc.data()?.isActive === false) {
+                suppressSignOutToast();
+                await firebaseSignOut(firebaseAuth);
+                setUser(null);
+                setIsLoading(false);
+                return;
+              }
+            }
+
+            // All checks passed — set the user in context (no automatic writes to Firestore)
             setUser(mapFirebaseUser({ ...userData, id: firebaseUser.uid }));
           } else {
-            console.error('User not found in Firestore');
+            // User authenticated but no Firestore user doc found
+            console.warn('Auth: user authenticated but Firestore user doc missing for', firebaseUser.uid);
+            suppressSignOutToast();
             await firebaseSignOut(firebaseAuth);
             setUser(null);
+            setIsLoading(false);
+            return;
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -117,12 +150,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Load all users (active and inactive) so the UI can show status filters
     const usersRef = collection(db, USERS_COLLECTION);
-    const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
+      const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
       const usersList: User[] = [];
       snapshot.forEach((doc) => {
         usersList.push(mapFirebaseUser({ ...doc.data(), id: doc.id }));
       });
       setUsers(usersList);
+
+      // If the current authenticated user's Firestore user doc was deactivated, sign them out immediately.
+      const currentUid = firebaseAuth.currentUser?.uid;
+      if (currentUid) {
+        const currentUserDoc = usersList.find(u => u.id === currentUid);
+        if (currentUserDoc && currentUserDoc.isActive === false) {
+          (async () => {
+            try {
+              suppressSignOutToast();
+              await firebaseSignOut(firebaseAuth);
+              setUser(null);
+            } catch (err) {
+              console.error('Error signing out deactivated user:', err);
+            }
+          })();
+        }
+      }
     });
 
     return () => {
@@ -131,43 +181,106 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  // If the current user's company becomes inactive, sign them out immediately.
+  useEffect(() => {
+    if (!user) return;
+    // Only check if user has a companyId
+    if (!user.companyId) return;
+
+    const company = companies.find(c => c.id === user.companyId || c.companyId === user.companyId);
+    if (company && company.isActive === false) {
+      (async () => {
+        try {
+          suppressSignOutToast();
+          await firebaseSignOut(firebaseAuth);
+          setUser(null);
+        } catch (err) {
+          console.error('Error signing out inactive company user:', err);
+        }
+      })();
+    }
+  }, [user, companies]);
+
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
       const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
       const firebaseUser = userCredential.user;
-      const userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
-      if (!userDoc.exists()) {
+      let userDoc: any;
+      try {
+        userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
+      } catch (err: any) {
+        console.error('Login: failed to read user document (possible Firestore permission error):', err);
+        // Provide a clearer, actionable message while keeping listeners silent
+        const isPermDenied = err?.code === 'permission-denied' || String(err).includes('Missing or insufficient permissions');
+        const friendly = isPermDenied
+          ? 'Unable to access account data. Contact your administrator.'
+          : 'Login failed while verifying account. Please try again.';
+        toast.error(friendly);
+        suppressSignOutToast();
         await firebaseSignOut(firebaseAuth);
-        return { success: false, error: 'User not found' };
+        return { success: false, error: String(err?.message || err) };
+      }
+
+      if (!userDoc.exists()) {
+        // Clearer message when auth succeeds but Firestore user record is missing
+        toast.error('Your account is not provisioned in the system. Contact an administrator.');
+        suppressSignOutToast();
+        await firebaseSignOut(firebaseAuth);
+        return { success: false, error: 'User not provisioned in Firestore' };
       }
       const userData = userDoc.data();
       if (userData.isActive === false) {
+        toast.error('This account has been deactivated');
+        suppressSignOutToast();
         await firebaseSignOut(firebaseAuth);
         return { success: false, error: 'This account has been deactivated' };
       }
       if (userData.companyId) {
         const companyDoc = await getDoc(doc(db, 'companies', userData.companyId));
         if (companyDoc.exists() && !companyDoc.data()?.isActive) {
+          toast.error('Your company account is inactive');
+          suppressSignOutToast();
           await firebaseSignOut(firebaseAuth);
           return { success: false, error: 'Your company account is inactive' };
         }
       }
-      await updateDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), {
-        lastLoginAt: serverTimestamp()
-      });
+      // Try updating lastLoginAt, but don't treat failures as login failures (permission issues may block this)
+      try {
+        await updateDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), {
+          lastLoginAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn('Login: could not update lastLoginAt for user', firebaseUser.uid, err);
+      }
       toast.success(`Welcome back, ${userData.name || userData.email}!`);
       return { success: true };
     } catch (error: any) {
       console.error('Login error:', error);
-      let errorMessage = 'An error occurred during login';
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Invalid email or password';
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many failed login attempts. Please try again later.';
-      } else if (error.code === 'auth/user-disabled') {
-        errorMessage = 'This account has been disabled';
+      // Distinguish auth errors from other runtime errors (e.g., Firestore permission denied)
+      let errorMessage = '';
+      if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' && error.code.startsWith('auth/')) {
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+          errorMessage = 'Wrong email or password';
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMessage = 'Too many failed login attempts. Please try again later.';
+        } else if (error.code === 'auth/user-disabled') {
+          errorMessage = 'This account has been disabled';
+        } else if (error.code === 'auth/network-request-failed') {
+          errorMessage = 'Network error. Please check your connection.';
+        } else if (error.code === 'auth/invalid-email') {
+          errorMessage = 'Invalid email format';
+        } else {
+          errorMessage = 'Authentication failed';
+        }
+      } else {
+        // Non-auth errors (Firestore update errors, permission denied, etc.)
+        console.error('Non-auth error during login:', error);
+        const msg = error?.message || String(error) || 'Login failed';
+        errorMessage = `Login failed: ${msg}`;
       }
+      // Show toast for immediate visibility in UI
+      toast.error(errorMessage);
       return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
@@ -176,6 +289,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
+      suppressSignOutToast();
       await firebaseSignOut(firebaseAuth);
       toast.success('Successfully logged out');
     } catch (error) {
@@ -302,6 +416,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userRef = doc(db, USERS_COLLECTION, userId);
       await deleteDoc(userRef);
       if (user && user.id === userId) {
+        suppressSignOutToast();
         await firebaseSignOut(firebaseAuth);
       }
       toast.success('User deleted permanently');
@@ -328,6 +443,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       await Promise.all(deletions);
       if (user && user.companyId === companyId) {
+        suppressSignOutToast();
         await firebaseSignOut(firebaseAuth);
       }
       toast.success(`All users from company have been deleted permanently`);

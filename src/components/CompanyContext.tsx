@@ -7,7 +7,12 @@ import {
   deleteDoc,
   onSnapshot, 
   serverTimestamp,
-  getDoc
+  getDoc,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -72,6 +77,8 @@ interface CompanyContextType {
     error?: string;
     firestoreData?: any;
   }>;
+  // Helper to determine whether a role may change subscription plans
+  canChangePlan: (role?: string) => boolean;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -159,13 +166,41 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     console.log('Adding new company:', companyData);
     
     try {
+      const trimmedName = (companyData.name || '').trim();
+      const trimmedEmail = (companyData.email || '').trim();
+      const trimmedPhone = (companyData.phone || '').trim();
+      const trimmedAddress = (companyData.address || '').trim();
+
+      if (!trimmedName) {
+        throw new Error('COMPANY_NAME_REQUIRED');
+      }
+
+      // Server-side duplicate check by company name to avoid race conditions
+      const companiesRef = collection(db, 'companies');
+      const duplicateQuery = query(
+        companiesRef,
+        where('name', '==', trimmedName)
+      );
+      const duplicateSnapshot = await getDocs(duplicateQuery);
+      if (!duplicateSnapshot.empty) {
+        throw new Error('COMPANY_NAME_ALREADY_EXISTS');
+      }
+
+      const normalizedData = {
+        ...companyData,
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        address: trimmedAddress,
+      };
+
       const companyId = generateCompanyId();
       const now = serverTimestamp();
       const companyRef = doc(db, 'companies', companyId);
       
       // Create a plain object without any Firestore timestamps for logging
       const companyToLog = {
-        ...companyData,
+        ...normalizedData,
         isActive: companyData.isActive !== false,
         isDeleted: false,
         blockReason: companyData.blockReason || null,
@@ -178,7 +213,7 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
       
       // Create the actual company data with Firestore timestamps
       const companyToSave = {
-        ...companyData,
+        ...normalizedData,
         isActive: companyData.isActive !== false,
         isDeleted: false,
         blockReason: companyData.blockReason || null,
@@ -221,6 +256,50 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       const companyRef = doc(db, 'companies', companyId);
+
+      // Read existing company state to detect isActive changes
+      const prevCompanySnap = await getDoc(companyRef);
+      const prevIsActive = prevCompanySnap.exists() ? (prevCompanySnap.data().isActive !== false) : true;
+      const newIsActive = typeof updates.isActive === 'boolean' ? updates.isActive : prevIsActive;
+
+      // If isActive changed, sync users accordingly
+      if (typeof updates.isActive === 'boolean' && newIsActive !== prevIsActive) {
+        // Query all users for this company
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('companyId', '==', companyId)
+        );
+        const usersSnap = await getDocs(usersQuery);
+        const userDocs = usersSnap.docs;
+
+        if (newIsActive === false) {
+          // Deactivating company: mark all users inactive and flag them as deactivatedByCompany
+          console.log(`Deactivating ${userDocs.length} users for company ${companyId}`);
+          const batchSize = 500;
+          for (let i = 0; i < userDocs.length; i += batchSize) {
+            const batch = writeBatch(db);
+            const slice = userDocs.slice(i, i + batchSize);
+            slice.forEach((uDoc) => {
+              batch.update(uDoc.ref, { isActive: false, deactivatedByCompany: true, updatedAt: serverTimestamp() });
+            });
+            await batch.commit();
+          }
+        } else {
+          // Reactivating company: only reactivate users that were deactivated by company
+          console.log(`Reactivating users (only those deactivated by company) for ${companyId}`);
+          const toReactivate = userDocs.filter(d => d.data()?.deactivatedByCompany === true);
+          const batchSize = 500;
+          for (let i = 0; i < toReactivate.length; i += batchSize) {
+            const batch = writeBatch(db);
+            const slice = toReactivate.slice(i, i + batchSize);
+            slice.forEach((uDoc) => {
+              batch.update(uDoc.ref, { isActive: true, deactivatedByCompany: deleteField(), updatedAt: serverTimestamp() });
+            });
+            await batch.commit();
+          }
+        }
+      }
+
       await updateDoc(companyRef, {
         ...updates,
         updatedAt: serverTimestamp()
@@ -329,6 +408,10 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     deleteCompany,
     getCompany,
     testFirestoreConnection
+    ,
+    canChangePlan: (role?: string) => {
+      return role === 'super_admin' || role === 'platform_admin';
+    }
   };
 
   return (

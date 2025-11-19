@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import CompanyFilter from './CompanyFilter';
+import { useLeads } from './LeadsContext';
 import { useAuth } from './AuthContext';
 import { useCompanies, Company } from './CompanyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -30,23 +32,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Building2, Plus, Edit, Trash2, Users, AlertCircle, Phone, Mail, Search, Copy, CheckCircle, Ban, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Users, AlertCircle, Phone, Mail, Search, Copy, CheckCircle, Ban, BarChart3 } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
+import { writeBatch, doc as firestoreDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 export function CompanyManagement() {
   const { user, getUsersByCompany, users, addUser, updateUser } = useAuth();
   const { companies, addCompany, updateCompany, deleteCompany, planPricing, updatePlanPricing } = useCompanies();
+  const { getGlobalAggregates } = useLeads();
+  const { canChangePlan } = useCompanies();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [planFilter, setPlanFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -89,6 +97,8 @@ export function CompanyManagement() {
       monthlyPrice: planConfig.monthlyPrice
     }));
   };
+
+  const isPlatformOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'platform_admin';
 
   // Primary admin form state
   const [adminFormData, setAdminFormData] = useState({
@@ -153,7 +163,13 @@ export function CompanyManagement() {
   };
 
   const handleAdd = async () => {
-    if (!formData.name || !formData.email || !formData.phone) {
+    if (isSubmitting) return;
+
+    const trimmedName = formData.name.trim();
+    const trimmedEmail = formData.email.trim();
+    const trimmedPhone = formData.phone.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedPhone) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -164,21 +180,33 @@ export function CompanyManagement() {
       return;
     }
 
-    // Check if company name already exists
-    if (companies.some(c => c.name.toLowerCase() === formData.name.toLowerCase())) {
+    // Check if company name already exists (client-side check; backend also validates)
+    if (companies.some(c => c.name.trim().toLowerCase() === trimmedName.toLowerCase())) {
       toast.error('A company with this name already exists');
       return;
     }
 
     try {
+      setIsSubmitting(true);
+
       // Prepare company data
       const companyData = {
         ...formData,
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
         isActive: true,
         ...(formData.subscriptionPlan === 'custom' && formData.monthlyPrice != null
           ? { monthlyPrice: formData.monthlyPrice }
           : {})
       };
+
+      // If user is not allowed to change plan, force defaults
+      if (!isPlatformOrSuperAdmin) {
+        companyData.subscriptionPlan = 'basic';
+        companyData.maxUsers = planPricing.maxUsers.basic;
+        companyData.monthlyPrice = planPricing.prices.basic;
+      }
 
       // Add the company
       const newCompany = await addCompany(companyData);
@@ -229,7 +257,19 @@ export function CompanyManagement() {
       resetForm();
     } catch (error) {
       console.error(error);
-      toast.error('Failed to create company');
+      if (error instanceof Error) {
+        if (error.message === 'COMPANY_NAME_ALREADY_EXISTS') {
+          toast.error('A company with this name already exists');
+        } else if (error.message === 'COMPANY_NAME_REQUIRED') {
+          toast.error('Company name is required');
+        } else {
+          toast.error('Failed to create company');
+        }
+      } else {
+        toast.error('Failed to create company');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -248,27 +288,95 @@ export function CompanyManagement() {
     setShowEditDialog(true);
   };
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!selectedCompany) return;
-    
+
     // Validate custom plan
     if (formData.subscriptionPlan === 'custom' && (!formData.maxUsers || formData.maxUsers <= 0)) {
       toast.error('Please enter a valid number of users for the custom plan');
       return;
     }
-    
+
     // Prepare update data
-    const updateData = {
-      ...formData,
-      // Only include monthlyPrice for custom plans
-      ...(formData.subscriptionPlan !== 'custom' ? { monthlyPrice: undefined } : {})
-    };
-    
-    updateCompany(selectedCompany.id, updateData);
-    
-    setShowEditDialog(false);
-    setSelectedCompany(null);
-    resetForm();
+    const updateData: any = { ...formData };
+    // Only include monthlyPrice for custom plans
+    if (formData.subscriptionPlan !== 'custom') {
+      delete updateData.monthlyPrice;
+    }
+
+    // Prevent non-super/platform admins from changing subscriptionPlan/maxUsers/monthlyPrice
+    if (!isPlatformOrSuperAdmin) {
+      delete updateData.subscriptionPlan;
+      delete updateData.maxUsers;
+      delete updateData.monthlyPrice;
+    }
+
+    try {
+      // If the active state changed, handle deactivation cascade only (do NOT auto-activate users on company reactivation)
+      const isActiveChanged = typeof updateData.isActive === 'boolean' && updateData.isActive !== selectedCompany.isActive;
+      if (isActiveChanged) {
+        // If deactivating the company, mark its users inactive in batches
+        if (updateData.isActive === false) {
+          const companyUsers = getUsersByCompany(selectedCompany.id);
+          if (companyUsers && companyUsers.length > 0) {
+              toast(`Updating ${companyUsers.length} user(s) to inactive...`);
+              const batchSize = 500;
+              for (let i = 0; i < companyUsers.length; i += batchSize) {
+                const batch = writeBatch(db);
+                const slice = companyUsers.slice(i, i + batchSize);
+                slice.forEach(u => {
+                  const uRef = firestoreDoc(db, 'users', u.id);
+                  batch.update(uRef, { isActive: false, deactivatedByCompany: true, updatedAt: serverTimestamp() });
+                });
+                await batch.commit();
+              }
+            }
+
+          // If deactivating, set a default block reason if none provided
+          if (!updateData.blockReason) {
+            updateData.blockReason = 'Marked inactive by admin';
+          }
+        } else {
+          // If reactivating the company, also reactivate its users (batch updates)
+          if (updateData.isActive === true) {
+            const companyUsers = getUsersByCompany(selectedCompany.id);
+            if (companyUsers && companyUsers.length > 0) {
+                toast(`Updating ${companyUsers.length} user(s) to active...`);
+                const batchSize = 500;
+                for (let i = 0; i < companyUsers.length; i += batchSize) {
+                  const batch = writeBatch(db);
+                  const slice = companyUsers.slice(i, i + batchSize).filter(u => u.deactivatedByCompany === true);
+                  slice.forEach(u => {
+                    const uRef = firestoreDoc(db, 'users', u.id);
+                    batch.update(uRef, { isActive: true, deactivatedByCompany: deleteField(), updatedAt: serverTimestamp() });
+                  });
+                  await batch.commit();
+                }
+              }
+            // Clear any previous block reason on the company record
+            delete updateData.blockReason;
+          }
+        }
+      }
+
+      // Remove any undefined fields before sending to Firestore (updateDoc rejects undefined)
+      Object.keys(updateData).forEach((k) => {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        if (updateData[k] === undefined) delete updateData[k];
+      });
+
+      await updateCompany(selectedCompany.id, updateData);
+
+      toast.success('Company updated successfully');
+      setShowEditDialog(false);
+      setSelectedCompany(null);
+      resetForm();
+    } catch (err: any) {
+      console.error('Failed to update company', err);
+      const msg = err?.message || String(err) || 'Unknown error';
+      toast.error(`Failed to update company: ${msg}`);
+    }
   };
 
   const { deleteUsersByCompanyId } = useAuth();
@@ -278,38 +386,47 @@ export function CompanyManagement() {
     setDeleteConfirmText('');
   };
 
-  const handleBlockCompany = (company: Company) => {
-    setCompanyToBlock(company);
-    setBlockReason('');
-    setShowBlockDialog(true);
-  };
-
-  const confirmBlockCompany = () => {
+  const confirmBlockCompany = async () => {
     if (!companyToBlock) return;
 
-    if (!blockReason.trim()) {
-      toast.error('Please provide a reason for disabling this company');
-      return;
+    // Allow empty reason but provide a default note
+    const reason = blockReason.trim() || 'Marked inactive by admin';
+
+    try {
+      // First, mark all users of this company as inactive via batched writes (max 500 per batch)
+      const companyUsers = getUsersByCompany(companyToBlock.id);
+      if (companyUsers && companyUsers.length > 0) {
+        toast(`Updating ${companyUsers.length} user(s) to inactive...`);
+        const batchSize = 500;
+        for (let i = 0; i < companyUsers.length; i += batchSize) {
+          const batch = writeBatch(db);
+          const slice = companyUsers.slice(i, i + batchSize);
+          slice.forEach(u => {
+            const uRef = firestoreDoc(db, 'users', u.id);
+            batch.update(uRef, { isActive: false, deactivatedByCompany: true, updatedAt: serverTimestamp() });
+          });
+          await batch.commit();
+        }
+      }
+
+      // Then mark the company inactive
+      await updateCompany(companyToBlock.id, {
+        isActive: false,
+        blockReason: reason,
+      });
+
+      toast.success(`Company "${companyToBlock.name}" has been marked inactive. All users are now blocked from logging in.`);
+      setShowBlockDialog(false);
+      setCompanyToBlock(null);
+      setBlockReason('');
+    } catch (err: any) {
+      console.error('Failed to mark company inactive', err);
+      const msg = err?.message || String(err) || 'Unknown error';
+      toast.error(`Failed to mark company inactive: ${msg}`);
     }
-
-    updateCompany(companyToBlock.id, {
-      isActive: false,
-      blockReason: blockReason.trim(),
-    });
-
-    toast.success(`Company "${companyToBlock.name}" has been disabled. All users are now blocked from logging in.`);
-    setShowBlockDialog(false);
-    setCompanyToBlock(null);
-    setBlockReason('');
   };
 
-  const handleUnblockCompany = (company: Company) => {
-    updateCompany(company.id, {
-      isActive: true,
-      blockReason: undefined,
-    });
-    toast.success(`Company "${company.name}" has been enabled. Users can now log in.`);
-  };
+  
 
   const getPlanBadgeVariant = (plan: string) => {
     switch (plan) {
@@ -374,12 +491,14 @@ export function CompanyManagement() {
         </Button>
       </div>
 
-      {/* Filter Section */}
+      {/* Filter Section (compact row) */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Status</Label>
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
+            <CompanyFilter value={selectedCompanyId} onChange={setSelectedCompanyId} hideIfCompanyAdmin={true} />
+
+            <div className="w-[220px]">
+              
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Status" />
@@ -392,8 +511,8 @@ export function CompanyManagement() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Plan</Label>
+            <div className="w-[220px]">
+              
               <Select value={planFilter} onValueChange={setPlanFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Plans" />
@@ -407,35 +526,93 @@ export function CompanyManagement() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Search</Label>
-              <div className="relative">
-                
-                <Input
-                  placeholder="Search by name or email"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
+            <div className="flex-1 min-w-[200px]">
+              
+              <Input
+                placeholder="Search by name or email"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 w-full"
+              />
             </div>
 
-            <div className="space-y-2">
+            <div className="ml-auto">
               <Label className="text-sm font-medium">&nbsp;</Label>
-              <Button
-                variant="outline"
-                onClick={resetFilters}
-                className="w-full"
-              >
-                Reset Filters
-              </Button>
+              <Button variant="outline" onClick={resetFilters}>Reset Filters</Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Stats Cards (company + lead aggregates) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        {/* Lead aggregates (global or per selected company) */}
+        {(() => {
+          const agg = getGlobalAggregates(selectedCompanyId === 'all' ? undefined : selectedCompanyId);
+          const inactiveUsersCount = selectedCompanyId === 'all'
+            ? users.filter(u => !u.isActive).length
+            : getUsersByCompany(selectedCompanyId).filter(u => !u.isActive).length;
+          return (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm">Total Leads</CardTitle>
+                  <Users className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl">{agg.totalLeads}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Leads in scope</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm">Converted Leads</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl">{agg.convertedLeads}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Successfully closed</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm">Conversion Rate</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl">{agg.conversionRate}%</div>
+                  <p className="text-xs text-muted-foreground mt-1">Converted / (Converted + Lost)</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm">Active Users</CardTitle>
+                  <Users className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl">{agg.activeUsers}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Users active in scope</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm">Inactive Users</CardTitle>
+                  <Users className="h-4 w-4 text-gray-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl">{inactiveUsersCount}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Users inactive in scope</p>
+                </CardContent>
+              </Card>
+            </>
+          );
+        })()}
+
+        {/* Existing company count cards */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Total</CardTitle>
@@ -621,7 +798,7 @@ export function CompanyManagement() {
                       <TableCell>
                         <div className="space-y-1">
                           <Badge variant={company.isActive ? 'default' : 'secondary'}>
-                            {company.isActive ? 'Active' : 'Disabled'}
+                            {company.isActive ? 'Active' : 'Inactive'}
                           </Badge>
                           {!company.isActive && company.blockReason && (
                             <p className="text-xs text-muted-foreground max-w-[200px] truncate" title={company.blockReason}>
@@ -632,25 +809,6 @@ export function CompanyManagement() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {company.isActive ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleBlockCompany(company)}
-                              title="Disable Company"
-                            >
-                              <Ban className="h-4 w-4 text-orange-600" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleUnblockCompany(company)}
-                              title="Enable Company"
-                            >
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            </Button>
-                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -735,6 +893,7 @@ export function CompanyManagement() {
               <Select
                 value={formData.subscriptionPlan}
                 onValueChange={handleSubscriptionPlanChange}
+                disabled={!isPlatformOrSuperAdmin}
               >
                 <SelectTrigger id="plan">
                   <SelectValue />
@@ -785,6 +944,7 @@ export function CompanyManagement() {
                       ...prev,
                       maxUsers: parseInt(e.target.value) || 0
                     }))}
+                    disabled={!isPlatformOrSuperAdmin}
                     placeholder="Enter number of users"
                   />
                 </div>
@@ -801,6 +961,7 @@ export function CompanyManagement() {
                         ...prev,
                         monthlyPrice: parseFloat(e.target.value) || 0
                       }))}
+                      disabled={!isPlatformOrSuperAdmin}
                       className="pl-8"
                       placeholder="0.00"
                     />
@@ -885,7 +1046,7 @@ export function CompanyManagement() {
             >
               Cancel
             </Button>
-            <Button onClick={handleAdd} className="w-full sm:w-auto">
+            <Button onClick={handleAdd} disabled={isSubmitting} className="w-full sm:w-auto">
               Add Company
             </Button>
           </DialogFooter>
@@ -970,10 +1131,10 @@ export function CompanyManagement() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Ban className="h-5 w-5 text-orange-600" />
-              Disable Company
+              Mark Company Inactive
             </DialogTitle>
             <DialogDescription>
-              This will block all users from this company from logging in
+              This will mark the company as inactive and prevent its users from logging in
             </DialogDescription>
           </DialogHeader>
 
@@ -982,12 +1143,12 @@ export function CompanyManagement() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Disabling <strong>{companyToBlock.name}</strong> will prevent all company users (Company Admin, Team Leaders, and Sales Users) from accessing the system.
+                  Marking <strong>{companyToBlock.name}</strong> as inactive will prevent all company users (Company Admin, Team Leaders, and Sales Users) from accessing the system.
                 </AlertDescription>
               </Alert>
 
               <div className="space-y-2">
-                <Label htmlFor="blockReason">Reason for Disabling *</Label>
+                <Label htmlFor="blockReason">Reason for Inactivation (optional)</Label>
                 <Input
                   id="blockReason"
                   value={blockReason}
@@ -1019,7 +1180,7 @@ export function CompanyManagement() {
               variant="destructive"
               className="w-full sm:w-auto"
             >
-              Disable Company
+              Mark Inactive
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1144,6 +1305,7 @@ export function CompanyManagement() {
               <Select
                 value={formData.subscriptionPlan}
                 onValueChange={handleSubscriptionPlanChange}
+                disabled={!isPlatformOrSuperAdmin}
               >
                 <SelectTrigger id="edit-plan">
                   <SelectValue />
@@ -1194,6 +1356,7 @@ export function CompanyManagement() {
                       ...prev,
                       maxUsers: parseInt(e.target.value) || 0
                     }))}
+                    disabled={!isPlatformOrSuperAdmin}
                     placeholder="Enter number of users"
                   />
                 </div>
@@ -1210,6 +1373,7 @@ export function CompanyManagement() {
                         ...prev,
                         monthlyPrice: parseFloat(e.target.value) || 0
                       }))}
+                      disabled={!isPlatformOrSuperAdmin}
                       className="pl-8"
                       placeholder="0.00"
                     />

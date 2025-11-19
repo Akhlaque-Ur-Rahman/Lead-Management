@@ -26,53 +26,56 @@ import {
 } from 'recharts';
 import { Download, TrendingUp, Users, Calendar, Target, FileDown, BarChart3 } from 'lucide-react';
 import { useLeads } from './LeadsContext';
+import CompanyFilter from './CompanyFilter';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
 export function Reports() {
-  const { leads, lostLeads } = useLeads();
+  const { leads, lostLeads, getLeadsByCompany, getGlobalAggregates } = useLeads();
   const { user, users } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('all');
+  const [selectedCompany, setSelectedCompany] = useState('all');
 
-  // Filter data for sales users - only their own leads
-  const userLeadsData = user?.role === 'sales_user'
-    ? leads.filter(l => l.assignedTo === user.id)
-    : leads;
-    
-  const userLostLeadsData = user?.role === 'sales_user'
-    ? lostLeads.filter(ll => ll.lostBy === user.id)
-    : lostLeads;
+  // Prepare report data based on selected company and user role
+  let reportLeads = selectedCompany === 'all' ? leads : getLeadsByCompany(selectedCompany);
+  let reportLostLeads = selectedCompany === 'all' ? lostLeads : lostLeads.filter(ll => ll.lead.companyId === selectedCompany);
+
+  // If sales users, restrict data to their assigned leads only
+  if (user?.role === 'sales_user') {
+    reportLeads = reportLeads.filter(l => l.assignedTo === user.id);
+    reportLostLeads = reportLostLeads.filter(ll => ll.lostBy === user.id);
+  }
 
   // Calculate real statistics
-  const totalLeads = userLeadsData.length;
-  const convertedCount = userLeadsData.filter(l => l.status === 'Converted').length;
-  const lostCount = userLostLeadsData.length;
+  const totalLeads = reportLeads.length;
+  const convertedCount = reportLeads.filter(l => l.status === 'Converted').length;
+  const lostCount = reportLostLeads.length;
   const totalProcessed = convertedCount + lostCount;
   const conversionRate = totalProcessed > 0 ? ((convertedCount / totalProcessed) * 100).toFixed(1) : '0';
 
   // Status distribution with real data
   const statusDistribution = [
-    { name: 'Hot', value: userLeadsData.filter(l => l.status === 'Hot').length, color: '#ef4444' },
-    { name: 'Warm', value: userLeadsData.filter(l => l.status === 'Warm').length, color: '#f97316' },
-    { name: 'Cold', value: userLeadsData.filter(l => l.status === 'Cold').length, color: '#6366f1' },
+    { name: 'Hot', value: reportLeads.filter(l => l.status === 'Hot').length, color: '#ef4444' },
+    { name: 'Warm', value: reportLeads.filter(l => l.status === 'Warm').length, color: '#f97316' },
+    { name: 'Cold', value: reportLeads.filter(l => l.status === 'Cold').length, color: '#6366f1' },
     { name: 'Converted', value: convertedCount, color: '#10b981' },
     { name: 'Lost', value: lostCount, color: '#64748b' }
   ].filter(item => item.value > 0); // Only show non-zero values
 
   // User performance - leads assigned to each user
-  const userPerformance = users.map(user => {
-    const userLeads = leads.filter(l => l.assignedTo === user.id);
+  const userPerformance = users.map(u => {
+    const userLeads = reportLeads.filter(l => l.assignedTo === u.id);
     const userConverted = userLeads.filter(l => l.status === 'Converted').length;
-    const userLost = lostLeads.filter(l => l.lostBy === user.id).length;
-    
+    const userLost = reportLostLeads.filter(l => l.lostBy === u.id).length;
+
     return {
-      name: user.name.split(' ')[0], // First name only for chart
+      name: u.name.split(' ')[0], // First name only for chart
       leads: userLeads.length,
       converted: userConverted,
       lost: userLost,
       conversionRate: userLeads.length > 0 ? ((userConverted / (userConverted + userLost)) * 100).toFixed(0) : '0'
     };
-  }).filter(user => user.leads > 0); // Only show users with leads
+  }).filter(item => item.leads > 0); // Only show users with leads
 
   // Monthly trend (last 6 months simulation - in real app this would be from actual data)
   const getMonthlyData = () => {
@@ -100,9 +103,9 @@ export function Reports() {
 
   // Lead status by stage
   const stageData = [
-    { stage: 'New', count: userLeadsData.filter(l => l.status === 'Cold').length },
-    { stage: 'Contacted', count: userLeadsData.filter(l => l.status === 'Warm').length },
-    { stage: 'Qualified', count: userLeadsData.filter(l => l.status === 'Hot').length },
+    { stage: 'New', count: reportLeads.filter(l => l.status === 'Cold').length },
+    { stage: 'Contacted', count: reportLeads.filter(l => l.status === 'Warm').length },
+    { stage: 'Qualified', count: reportLeads.filter(l => l.status === 'Hot').length },
     { stage: 'Converted', count: convertedCount },
   ];
 
@@ -123,6 +126,7 @@ export function Reports() {
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
+          <CompanyFilter value={selectedCompany} onChange={setSelectedCompany} hideIfCompanyAdmin={true} />
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Time period" />
@@ -184,15 +188,15 @@ export function Reports() {
 
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Active Users</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{users.filter(u => u.isActive).length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Team members
-            </p>
-          </CardContent>
+              <CardTitle className="text-sm">Active Users</CardTitle>
+              <Users className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl">{getGlobalAggregates(selectedCompany === 'all' ? undefined : selectedCompany).activeUsers}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Users active in selected scope
+              </p>
+            </CardContent>
         </Card>
       </div>
 
