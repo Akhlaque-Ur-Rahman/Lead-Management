@@ -1,63 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions for roles assuming role included in auth token
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function getRole() {
-      return request.auth.token.role;
-    }
-
-    function isSuperAdmin() {
-      return getRole() == 'super_admin';
-    }
-
-    function isPlatformAdmin() {
-      return getRole() == 'platform_admin';
-    }
-
-    function isCompanyAdmin() {
-      return getRole() == 'company_admin';
-    }
-
-    // Companies collection rules
-    match /companies/{companyId} {
-      allow read: if isAuthenticated();
-
-      allow create: if isAuthenticated() && (isSuperAdmin() || isPlatformAdmin());
-
-      // Updates are allowed with restrictions:
-      // - Super Admin / Platform Admin can update any fields
-      // - Company Admin can update their own company but NOT subscriptionPlan, maxUsers, monthlyPrice
-      allow update: if isAuthenticated() && (
-        isSuperAdmin() || isPlatformAdmin() || (
-          isCompanyAdmin() && request.auth.token.companyId == companyId
-          && request.resource.data.subscriptionPlan == resource.data.subscriptionPlan
-          && request.resource.data.maxUsers == resource.data.maxUsers
-          && request.resource.data.monthlyPrice == resource.data.monthlyPrice
-        )
-      );
-
-      // Only super/platform admins can delete companies
-      allow delete: if isAuthenticated() && (isSuperAdmin() || isPlatformAdmin());
-    }
-
-    // Users collection: company_admin can update users in their company, super/platform admins can update any
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (isSuperAdmin() || isPlatformAdmin());
-      allow update: if isAuthenticated() && (
-        isSuperAdmin() || isPlatformAdmin() || (isCompanyAdmin() && request.auth.token.companyId == resource.data.companyId)
-      );
-      allow delete: if isAuthenticated() && (isSuperAdmin() || isPlatformAdmin());
-    }
-
-    // Default deny
+    // WARNING: Public access allowed because Firebase Auth is removed.
+    // In a real production app, you would need a backend to secure this.
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

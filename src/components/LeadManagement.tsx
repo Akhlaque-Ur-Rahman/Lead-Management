@@ -37,7 +37,7 @@ import { hasPermission, canAssignToUser } from '../types/roles';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
-  const { leads, setLeads, fieldConfigs, addLead, updateLead, assignLead } = useLeads();
+  const { leads, fieldConfigs, addLead, updateLead, assignLead } = useLeads();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -83,27 +83,38 @@ export function LeadManagement() {
     return matchesSearch && matchesStatus && hasAccess;
   });
 
-  const handleAddLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
+  const handleAddLead = async (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
     // Ensure tenant and uploader info
     const payload = {
       ...leadData,
       companyId: leadData.companyId || (user?.companyId || ''),
-      uploadedBy: user?.id || ''
-    } as Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>;
+      uploadedBy: user?.id || '',
+      isAssigned: true,  // Auto-assign to creator
+      assignedTo: user?.id || null
+    };
 
-    // Auto-assign manual leads to creator
-    addLead(payload, user?.id, true);
-    setShowLeadForm(false);
-    toast.success('Lead added and assigned to you successfully!');
+    // Add lead to Firestore
+    const leadId = await addLead(payload);
+    
+    if (leadId) {
+      setShowLeadForm(false);
+      toast.success('Lead added and assigned to you successfully!');
+    } else {
+      toast.error('Failed to add lead. Please try again.');
+    }
   };
 
-  const handleEditLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
+  const handleEditLead = async (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
     if (selectedLead) {
-      updateLead(selectedLead.id, { ...leadData });
-      setShowLeadForm(false);
-      setEditMode(false);
-      setSelectedLead(null);
-      toast.success('Lead updated successfully!');
+      const success = await updateLead(selectedLead.id, { ...leadData });
+      if (success) {
+        setShowLeadForm(false);
+        setEditMode(false);
+        setSelectedLead(null);
+        toast.success('Lead updated successfully!');
+      } else {
+        toast.error('Failed to update lead. Please try again.');
+      }
     }
   };
 
@@ -198,8 +209,9 @@ export function LeadManagement() {
 
     const reader = new FileReader();
     
-    reader.onload = (e) => {
-      try {
+  
+  reader.onload = async (e) => {
+    try {
         let workbook;
         let jsonData;
 
@@ -230,20 +242,41 @@ export function LeadManagement() {
         const importedLeads = processImportedData(jsonData);
         
         if (importedLeads.length > 0) {
-          setLeads(prevLeads => [...prevLeads, ...importedLeads.map(l => ({
-            ...l,
-            companyId: l.companyId || (user?.companyId || ''),
-            uploadedBy: l.uploadedBy || (user?.id || ''),
-            isAssigned: l.isAssigned ?? false,
-            assignedTo: l.assignedTo ?? null
-          }))]);
-          const totalRows = jsonData.length;
-          const skipped = totalRows - importedLeads.length;
+          // Show loading toast
+          const loadingToast = toast.loading(`Importing ${importedLeads.length} leads to Firestore...`);
           
-          if (skipped > 0) {
-            toast.success(`Successfully imported ${importedLeads.length} leads. ${skipped} rows skipped (empty or invalid data).`);
-          } else {
-            toast.success(`Successfully imported ${importedLeads.length} leads!`);
+          try {
+            // Import each lead to Firestore using addLead()
+            const importPromises = importedLeads.map(async (lead) => {
+              return await addLead({
+                ...lead,
+                companyId: lead.companyId || user?.companyId || '',
+                uploadedBy: user?.id || '',
+                isAssigned: false,
+                assignedTo: null
+              });
+            });
+
+            // Wait for all imports to complete
+            const results = await Promise.all(importPromises);
+            
+            // Count successful imports
+            const successCount = results.filter(id => id !== null).length;
+            const failedCount = results.length - successCount;
+            
+            // Dismiss loading toast
+            toast.dismiss(loadingToast);
+            
+            // Show result
+            if (failedCount > 0) {
+              toast.warning(`Imported ${successCount} leads successfully. ${failedCount} failed.`);
+            } else {
+              toast.success(`Successfully imported ${successCount} leads to Firestore!`);
+            }
+          } catch (error) {
+            toast.dismiss(loadingToast);
+            console.error('Import error:', error);
+            toast.error('Error importing leads to Firestore. Please try again.');
           }
         } else {
           toast.warning('No valid leads found in the file. Please check that your Excel file has a "Company Name" column.');

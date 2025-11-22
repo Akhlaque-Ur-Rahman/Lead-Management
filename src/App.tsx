@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from './components/AuthContext';
 import { Login } from './components/Login';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { LeadManagement } from './components/LeadManagement';
@@ -14,31 +16,21 @@ import { ConvertedLeads } from './components/ConvertedLeads';
 import { Settings } from './components/Settings';
 import { Toaster } from './components/ui/sonner';
 
-function AppContent() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
+function DashboardLayout() {
+  const { activeTab } = useParams();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [hasRedirected, setHasRedirected] = useState(false);
+  
+  // Default to dashboard if no tab specified (though route config handles this)
+  const currentTab = activeTab || 'dashboard';
 
-  // Set initial tab to dashboard for all users
-  useEffect(() => {
-    if (user && !hasRedirected) {
-      setActiveTab('dashboard');
-      setHasRedirected(true);
-    }
-  }, [user, hasRedirected]);
-
-  if (!user) {
-    return (
-      <>
-        <Login />
-        <Toaster />
-      </>
-    );
-  }
+  const handleTabChange = (tab: string) => {
+    navigate(`/${tab}`);
+    setSidebarOpen(false);
+  };
 
   const renderContent = () => {
-    switch (activeTab) {
+    switch (currentTab) {
       case 'dashboard':
         return <Dashboard />;
       case 'leads':
@@ -61,7 +53,8 @@ function AppContent() {
       case 'subscription':
         return <Settings />;
       default:
-        return <Dashboard />;
+        // If tab not found, redirect to dashboard
+        return <Navigate to="/dashboard" replace />;
     }
   };
 
@@ -81,10 +74,7 @@ function AppContent() {
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <Sidebar activeTab={activeTab} setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setSidebarOpen(false);
-        }} />
+        <Sidebar activeTab={currentTab} setActiveTab={handleTabChange} />
       </div>
       
       {/* Main content */}
@@ -112,6 +102,37 @@ function AppContent() {
   );
 }
 
+function LoginWrapper() {
+  const { user } = useAuth();
+  const location = useLocation();
+  
+  // Redirect to dashboard if already logged in
+  if (user) {
+    const from = (location.state as any)?.from?.pathname || '/dashboard';
+    return <Navigate to={from} replace />;
+  }
+
+  return (
+    <>
+      <Login />
+      <Toaster />
+    </>
+  );
+}
+
 export default function App() {
-  return <AppContent />;
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginWrapper />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route 
+        path="/:activeTab" 
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        } 
+      />
+    </Routes>
+  );
 }

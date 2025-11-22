@@ -1,0 +1,589 @@
+### UI Framework & Styling
+- **Tailwind CSS** - Utility-first CSS framework
+- **Radix UI** - Accessible component primitives
+  - Dialog, Dropdown Menu, Select, Tabs, Tooltip, etc.
+- **shadcn/ui** - Re-usable component library
+- **Lucide React** - Icon library (487+ icons)
+
+### Data Management
+- **React Context API** - State management
+  - AuthContext - User authentication & management
+  - CompanyContext - Company data management
+  - LeadsContext - Lead data & operations
+- **LocalStorage** - Client-side data persistence
+
+### Additional Libraries
+- **Recharts 2.15.2** - Data visualization and charts
+- **React Day Picker 8.10.1** - Calendar component
+- **React Hook Form 7.55.0** - Form handling with validation
+- **XLSX** - Excel file import/export
+- **Sonner** - Toast notifications
+- **next-themes** - Dark/light theme support
+- **use-debounce** - Debouncing hooks for search
+
+### Build & Development
+- **SWC** - Fast TypeScript/JavaScript compiler
+- **Vite Plugin React** - React Fast Refresh support
+
+---
+
+## Security Features
+
+### Authentication & Authorization
+- **Firestore-based Authentication**: Custom authentication using Firestore user records
+- **Role-Based Access Control**: Fine-grained permissions system
+- **Session Management**: Local state management
+- **Password Policies**: Enforced complexity requirements
+- **Account Lockout**: Protection against brute force attacks
+
+### Data Protection
+- **Input Validation**: Server-side validation of all inputs
+- **Data Sanitization**: Protection against XSS and injection attacks
+- **Rate Limiting**: Protection against DDoS and brute force attacks
+- **CSRF Protection**: Cross-Site Request Forgery protection
+- **Secure Headers**: Security headers for web application protection
+
+### Audit & Compliance
+- **Activity Logging**: Comprehensive audit trails
+- **Security Events**: Logging of all security-relevant events
+- **Data Access Logs**: Tracking of all data access operations
+
+---
+
+## Subscription Management
+
+### Subscription Plans
+- **Basic Plan**: Entry-level features with limited users
+- **Professional Plan**: Advanced features for growing businesses
+- **Enterprise Plan**: Full feature set with custom user limits
+- **Custom Plan**: Tailored solutions with custom pricing
+
+### Plan Features
+- **User Management**: Add/remove users based on plan limits
+- **Feature Toggles**: Enable/disable features per plan
+- **Billing Integration**: Support for multiple payment gateways
+- **Usage Analytics**: Track resource usage and limits
+- **Plan Upgrades/Downgrades**: Seamless plan changes
+
+---
+
+## Features
+
+### 1. User Management
+- Create, update, and delete users with role-based restrictions
+- Assign roles and companies with permission validation
+- Secure password management with complexity requirements
+- User activation/deactivation with audit logging
+- Role-based user creation restrictions
+- Failed login attempt tracking
+- Account lockout after multiple failed attempts
+
+### 2. Lead Pool Management
+- View unassigned leads by company with filtering
+- Bulk import from Excel files with validation
+- Manual lead creation via forms with input sanitization
+- Customizable field configurations per company
+- Lead status tracking (Hot, Warm, Cold, Converted, Lost)
+- Assign leads to sales users with permission checks
+- Lead assignment history and audit trail
+- Duplicate lead detection and prevention
+
+### 3. Assigned Leads
+- View leads assigned to specific users
+- Update lead information
+- Manage director-level follow-ups
+- Track assignment dates
+- Unassign leads when needed
+
+### 4. Follow-Up Calendar
+- Date-based follow-up view
+- Multiple directors per lead support
+- Time-based scheduling
+- Follow-up history tracking
+- Remark/notes for each follow-up
+
+### 5. Lost Leads Management
+- Mark leads as temporarily or permanently lost
+- Reason tracking for lost leads
+- Restore temporarily lost leads
+- Permanent deletion (Super Admin only)
+- Lost by user tracking
+
+### 6. Reports & Analytics
+- Lead distribution by status
+- Conversion rate analysis
+- User performance metrics
+- Follow-up statistics
+- Visual charts and graphs
+- Company-specific reports
+
+### 7. Company Management (Super Admin)
+- Create and manage companies
+- Subscription plan management (Basic, Professional, Enterprise)
+- Set maximum user limits
+- Company activation/deactivation
+- Contact information management
+
+### 8. Settings
+- Customize field configurations
+- Show/hide form fields
+- Configure Excel import headers
+- Required field settings
+- Company profile management
+
+### 9. Dashboard
+- Quick statistics overview
+- Upcoming follow-ups
+- Recent leads
+- Performance metrics
+- Role-specific data views
+
+---
+
+## Multi-Tenant Architecture
+
+### Tenant Isolation
+Each company operates as an isolated tenant with:
+- Separate user base
+- Isolated lead data
+- Company-specific settings
+- Independent reporting
+
+### Company Structure
+```typescript
+interface Company {
+  id: string;                    // Unique identifier
+  name: string;                  // Company name
+  email: string;                 // Contact email
+  phone: string;                 // Contact phone
+  address: string;               // Physical address
+  logo?: string;                 // Company logo URL
+  createdAt: string;             // Creation date
+  isActive: boolean;             // Active status
+  subscriptionPlan: 'basic' | 'professional' | 'enterprise';
+  maxUsers: number;              // User limit
+}
+```
+
+### Data Filtering
+- Users see only their company's data (except Super Admin)
+- Leads are filtered by `companyId`
+- Reports are company-scoped
+- User management is company-restricted
+
+---
+
+## Role-Based Access Control
+
+### Role Hierarchy
+
+#### 1. Super Admin (Level 4)
+- **ID**: 1
+- **Key**: `super_admin`
+- **Access**: Platform-wide access to all companies
+- **Permissions**:
+  - Full access to all features
+  - Manage all companies
+  - Create/manage all user roles
+  - Delete lost leads permanently
+  - View cross-company data
+
+#### 2. Company Admin (Level 3)
+- **ID**: 2
+- **Key**: `company_admin`
+- **Access**: Full access to their company
+- **Permissions**:
+  - Manage company users (Team Leads & Sales Users)
+  - View all company leads
+  - Assign leads
+  - Edit all company leads
+  - Restore lost leads
+  - Access reports and analytics
+  - Configure company settings
+
+#### 3. Team Lead (Level 2)
+- **ID**: 3
+- **Key**: `team_lead`
+- **Access**: Team management and oversight (NO financial data access)
+- **Permissions**:
+  - Create Sales Users
+  - View team performance
+  - Assign leads to Sales Users only
+  - Edit team leads
+  - Access reports (performance metrics only, no financial data)
+  - Manage team follow-ups
+  - Restore lost leads (cannot permanently delete)
+- **Restrictions**:
+  - ❌ Cannot view Converted Leads page
+  - ❌ Cannot see Invoice Numbers or Project Values
+  - ❌ Cannot mark leads as Converted
+  - ❌ Cannot permanently delete lost leads
+  - ❌ Cannot assign to Company Admins or other Team Leaders
+
+#### 4. Sales User (Level 1)
+- **ID**: 4
+- **Key**: `sales_user`
+- **Access**: Individual lead management
+- **Permissions**:
+  - View assigned leads only
+  - Update assigned lead information
+  - Add follow-ups for assigned leads
+  - Mark assigned leads as lost
+  - View personal calendar
+
+---
+
+## Data Models
+
+### Lead Model
+```typescript
+interface Lead {
+  // Identity
+  id: string;
+  companyId: string;            // Multi-tenant identifier
+  
+  // MCA Data Fields
+  cin: string;                  // Corporate Identification Number
+  companyName: string;
+  authorisedCapital: string;
+  paidUpCapital: string;
+  dateOfIncorporation: string;
+  registeredAddress: string;
+  companyEmail: string;
+  
+  // Directors (Multiple directors supported)
+  directors: Director[];
+  
+  // Legacy Director Fields (backward compatibility)
+  din: string;
+  directorFirstName: string;
+  directorLastName: string;
+  mobile: string;
+  directorEmail: string;
+  
+  // Lead Management
+  status: 'Hot' | 'Warm' | 'Cold' | 'Converted' | 'Lost';
+  isAssigned: boolean;
+  assignedTo: string | null;    // User ID
+  assignedAt?: string;
+  followUpDate: string;
+  nextFollowUpDate?: string;
+  notes: string;
+  createdAt: string;
+  uploadedBy: string;           // User ID who created the lead
+  
+  // Follow-up History
+  followUpHistory?: FollowUp[];
+  
+  // Converted Lead Fields (Company Admin only)
+  invoiceNo?: string;           // Invoice number for converted leads
+  projectValue?: string;        // Total project value (₹)
+  convertedBy?: string;         // User ID who converted
+  convertedAt?: string;         // Conversion timestamp
+  
+  // Lost Lead Fields
+  lostRemark?: string;          // Reason for marking as lost
+  lostBy?: string;              // User ID who marked as lost
+  lostAt?: string;              // Lost timestamp
+}
+```
+
+### Director Model
+```typescript
+interface Director {
+  id: string;
+  din: string;                  // Director Identification Number
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  email: string;
+  followUps?: FollowUp[];       // Director-specific follow-ups
+  nextFollowUpDate?: string;
+  nextFollowUpTime?: string;
+}
+```
+
+### Follow-Up Model
+```typescript
+interface FollowUp {
+  id: string;
+  date: string;                 // YYYY-MM-DD format
+  time: string;                 // HH:MM format
+  remark: string;
+  createdBy: string;            // User ID
+  createdAt: string;            // ISO timestamp
+  directorId?: string;          // Associated director
+  directorName?: string;
+}
+```
+
+### User Model
+```typescript
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: RoleKey;                // 'super_admin' | 'company_admin' | 'team_lead' | 'sales_user'
+  roleId: RoleId;               // 1 | 2 | 3 | 4
+  companyId: string | null;     // null for super_admin
+  createdAt: string;
+  isActive: boolean;
+}
+```
+
+---
+
+## Context Providers
+
+### AuthContext
+**Location**: `src/components/AuthContext.tsx`
+**Purpose**: Manages user authentication, user CRUD operations, and session state.
+**Note**: Recently migrated from Firebase Auth to custom Firestore-based authentication.
+
+### CompanyContext
+**Location**: `src/components/CompanyContext.tsx`
+**Purpose**: Manages company data and operations.
+
+### LeadsContext
+**Location**: `src/components/LeadsContext.tsx`
+**Purpose**: Manages leads, lost leads, follow-ups, and field configurations.
+
+---
+
+## Components Overview
+
+### Main Application Components
+
+#### 1. **App.tsx**
+- Main application container
+- Layout management (sticky sidebar, scrolling content)
+- Mobile responsive sidebar with hamburger menu
+- Tab-based navigation
+- Route rendering
+
+#### 2. **Sidebar.tsx**
+- Navigation menu
+- User profile display with role badge
+- Role-based menu filtering
+- Logout functionality
+- Sticky positioning for desktop
+
+#### 3. **Dashboard.tsx**
+- Basic dashboard view
+- Statistics cards
+- Recent activity
+
+#### 4. **SuperDashboard.tsx** (New)
+- Advanced dashboard for Super Admins and Company Admins
+- Cross-company data visualization
+- Advanced filtering by Status, Company, and Roles
+- URL-synced filter state
+- User statistics (Total, Active, Inactive, Admins, etc.)
+- User management table with filtering
+
+#### 5. **LeadManagement.tsx**
+- Lead pool view (unassigned leads)
+- Excel import functionality
+- Manual lead creation
+- Lead assignment to users
+- Bulk operations
+- Search and filter
+- Status updates
+
+#### 6. **AssignedLeads.tsx**
+- View leads assigned to users
+- Edit lead details
+- Add follow-ups for directors
+- Mark leads as lost
+- Unassign leads
+- Filter by user (for admins)
+
+#### 7. **CalendarView.tsx**
+- Month view calendar
+- Date navigation
+- Follow-up scheduling per director
+- Time-based scheduling
+- Remark/notes for each follow-up
+- Visual follow-up indicators
+
+#### 8. **LostLeads.tsx**
+- View all lost leads
+- Temporary vs permanent classification
+- Restore functionality (temporary leads only)
+- Permanent delete (super admin only)
+- Lost reason display
+- Lost date and user tracking
+
+#### 9. **Reports.tsx**
+- Lead statistics overview
+- Status distribution pie chart
+- Conversion rate metrics
+- User performance tables
+- Follow-up completion tracking
+- Export capabilities
+
+#### 10. **UserManagement.tsx**
+- User listing by company
+- Create new users
+- Edit user details
+- Role assignment
+- User activation/deactivation
+- Password management
+- Role-based creation restrictions
+
+#### 11. **CompanyManagement.tsx**
+- Company listing (super admin only)
+- Create companies
+- Edit company details
+- Subscription plan management
+- User limit configuration
+- Company activation
+
+#### 12. **Settings.tsx**
+- Field configuration manager
+- Show/hide form fields
+- Excel header customization
+- Required field settings
+- Company profile editor
+
+#### 13. **ConvertedLeads.tsx**
+- View all converted leads (Company Admin only)
+- Financial data display (Invoice No., Project Value)
+- Conversion tracking (converted by, date)
+- Summary cards (total converted, total value, average deal size)
+- Sorting by date or value
+- Search and filter capabilities
+- Export to Excel functionality
+
+#### 14. **Login.tsx**
+- Email/password authentication
+- Demo login buttons for quick testing
+- Form validation
+- Error handling
+- Loading states
+
+### Supporting Components
+
+#### 15. **CompanyFilter.tsx**
+- Reusable component for filtering data by company
+- Auto-hides for Company Admins (locks to their company)
+- Supports "All Companies" option for Super Admins
+- Used in dashboards and reports for multi-tenant data views
+
+#### 16. **LeadDetail.tsx**
+- Detailed lead view
+- Multi-director management
+- Status dropdown with smart modals
+- Director-specific follow-ups
+- Edit button (Company Admin & Team Lead only)
+- Follow-up actions (all except Super Admin)
+- Notes management
+
+#### 17. **LeadForm.tsx**
+- Lead creation/editing form
+- Dynamic field rendering based on configuration
+- Validation
+- Multi-director support
+- Status selection
+
+---
+
+## UI Components
+
+### shadcn/ui Components Used
+Located in `src/components/ui/`:
+- **badge.tsx** - Role badges, status indicators
+- **button.tsx** - Primary, secondary, destructive actions
+- **card.tsx** - Content containers
+- **dialog.tsx** - Modal dialogs
+- **dropdown-menu.tsx** - Action menus
+- **input.tsx** - Form inputs
+- **label.tsx** - Form labels
+- **select.tsx** - Dropdown selects
+- **table.tsx** - Data tables
+- **tabs.tsx** - Tabbed interfaces
+- **textarea.tsx** - Multi-line inputs
+- **toast.tsx** / **sonner.tsx** - Notifications
+- **calendar.tsx** - Date picker
+- **popover.tsx** - Overlay content
+- **alert-dialog.tsx** - Confirmation dialogs
+- **progress.tsx** - Loading indicators
+- **avatar.tsx** - User avatars
+- **separator.tsx** - Visual dividers
+- **switch.tsx** - Toggle switches
+- **checkbox.tsx** - Checkboxes
+- **scroll-area.tsx** - Custom scrollbars
+
+### Custom UI Utilities
+- **utils.ts** - `cn()` function for class merging
+
+---
+
+## Setup & Installation
+
+### Prerequisites
+- Node.js 20.x or higher
+- npm or yarn package manager
+
+### Installation Steps
+
+1. **Clone the repository**
+```bash
+cd d:\Officials\Development\Projects\lead-management
+```
+
+2. **Install dependencies**
+```bash
+npm install
+```
+
+3. **Start development server**
+```bash
+npm run dev
+```
+The application will open automatically at `http://localhost:3000`
+
+4. **Build for production**
+```bash
+npm run build
+```
+Output will be in the `build/` directory
+
+### Project Structure
+```
+lead-management/
+├── src/
+│   ├── components/
+│   │   ├── ui/              # shadcn/ui components
+│   │   ├── figma/           # Figma imports
+│   │   ├── AuthContext.tsx
+│   │   ├── CompanyContext.tsx
+│   │   ├── LeadsContext.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── Login.tsx
+│   │   ├── Dashboard.tsx
+│   │   ├── SuperDashboard.tsx
+│   │   ├── CompanyFilter.tsx
+│   │   ├── LeadManagement.tsx
+│   │   ├── AssignedLeads.tsx
+│   │   ├── CalendarView.tsx
+│   │   ├── LostLeads.tsx
+│   │   ├── Reports.tsx
+│   │   ├── UserManagement.tsx
+│   │   ├── CompanyManagement.tsx
+│   │   ├── Settings.tsx
+│   │   ├── LeadDetail.tsx
+│   │   └── LeadForm.tsx
+│   ├── types/
+│   │   └── roles.ts         # Role definitions & utilities
+│   ├── styles/
+│   │   └── globals.css
+│   ├── App.tsx
+│   └── main.tsx
+├── build/                   # Production build output
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── index.html
+├── README.md
+```

@@ -39,7 +39,7 @@ import { writeBatch, doc as firestoreDoc, serverTimestamp, deleteField } from 'f
 import { db } from '../firebaseConfig';
 
 export function CompanyManagement() {
-  const { user, getUsersByCompany, users, addUser, updateUser } = useAuth();
+  const { user, getUsersByCompany, users, addUser, updateUser, isLoading } = useAuth();
   const { companies, addCompany, updateCompany, deleteCompany, planPricing, updatePlanPricing } = useCompanies();
   const { getGlobalAggregates } = useLeads();
   const { canChangePlan } = useCompanies();
@@ -118,6 +118,20 @@ export function CompanyManagement() {
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [companyToBlock, setCompanyToBlock] = useState<Company | null>(null);
   const [blockReason, setBlockReason] = useState('');
+
+  // Loading guard - check this BEFORE permission check
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">Loading company management...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Check if user can manage companies
   if (!user || !hasPermission(user.role, 'MANAGE_COMPANIES')) {
