@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Alert, AlertDescription } from './ui/alert';
-import { Lock, Mail, AlertCircle, BarChart3, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, BarChart3, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Login() {
@@ -30,7 +29,12 @@ export function Login() {
     try {
       const result = await login(email, password);
       
-      // `login()` handles toasts for failure cases; no UI-level duplicate toasts here.
+      if (result.success) {
+        // Navigation will be handled by the parent component or router
+        toast.success('Login successful');
+      } else {
+        toast.error(result.error || 'Login failed');
+      }
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Unable to login right now. Please try later.');
@@ -81,39 +85,31 @@ export function Login() {
               </div>
 
               <div className="space-y-2">
-  <Label htmlFor="password">Password</Label>
-
-  <div className="relative">
-    {/* Left icon - use inset-y-0 for perfect vertical centering and pointer-events-none so it doesn't steal clicks */}
-    <div className="absolute left-3 inset-y-0 flex items-center pointer-events-none">
-      <Lock className="h-4 w-4 text-muted-foreground" />
-    </div>
-
-    {/* Password input - increase right padding so toggle never overlaps text */}
-    <Input
-      id="password"
-      type={showPassword ? "text" : "password"}
-      placeholder="Enter your password"
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      className="pl-10 pr-14"            // <-- note larger right padding
-      disabled={isLoading}
-      autoComplete="current-password"
-    />
-
-    {/* Right toggle button - inset-y-0 keeps it vertically centered, z-20 ensures it stays above the input */}
-    <button
-      type="button"
-      onClick={() => setShowPassword(!showPassword)}
-      className="absolute right-2 inset-y-0 flex items-center justify-center z-20 h-8 w-8
-                 rounded-full hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-      aria-label={showPassword ? "Hide password" : "Show password"}
-    >
-      {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-    </button>
-  </div>
-</div>
-
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <div className="absolute left-3 inset-y-0 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-14"
+                    disabled={isLoading}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 inset-y-0 flex items-center justify-center z-20 h-8 w-8 rounded-full hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                  </button>
+                </div>
+              </div>
 
               <Button 
                 type="submit" 

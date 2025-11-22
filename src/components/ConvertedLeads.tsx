@@ -27,12 +27,26 @@ import { toast } from 'sonner';
 import { hasPermission } from '../types/roles';
 
 export function ConvertedLeads() {
-  const { user, users } = useAuth();
+  const { user, users, isLoading } = useAuth();
   const { getConvertedLeads } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Loading guard - check this BEFORE permission check
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">Loading converted leads...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user?.role || !hasPermission(user.role, 'VIEW_CONVERTED_LEADS')) {
     return (

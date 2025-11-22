@@ -58,19 +58,22 @@ export function LostLeads() {
     return false;
   });
 
-  const handleRestore = (leadId: string) => {
-    const lostLeadIndex = lostLeads.findIndex(l => l.lead.id === leadId);
+  const handleRestore = async (leadId: string) => {
+    const lostLead = lostLeads.find(l => l.lead.id === leadId);
     
-    if (lostLeadIndex === -1) return;
+    if (!lostLead) return;
 
-    const lostLead = lostLeads[lostLeadIndex];
     if (lostLead.isPermanent) {
       toast.error('Permanent lost leads cannot be restored. Only Admin can delete them permanently.');
       return;
     }
 
-    restoreLostLead(lostLeadIndex);
-    toast.success('Lead restored successfully!');
+    const success = await restoreLostLead(lostLead.id);
+    if (success) {
+      toast.success('Lead restored successfully!');
+    } else {
+      toast.error('Failed to restore lead');
+    }
   };
 
   const handlePermanentDelete = (leadId: string) => {
@@ -83,12 +86,16 @@ export function LostLeads() {
     setShowConfirmDelete(true);
   };
 
-  const confirmPermanentDelete = () => {
+  const confirmPermanentDelete = async () => {
     if (leadToDelete) {
-      const lostLeadIndex = lostLeads.findIndex(l => l.lead.id === leadToDelete);
-      if (lostLeadIndex !== -1) {
-        permanentlyDeleteLost(lostLeadIndex);
-        toast.success('Lost lead permanently deleted!');
+      const lostLead = lostLeads.find(l => l.lead.id === leadToDelete);
+      if (lostLead) {
+        const success = await permanentlyDeleteLost(lostLead.id);
+        if (success) {
+          toast.success('Lost lead permanently deleted!');
+        } else {
+          toast.error('Failed to delete lead');
+        }
       }
       setShowConfirmDelete(false);
       setLeadToDelete(null);

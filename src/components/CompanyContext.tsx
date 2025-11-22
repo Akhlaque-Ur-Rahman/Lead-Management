@@ -186,6 +186,18 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('COMPANY_NAME_ALREADY_EXISTS');
       }
 
+      // Check for duplicate company email
+      if (trimmedEmail) {
+        const emailQuery = query(
+          companiesRef,
+          where('email', '==', trimmedEmail)
+        );
+        const emailSnapshot = await getDocs(emailQuery);
+        if (!emailSnapshot.empty) {
+          throw new Error('COMPANY_EMAIL_ALREADY_EXISTS');
+        }
+      }
+
       const normalizedData = {
         ...companyData,
         name: trimmedName,

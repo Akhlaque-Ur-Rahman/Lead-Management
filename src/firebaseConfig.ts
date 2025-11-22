@@ -1,5 +1,5 @@
 import { FirebaseApp, initializeApp } from 'firebase/app';
-import { Auth, getAuth } from 'firebase/auth';
+
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
 
@@ -16,7 +16,7 @@ interface FirebaseConfig {
 // Function to get Firebase config from environment variables
 const getFirebaseConfig = (): FirebaseConfig => {
   const env = import.meta.env;
-  
+
   const config = {
     apiKey: env.VITE_FIREBASE_API_KEY,
     authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -40,16 +40,16 @@ const getFirebaseConfig = (): FirebaseConfig => {
 
 // Initialize Firebase
 let app: FirebaseApp;
-let auth: Auth;
+
 let db: Firestore;
 let storage: FirebaseStorage;
 
 try {
   const firebaseConfig = getFirebaseConfig();
   app = initializeApp(firebaseConfig);
-  
+
   // Initialize Firebase services
-  auth = getAuth(app);
+
   db = getFirestore(app);
   storage = getStorage(app);
 } catch (error) {
@@ -58,4 +58,4 @@ try {
 }
 
 // Export the Firebase services
-export { app, auth, db, storage };
+export { app, db, storage };
