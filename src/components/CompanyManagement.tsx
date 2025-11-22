@@ -274,6 +274,8 @@ export function CompanyManagement() {
       if (error instanceof Error) {
         if (error.message === 'COMPANY_NAME_ALREADY_EXISTS') {
           toast.error('A company with this name already exists');
+        } else if (error.message === 'COMPANY_EMAIL_ALREADY_EXISTS') {
+          toast.error('A company with this email already exists. Please use a different email.');
         } else if (error.message === 'COMPANY_NAME_REQUIRED') {
           toast.error('Company name is required');
         } else {

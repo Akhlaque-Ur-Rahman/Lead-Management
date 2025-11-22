@@ -353,7 +353,42 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const updateLead = async (leadId: string, updates: Partial<Lead>): Promise<boolean> => {
     try {
       const leadDocRef = doc(db, "leads", leadId);
-      await updateDoc(leadDocRef, { ...updates } as any);
+
+      // If we're updating directors, we need a transaction to preserve follow-ups
+      // that might have been added in the background (race condition fix)
+      if (updates.directors) {
+        await runTransaction(db, async (t) => {
+          const snap = await t.get(leadDocRef);
+          if (!snap.exists()) throw new Error("Lead not found");
+          
+          const currentData = snap.data() as Lead;
+          const currentDirectors = currentData.directors || [];
+          
+          // Merge logic: Use form data but preserve existing follow-ups from DB
+          const mergedDirectors = updates.directors!.map(formDir => {
+            const dbDir = currentDirectors.find(d => d.id === formDir.id);
+            if (dbDir) {
+              // Director exists in DB: Update details but keep DB follow-ups
+              return {
+                ...formDir,
+                followUps: dbDir.followUps || []
+              };
+            }
+            // New director: Keep as is
+            return formDir;
+          });
+
+          // Apply the update with merged directors
+          t.update(leadDocRef, {
+            ...updates,
+            directors: mergedDirectors
+          });
+        });
+      } else {
+        // Standard update for non-director fields
+        await updateDoc(leadDocRef, { ...updates } as any);
+      }
+      
       return true;
     } catch (err) {
       console.error("updateLead error:", err);

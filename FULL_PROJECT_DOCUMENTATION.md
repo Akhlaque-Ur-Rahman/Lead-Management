@@ -519,6 +519,32 @@ Located in `src/components/ui/`:
 
 ---
 
+---
+
+## System Updates (Nov 2025)
+
+### 1. QA & Critical Fixes
+A comprehensive QA diagnostic was performed to ensure system stability and data integrity.
+- **Lost Leads**: Fixed critical bug where restoring/deleting leads failed due to incorrect parameter handling (Index vs ID).
+- **Lead Assignment**: Fixed race conditions in UI feedback by implementing proper `async/await` handling.
+- **Duplicate Prevention**: 
+  - Added server-side checks to prevent duplicate company emails.
+  - Enhanced UI error handling to provide clear feedback for duplicate entries.
+
+### 2. Security Enhancements
+- **Firestore Rules**: Replaced development-mode "open access" rules with production-ready security rules.
+  - **Authentication**: All operations now require valid user authentication.
+  - **Collection Scoping**: Specific rules for `companies`, `users`, `leads`, `lostLeads`, and `convertedLeads`.
+  - **Data Validation**: Server-side validation for required fields (e.g., company name, user email) during creation.
+
+### 3. Transactional Follow-up System
+- **Race Condition Fix**: Implemented transactional logic in `updateLead` to prevent data loss during concurrent edits.
+  - When editing a lead, the system now merges form updates with the *current* database state of follow-ups.
+  - Ensures that follow-ups added by other users (e.g., via mobile or another session) are not overwritten by stale form data.
+- **Scalability**: Identified and documented scalability considerations for the Calendar View.
+
+---
+
 ## Setup & Installation
 
 ### Prerequisites

@@ -129,7 +129,7 @@ export function LeadManagement() {
     setShowLeadForm(true);
   };
 
-  const handleAssignLead = (leadId: string, userId: string) => {
+  const handleAssignLead = async (leadId: string, userId: string) => {
     // Validate assignment permission
     if (!user?.role) {
       toast.error('Unable to determine your role');
@@ -159,8 +159,12 @@ export function LeadManagement() {
       return;
     }
 
-    assignLead(leadId, userId);
-    toast.success('Lead assigned successfully!');
+    const success = await assignLead(leadId, userId);
+    if (success) {
+      toast.success('Lead assigned successfully!');
+    } else {
+      toast.error('Failed to assign lead');
+    }
   };
 
   const getStatusColor = (status: string) => {
