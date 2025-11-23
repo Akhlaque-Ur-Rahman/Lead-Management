@@ -37,7 +37,7 @@ import { hasPermission, canAssignToUser } from '../types/roles';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
-  const { leads, fieldConfigs, addLead, updateLead, assignLead } = useLeads();
+  const { leads, fieldConfigs, addLead, updateLead, assignLead, batchAddLeads } = useLeads();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -213,9 +213,8 @@ export function LeadManagement() {
 
     const reader = new FileReader();
     
-  
-  reader.onload = async (e) => {
-    try {
+    reader.onload = async (e) => {
+      try {
         let workbook;
         let jsonData;
 
@@ -246,34 +245,55 @@ export function LeadManagement() {
         const importedLeads = processImportedData(jsonData);
         
         if (importedLeads.length > 0) {
+          // DUPLICATE DETECTION (CIN BASED)
+          const validList: Lead[] = [];
+          const duplicateList: Lead[] = [];
+          
+          importedLeads.forEach(importedLead => {
+            // Check if CIN exists in current leads (for the same company)
+            const exists = leads.some(existingLead => 
+              existingLead.companyId === (importedLead.companyId || user?.companyId) && 
+              existingLead.cin && 
+              importedLead.cin && 
+              existingLead.cin.toLowerCase() === importedLead.cin.toLowerCase()
+            );
+            
+            if (exists) {
+              duplicateList.push(importedLead);
+            } else {
+              validList.push(importedLead);
+            }
+          });
+
+          if (validList.length === 0 && duplicateList.length > 0) {
+            toast.warning(`All ${duplicateList.length} leads were skipped as duplicates (CIN already exists).`);
+            return;
+          }
+
+          if (validList.length === 0) {
+             toast.warning('No valid leads to import.');
+             return;
+          }
+
           // Show loading toast
-          const loadingToast = toast.loading(`Importing ${importedLeads.length} leads to Firestore...`);
+          const loadingToast = toast.loading(`Importing ${validList.length} leads to Firestore... (${duplicateList.length} duplicates skipped)`);
           
           try {
-            // Import each lead to Firestore using addLead()
-            const importPromises = importedLeads.map(async (lead) => {
-              return await addLead({
+            // Use batch import
+            const successCount = await batchAddLeads(validList.map(lead => ({
                 ...lead,
                 companyId: lead.companyId || user?.companyId || '',
                 uploadedBy: user?.id || '',
                 isAssigned: false,
                 assignedTo: null
-              });
-            });
+            })));
 
-            // Wait for all imports to complete
-            const results = await Promise.all(importPromises);
-            
-            // Count successful imports
-            const successCount = results.filter(id => id !== null).length;
-            const failedCount = results.length - successCount;
-            
             // Dismiss loading toast
             toast.dismiss(loadingToast);
             
             // Show result
-            if (failedCount > 0) {
-              toast.warning(`Imported ${successCount} leads successfully. ${failedCount} failed.`);
+            if (duplicateList.length > 0) {
+              toast.success(`[${successCount}] leads imported successfully. [${duplicateList.length}] duplicates skipped based on CIN.`);
             } else {
               toast.success(`Successfully imported ${successCount} leads to Firestore!`);
             }
@@ -372,6 +392,7 @@ export function LeadManagement() {
         const hasAnyData = Object.values(row).some(val => val !== undefined && val !== null && val !== '');
         if (!hasAnyData) {
           console.log(`Row ${rowNumber}: Skipped - Empty row`);
+
           return; // Don't count empty rows
         }
 

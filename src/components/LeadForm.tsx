@@ -25,7 +25,7 @@ interface LeadFormProps {
 
 export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
   const { user, users } = useAuth();
-  const { fieldConfigs } = useLeads();
+  const { fieldConfigs, leads } = useLeads();
   
   const [formData, setFormData] = useState<any>({
     cin: initialData?.cin || '',
@@ -120,6 +120,20 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
     e.preventDefault();
     
     if (validate()) {
+      // Check for duplicate CIN
+      if (formData.cin) {
+        const duplicate = leads.find(l => 
+          l.cin && 
+          l.cin.toLowerCase() === formData.cin.toLowerCase() && 
+          l.id !== initialData?.id // Exclude current lead if editing
+        );
+
+        if (duplicate) {
+          toast.error('This company already exists in your database.');
+          return;
+        }
+      }
+
       // Update legacy fields from first director for backward compatibility
       const firstDirector = formData.directors[0];
       const dataToSubmit = {

@@ -338,7 +338,7 @@ interface User {
 ### AuthContext
 **Location**: `src/components/AuthContext.tsx`
 **Purpose**: Manages user authentication, user CRUD operations, and session state.
-**Note**: Recently migrated from Firebase Auth to custom Firestore-based authentication.
+**Note**: Recently migrated from Firebase Auth to custom Firestore-based authentication. Hosting migrated to Vercel.
 
 ### CompanyContext
 **Location**: `src/components/CompanyContext.tsx`
@@ -543,6 +543,25 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - Ensures that follow-ups added by other users (e.g., via mobile or another session) are not overwritten by stale form data.
 - **Scalability**: Identified and documented scalability considerations for the Calendar View.
 
+### 4. Hosting Migration (Nov 2025)
+- **Vercel Deployment**: Migrated hosting from Firebase Hosting to Vercel.
+- **Cleanup**: Removed Firebase Hosting configuration files (`firebase.json`, `.firebaserc`, `firestore.rules`).
+- **CI/CD**: Removed Firebase Hosting GitHub workflows.
+
+### 5. Lead Management Enhancements (Nov 2025)
+- **Duplicate Detection (CIN Based)**:
+  - **Strict CIN Validation**: Duplicate detection is now strictly based on the Corporate Identification Number (CIN).
+  - **Excel Import**: Automatically checks for existing CINs during bulk import. Duplicates are skipped, and a summary toast reports the count of imported vs. skipped leads.
+  - **Manual Creation**: Real-time validation prevents creating leads with a CIN that already exists in the database.
+- **Follow-up Logic Improvements**:
+  - **Duplicate Fix**: Resolved an issue where editing a follow-up created a duplicate entry. Updates now correctly modify the existing record.
+  - **Past Date Prevention**: Enforced validation to prevent scheduling follow-ups in the past.
+  - **Auto-Sync**: The `nextFollowUpDate` field is now automatically synchronized whenever a follow-up is added, updated, or deleted.
+- **View Consistency**:
+  - **Calendar View**: Updated to display *only* future follow-ups for better clarity.
+  - **History Tab**: Dedicated view for past follow-ups in the Lead Detail section.
+  - **Real-time Sync**: Edits in the Lead Detail view are immediately reflected in the Calendar and vice-versa.
+
 ---
 
 ## Setup & Installation
@@ -573,7 +592,17 @@ The application will open automatically at `http://localhost:3000`
 ```bash
 npm run build
 ```
-Output will be in the `build/` directory
+4. **Build for production**
+```bash
+npm run build
+```
+Output will be in the `dist/` directory (configured for Vercel)
+
+### Deployment
+The application is deployed on **Vercel**.
+- **Push to Git**: Changes pushed to the main branch are automatically deployed.
+- **Manual Deployment**: Can be deployed using the Vercel CLI or dashboard.
+- **Firebase Config**: Firestore and Auth continue to function using the client-side `firebaseConfig.ts`.
 
 ### Project Structure
 ```

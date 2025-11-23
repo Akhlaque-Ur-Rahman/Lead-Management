@@ -13,7 +13,9 @@ import {
   serverTimestamp,
   getDoc,
   runTransaction,
+  runTransaction,
   DocumentData,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useAuth } from "./AuthContext";
@@ -140,6 +142,12 @@ interface LeadsContextValue {
     directorId: string,
     followUp: Omit<FollowUp, "id" | "createdAt" | "createdBy">
   ) => Promise<boolean>;
+  updateDirectorFollowUp: (
+    leadId: string,
+    directorId: string,
+    followUp: FollowUp
+  ) => Promise<boolean>;
+  batchAddLeads: (leads: Partial<Lead>[]) => Promise<number>;
 
   // Lost leads
   markAsLost: (leadId: string, remark: string, userId: string, isPermanent?: boolean) => Promise<boolean>;
@@ -436,6 +444,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     followUp: Omit<FollowUp, "id" | "createdAt" | "createdBy">
   ): Promise<boolean> => {
     try {
+      // Validate date - prevent past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const followUpDate = new Date(followUp.date);
+      if (followUpDate < today) {
+        throw new Error("Cannot schedule follow-ups in the past");
+      }
+
       const leadRef = doc(db, "leads", leadId);
       await runTransaction(db, async (t) => {
         const snap = await t.get(leadRef);
@@ -444,6 +460,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         const directors: Director[] = data.directors ?? [];
         const idx = directors.findIndex((d) => d.id === directorId);
         if (idx === -1) throw new Error("Director not found on lead");
+        
         const newFollowUp: FollowUp = {
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           date: followUp.date,
@@ -454,17 +471,148 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           directorId,
           directorName: directors[idx].firstName + " " + directors[idx].lastName,
         };
+        
         const updatedDirectors = [...directors];
+        const currentFollowUps = updatedDirectors[idx].followUps ?? [];
+        
         updatedDirectors[idx] = {
           ...updatedDirectors[idx],
-          followUps: [...(updatedDirectors[idx].followUps ?? []), newFollowUp],
+          followUps: [...currentFollowUps, newFollowUp],
         };
-        t.update(leadRef, { directors: updatedDirectors } as any);
+
+        // Recalculate nextFollowUpDate for the lead
+        // Collect all future follow-ups from all directors
+        let allFutureFollowUps: { date: string, time: string }[] = [];
+        
+        updatedDirectors.forEach(d => {
+          (d.followUps || []).forEach(f => {
+             if (new Date(f.date) >= today) {
+               allFutureFollowUps.push({ date: f.date, time: f.time });
+             }
+          });
+        });
+        
+        // Sort and pick earliest
+        allFutureFollowUps.sort((a, b) => {
+          return new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime();
+        });
+        
+        const nextFollowUpDate = allFutureFollowUps.length > 0 ? allFutureFollowUps[0].date : null;
+
+        t.update(leadRef, { 
+          directors: updatedDirectors,
+          nextFollowUpDate: nextFollowUpDate
+        } as any);
       });
       return true;
     } catch (err) {
       console.error("addDirectorFollowUp error:", err);
-      return false;
+      throw err; // Re-throw to handle in UI
+    }
+  };
+
+  const updateDirectorFollowUp = async (
+    leadId: string,
+    directorId: string,
+    followUp: FollowUp
+  ): Promise<boolean> => {
+    try {
+      // Validate date - prevent past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const followUpDate = new Date(followUp.date);
+      if (followUpDate < today) {
+        throw new Error("Cannot schedule follow-ups in the past");
+      }
+
+      const leadRef = doc(db, "leads", leadId);
+      await runTransaction(db, async (t) => {
+        const snap = await t.get(leadRef);
+        if (!snap.exists()) throw new Error("Lead not found");
+        const data = snap.data();
+        const directors: Director[] = data.directors ?? [];
+        const idx = directors.findIndex((d) => d.id === directorId);
+        if (idx === -1) throw new Error("Director not found on lead");
+
+        const updatedDirectors = [...directors];
+        const currentFollowUps = updatedDirectors[idx].followUps ?? [];
+        
+        // Find and replace
+        const followUpIdx = currentFollowUps.findIndex(f => f.id === followUp.id);
+        if (followUpIdx === -1) throw new Error("Follow-up not found");
+        
+        const updatedFollowUps = [...currentFollowUps];
+        updatedFollowUps[followUpIdx] = {
+          ...followUp,
+          directorId, // Ensure consistency
+          directorName: directors[idx].firstName + " " + directors[idx].lastName
+        };
+
+        updatedDirectors[idx] = {
+          ...updatedDirectors[idx],
+          followUps: updatedFollowUps,
+        };
+
+        // Recalculate nextFollowUpDate
+        let allFutureFollowUps: { date: string, time: string }[] = [];
+        updatedDirectors.forEach(d => {
+          (d.followUps || []).forEach(f => {
+             if (new Date(f.date) >= today) {
+               allFutureFollowUps.push({ date: f.date, time: f.time });
+             }
+          });
+        });
+        
+        allFutureFollowUps.sort((a, b) => {
+          return new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime();
+        });
+        
+        const nextFollowUpDate = allFutureFollowUps.length > 0 ? allFutureFollowUps[0].date : null;
+
+        t.update(leadRef, { 
+          directors: updatedDirectors,
+          nextFollowUpDate: nextFollowUpDate
+        } as any);
+      });
+      return true;
+    } catch (err) {
+      console.error("updateDirectorFollowUp error:", err);
+      throw err;
+    }
+  };
+
+  const batchAddLeads = async (leadsData: Partial<Lead>[]): Promise<number> => {
+    try {
+      // Process in chunks of 500 (Firestore batch limit)
+      const chunkSize = 500;
+      let successCount = 0;
+      
+      for (let i = 0; i < leadsData.length; i += chunkSize) {
+        const chunk = leadsData.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        
+        chunk.forEach(lead => {
+          const docRef = doc(collection(db, "leads"));
+          batch.set(docRef, {
+            ...lead,
+            companyId: lead.companyId ?? user?.companyId ?? null,
+            status: lead.status ?? "Cold",
+            isAssigned: !!lead.isAssigned,
+            assignedTo: lead.assignedTo ?? null,
+            uploadedBy: lead.uploadedBy ?? user?.id ?? null,
+            createdAt: serverTimestamp(),
+            id: docRef.id // Ensure ID is saved in document
+          });
+        });
+        
+        await batch.commit();
+        successCount += chunk.length;
+      }
+      
+      return successCount;
+    } catch (err) {
+      console.error("batchAddLeads error:", err);
+      return 0;
     }
   };
 
@@ -642,6 +790,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     getConvertedLeads,
     getDirectorFollowUpsForDate,
     getGlobalAggregates,
+    updateDirectorFollowUp,
+    batchAddLeads,
   };
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>;
