@@ -45,6 +45,7 @@ import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { hasPermission } from '../types/roles';
 import { HistoryModal } from './HistoryModal';
+import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 
 interface LeadDetailProps {
   lead: Lead;
@@ -54,7 +55,12 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { addDirectorFollowUp, markAsLost, markAsConverted, updateLead, getActiveFollowUps } = useLeads();
+  const { addDirectorFollowUp,
+    updateLead,
+    markAsLost,
+    markAsConverted,
+    getAllFollowUps
+  } = useLeads();
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
@@ -63,6 +69,8 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
+  const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
+  const [talkedTo, setTalkedTo] = useState(''); // New state for talked to field
   const [lostRemark, setLostRemark] = useState('');
   const [isPermanentLost, setIsPermanentLost] = useState(false);
   const [invoiceNo, setInvoiceNo] = useState('');
@@ -77,16 +85,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   // Company Details Modal state
   const [showCompanyModal, setShowCompanyModal] = useState(false);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Hot': return 'destructive';
-      case 'Warm': return 'default';
-      case 'Cold': return 'secondary';
-      case 'Converted': return 'outline';
-      case 'Lost': return 'secondary';
-      default: return 'secondary';
-    }
-  };
+
 
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return 'N/A';
@@ -131,12 +130,13 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     } else {
       setSelectedDirectorId('overall');
     }
+    setFollowUpStatus(lead.status); // Initialize with current status
     setShowFollowUpDialog(true);
   };
 
   const handleAddFollowUp = () => {
-    if (!followUpDate || !followUpTime || !followUpRemark.trim()) {
-      toast.error('Please fill in date, time, and remark');
+    if (!followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo.trim()) {
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -157,16 +157,35 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       date: followUpDate,
       time: followUpTime,
       remark: followUpRemark,
+      talkedTo: talkedTo,
       directorId: selectedDirectorId,
-      directorName: directorName
+      directorName: directorName,
+      followUpStatus: followUpStatus as any
     });
 
-    toast.success(`Follow-up added for ${directorName}`);
+    // Update lead status if changed
+    if (followUpStatus && followUpStatus !== lead.status) {
+      if (followUpStatus === 'Converted') {
+        if (user?.role !== 'company_admin') {
+           toast.error('Only Company Admin can mark leads as converted');
+        } else {
+           setShowConvertedDialog(true);
+        }
+      } else if (followUpStatus === 'Lost') {
+        setShowLostDialog(true);
+      } else {
+        updateLead(lead.id, { status: followUpStatus as Lead['status'] });
+        toast.success(`Lead status updated to ${followUpStatus}`);
+      }
+    }
+
+    toast.success('Follow-up scheduled');
     setShowFollowUpDialog(false);
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
-    setFollowUpRemark('');
+    setFollowUpStatus('');
+    setTalkedTo('');
     setSelectedDirectorId('overall');
   };
 
@@ -260,6 +279,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     } else {
       setSelectedDirectorId('overall');
     }
+    setFollowUpStatus(lead.status); // Initialize with current status
     setShowFollowUpDialog(true);
   };
 
@@ -303,7 +323,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 </SelectContent>
               </Select>
             ) : (
-              <Badge variant={getStatusColor(lead.status)} className="text-sm">
+              <Badge className={cn("text-sm", getFollowUpStatusClasses(lead.status))}>
                 {lead.status}
               </Badge>
             )}
@@ -550,11 +570,22 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                                               <Badge variant="outline" className="text-xs">Upcoming</Badge>
                                             )}
                                             <Badge variant="default" className="text-xs bg-blue-600">Active</Badge>
+                                            {followUp.followUpStatus && (
+                                              <Badge className={cn("px-2 py-0.5 text-xs font-medium border-none shadow-none", getFollowUpStatusClasses(followUp.followUpStatus))}>
+                                                {followUp.followUpStatus}
+                                              </Badge>
+                                            )}
                                           </div>
                                           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                                             <User className="h-3 w-3" />
                                             Created by: {getUserName(followUp.createdBy)}
                                           </p>
+                                          {followUp.talkedTo && (
+                                            <p className="text-xs font-medium mt-1 flex items-center gap-1">
+                                              <User className="h-3 w-3 text-primary" />
+                                              Talked to: {followUp.talkedTo}
+                                            </p>
+                                          )}
                                         </div>
                                       </div>
                                       <div className="bg-background/50 p-2 rounded border">
@@ -740,6 +771,17 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="talkedTo">Talked To *</Label>
+              <Input
+                id="talkedTo"
+                value={talkedTo}
+                onChange={(e) => setTalkedTo(e.target.value)}
+                placeholder="Director or Person Name"
+              />
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="followUpRemark">Remark *</Label>
               <Textarea
@@ -750,14 +792,32 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 rows={4}
               />
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="followUpStatus">Status</Label>
+              <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Warm">Warm</SelectItem>
+                  <SelectItem value="Cold">Cold</SelectItem>
+                  <SelectItem value="Converted">Converted</SelectItem>
+                  <SelectItem value="Lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setShowFollowUpDialog(false);
               setFollowUpDate('');
               setFollowUpTime('');
+              setFollowUpDate('');
+              setFollowUpTime('');
               setFollowUpRemark('');
-              setFollowUpRemark('');
+              setFollowUpStatus('');
               setSelectedDirectorId('overall');
             }} className="w-full sm:w-auto">
               Cancel
@@ -944,6 +1004,8 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         lead={lead}
         directorId={historyDirectorId}
         directorName={historyDirectorName}
+        onAddFollowUp={handleOpenFollowUpEditor}
+        onViewCompany={handleOpenCompanyModal}
       />
     </>
   );

@@ -269,6 +269,13 @@ export function HistoryModal({
                                 {fu.directorName}
                               </div>
                             )}
+                            
+                            {fu.talkedTo && (
+                              <div>
+                                <span className="font-semibold text-primary">Talked To:</span>{" "}
+                                {fu.talkedTo}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

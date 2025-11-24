@@ -317,8 +317,13 @@ interface FollowUp {
   createdAt: string;            // ISO timestamp
   directorId?: string;          // Associated director
   directorName?: string;
+  talkedTo: string;             // Person contacted during follow-up (required)
+  status?: "active" | "updated"; // Lifecycle status (active/updated)
+  followUpStatus?: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
 }
 ```
+
+**Company-Level Singleton Rule**: Only ONE active follow-up exists per company at any time. When creating/updating a follow-up, all other active follow-ups across all directors are marked as "updated".
 
 ### User Model
 ```typescript
@@ -576,8 +581,22 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
 - **Code Cleanup**: Removed unused variables and imports across multiple components to improve code quality and reduce bundle size.
 
 ### 7. Follow-Up System Upgrade (Nov 2025)
+- **Company-Level Singleton Rule** (Nov 2025): Enforces **ONE active follow-up per company** globally.
+  - When creating/updating ANY follow-up, ALL existing active follow-ups across ALL directors are marked as "updated"
+  - Only the newly created follow-up has `status: "active"`
+  - Calendar displays exactly ONE follow-up per company
+  - Full history preserved - no follow-ups are deleted
+  - History Modal shows complete timeline (active + updated entries)
+
+- **"Talked To" Field** (Nov 2025): Required field tracking who was contacted.
+  - **Required** in all follow-up creation/update dialogs
+  - Stored in FollowUp object as `talkedTo: string`
+  - Displayed in calendar cards, history modal, and lead detail with primary color icon
+  - Validation prevents empty submissions
+
 - **Status-Based Tracking**: Implemented a comprehensive follow-up lifecycle management system.
-  - **Status Field**: Added `status: "active" | "updated"` to the FollowUp interface.
+  - **Lifecycle Status Field**: Added `status: "active" | "updated"` to the FollowUp interface.
+  - **Business Status Field**: Added `followUpStatus: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"` to track lead temperature alongside lifecycle.
   - **Update Behavior**: When editing a follow-up, the old entry is marked as "updated" and a new "active" entry is created, preserving full history.
   - **Backward Compatibility**: Existing follow-ups without a status field are automatically treated as "active".
   
@@ -586,19 +605,24 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **Search Functionality**: Real-time search across remarks, dates, and creator names.
   - **Sort Toggle**: Switch between "Oldest First" and "Newest First" views.
   - **Expand/Collapse**: Long remarks (>120 characters) can be expanded/collapsed.
-  - **Comprehensive Data**: Displays date, time, remark, director name, status, created by, and created at timestamp.
-  - **Status Badges**: Visual indicators for "Active" and "Updated" follow-ups with "Created via Update" labels.
+  - **Comprehensive Data**: Displays date, time, remark, director name, talked to, lifecycle status, business status, created by, and created at timestamp.
+  - **Status Badges**: Visual indicators for both "Active/Updated" (lifecycle) and "Hot/Warm/Cold/Converted/Lost" (business) statuses.
   
 - **Calendar View Enhancements**:
-  - **Active-Only Filtering**: Calendar now displays only active follow-ups, hiding all updated/historical entries.
-  - **Multi-Director Support**: Supports multiple active follow-ups per lead (one per director).
+  - **Company-Level Singleton**: Shows only ONE active follow-up per company (Nov 2025).
+  - **Active-Only Filtering**: Calendar displays only active follow-ups, hiding all updated/historical entries.
+  - **Duplicate Prevention**: Enforced at data level - impossible to have multiple active follow-ups.
   - **History Access**: Clicking a follow-up card opens the History Modal instead of edit dialog.
+  - **Status Color Visibility**: Fixed badge colors to be visible in both light and dark modes (Nov 2025).
+  - **Talked To Display**: Shows who was contacted with primary color icon (Nov 2025).
   
 - **Lead Detail Integration**:
   - **Active Follow-Ups Display**: Shows only active follow-ups in the main view.
   - **View History Button**: New button to access full follow-up timeline per director.
   - **Active Badge**: Visual indicator for active follow-ups.
   - **Sorted Display**: Active follow-ups sorted by earliest first.
+  - **Business Status Badges**: Displays both lifecycle and business status for each follow-up.
+  - **Talked To Display**: Shows who was contacted in active follow-ups list (Nov 2025).
   
 - **Helper Functions**: Added utility functions in LeadsContext.
   - `getActiveFollowUps(lead, directorId?)`: Returns only active follow-ups.
@@ -609,6 +633,32 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **No Data Loss**: All follow-up history is preserved; old entries are never deleted.
   - **Auto-Sync**: `nextFollowUpDate` automatically recalculates based on active follow-ups only.
   - **Chronological Sorting**: History sorted by `createdAt` timestamp for accurate timeline.
+  - **Company-Level Enforcement**: Singleton rule enforced at database transaction level.
+  
+- **UI Consistency** (Nov 2025):
+  - **Shared Color Utility**: Created `src/utils/followUpStatusColors.ts` for consistent status badge colors.
+  - **Visibility Fix**: Warm status now uses amber background with black text (was white-on-white).
+  - **All Status Colors**: Hot (red), Warm (amber/black), Cold (blue), Converted (green), Lost (gray) - all visible in light/dark modes.
+  - **No Variant Overrides**: Removed shadcn badge variants that were overriding Tailwind colors.
+  
+### 8. History Modal & Integration Upgrade (Nov 2025)
+- **History Modal Enhancements**:
+  - **Action Buttons**: Added "Add / Update Follow-Up" and "View Company Details" buttons directly within the modal for quick access.
+  - **Responsiveness**: Improved layout to be full-screen and scrollable on all devices, ensuring better visibility of long histories.
+  - **Permissions**: "Add / Update Follow-Up" button is restricted (hidden for Super Admins).
+  - **Search Functionality**: Real-time search across remarks, dates, and creator names for easy filtering.
+  - **Business Status Display**: Shows both lifecycle status (Active/Updated) and business status (Hot/Warm/Cold/Converted/Lost) badges.
+
+- **Lead Detail Integration**:
+  - **Seamless Navigation**: Opening "Add Follow-Up" from History Modal opens the existing follow-up dialog with the correct director pre-selected.
+  - **Company Details Modal**: New dedicated modal displays comprehensive company info (CIN, Capital, Directors, Registered Address) without leaving the context.
+  - **Status Management**: Added Status dropdown (Hot, Warm, Cold, Converted, Lost) to the "Add Follow-Up" dialog for immediate status updates.
+  - **Converted/Lost Handling**: Selecting "Converted" or "Lost" status automatically triggers the respective detailed dialogs to capture required information (Invoice No, Lost Remark).
+
+- **Calendar View Integration**:
+  - **Unified Experience**: "Add Follow-Up" and "View Company Details" actions from the History Modal work identically within the Calendar View.
+  - **Status Updates**: Users can update lead status directly when adding a follow-up from the calendar.
+  - **Context Awareness**: Company Details modal correctly fetches and displays data for the lead associated with the calendar event.
 
 ---
 
@@ -673,9 +723,12 @@ lead-management/
 │   │   ├── CompanyManagement.tsx
 │   │   ├── Settings.tsx
 │   │   ├── LeadDetail.tsx
-│   │   └── LeadForm.tsx
+│   │   ├── LeadForm.tsx
+│   │   └── HistoryModal.tsx
 │   ├── types/
 │   │   └── roles.ts         # Role definitions & utilities
+│   ├── utils/
+│   │   └── followUpStatusColors.ts  # Shared status badge color utility
 │   ├── styles/
 │   │   └── globals.css
 │   ├── App.tsx
@@ -686,4 +739,5 @@ lead-management/
 ├── tsconfig.json
 ├── index.html
 ├── README.md
+└── FULL_PROJECT_DOCUMENTATION.md
 ```

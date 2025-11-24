@@ -37,6 +37,7 @@ import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { HistoryModal } from './HistoryModal';
 import { Separator } from './ui/separator';
+import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 
 interface FollowUpEntry {
   lead: Lead;
@@ -46,7 +47,11 @@ interface FollowUpEntry {
 
 export function Calendar() {
   const { user } = useAuth();
-  const { getDirectorFollowUpsForDate, addDirectorFollowUp } = useLeads();
+  const { 
+    getDirectorFollowUpsForDate, 
+    addDirectorFollowUp, 
+    updateLead 
+  } = useLeads();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -58,6 +63,8 @@ export function Calendar() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
+  const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
+  const [talkedTo, setTalkedTo] = useState(''); // New state for talked to field
   
   // History modal
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -139,7 +146,7 @@ export function Calendar() {
   };
 
   const handleAddFollowUp = () => {
-    if (!selectedLead || !followUpDate || !followUpTime || !followUpRemark.trim()) {
+    if (!selectedLead || !followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -148,16 +155,31 @@ export function Calendar() {
       date: followUpDate,
       time: followUpTime,
       remark: followUpRemark,
+      talkedTo: talkedTo,
       directorId: selectedLead.director.id,
       directorName: `${selectedLead.director.firstName} ${selectedLead.director.lastName}`,
+      followUpStatus: followUpStatus as any
     });
 
-    toast.success('Follow-up scheduled successfully!');
+    // Update lead status if changed
+    if (followUpStatus && followUpStatus !== selectedLead.lead.status) {
+      if (followUpStatus === 'Converted' || followUpStatus === 'Lost') {
+        toast.warning(`To mark as ${followUpStatus}, please open the Lead Detail view for full options.`);
+        updateLead(selectedLead.lead.id, { status: followUpStatus as Lead['status'] });
+      } else {
+        updateLead(selectedLead.lead.id, { status: followUpStatus as Lead['status'] });
+      }
+      toast.success(`Lead status updated to ${followUpStatus}`);
+    }
+
+    toast.success('Follow-up scheduled');
     setShowFollowUpDialog(false);
     setSelectedLead(null);
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
+    setFollowUpStatus('');
+    setTalkedTo('');
   };
 
   // Handlers for HistoryModal integration
@@ -168,6 +190,7 @@ export function Calendar() {
        const director = lead.directors.find(d => d.id === directorId);
        if (director) {
          setSelectedLead({ lead, director });
+         setFollowUpStatus(lead.status); // Initialize with current status
          setShowFollowUpDialog(true);
        } else {
          toast.error('Director not found');
@@ -209,9 +232,27 @@ export function Calendar() {
     selectedDateFollowUps = selectedDateFollowUps.filter(item => item.lead.assignedTo === user.id);
   }
 
-  // Group by hour
-  const followUpsByHour: Record<string, FollowUpEntry[]> = {};
+  // COMPANY-LEVEL SINGLETON: Filter to show only ONE active follow-up per company
+  // This enforces the global singleton rule - only the latest active follow-up for each company is shown
+  const latestActiveFollowUps: FollowUpEntry[] = [];
+  const seenCompanies = new Map<string, FollowUpEntry>();
+  
   selectedDateFollowUps.forEach(entry => {
+    const companyKey = entry.lead.id; // Key by company (lead) only, not director
+    const existing = seenCompanies.get(companyKey);
+    
+    // Only keep the latest active follow-up for this company
+    if (!existing || 
+        new Date(entry.followUp.createdAt).getTime() > new Date(existing.followUp.createdAt).getTime()) {
+      seenCompanies.set(companyKey, entry);
+    }
+  });
+  
+  seenCompanies.forEach(entry => latestActiveFollowUps.push(entry));
+
+  // Group by hour (using latest active follow-ups only)
+  const followUpsByHour: Record<string, FollowUpEntry[]> = {};
+  latestActiveFollowUps.forEach(entry => {
     const hour = entry.followUp.time.split(':')[0];
     if (!followUpsByHour[hour]) {
       followUpsByHour[hour] = [];
@@ -221,20 +262,10 @@ export function Calendar() {
 
   // Filter by hour
   const filteredFollowUps = filterHour === 'all'
-    ? selectedDateFollowUps
+    ? latestActiveFollowUps
     : (followUpsByHour[filterHour] || []);
 
   const availableHours = Object.keys(followUpsByHour).sort();
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Hot': return 'bg-red-500';
-      case 'Warm': return 'bg-orange-500';
-      case 'Cold': return 'bg-blue-500';
-      case 'Converted': return 'bg-green-500';
-      default: return 'bg-gray-500';
-    }
-  };
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -362,9 +393,9 @@ export function Calendar() {
                   </Button>
                 )}
               </CardTitle>
-              {selectedDate && selectedDateFollowUps.length > 0 && (
+              {selectedDate && latestActiveFollowUps.length > 0 && (
                 <CardDescription>
-                  {selectedDateFollowUps.length} follow-up{selectedDateFollowUps.length !== 1 ? 's' : ''} scheduled
+                  {latestActiveFollowUps.length} follow-up{latestActiveFollowUps.length !== 1 ? 's' : ''} scheduled
                 </CardDescription>
               )}
             </CardHeader>
@@ -374,7 +405,7 @@ export function Calendar() {
                   <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Click on a date to view follow-ups</p>
                 </div>
-              ) : selectedDateFollowUps.length === 0 ? (
+              ) : latestActiveFollowUps.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No follow-ups scheduled</p>
@@ -392,7 +423,7 @@ export function Calendar() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Hours ({selectedDateFollowUps.length})</SelectItem>
+                        <SelectItem value="all">All Hours ({latestActiveFollowUps.length})</SelectItem>
                         {availableHours.map(hour => (
                           <SelectItem key={hour} value={hour}>
                             {hour}:00 ({followUpsByHour[hour].length})
@@ -417,12 +448,18 @@ export function Calendar() {
                               <Clock className="h-4 w-4 text-primary" />
                               <span className="font-medium">{entry.followUp.time}</span>
                             </div>
-                            <Badge
-                              variant="outline"
-                              className={cn('border-2', getStatusColor(entry.lead.status))}
-                            >
-                              {entry.lead.status}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                className={cn('text-xs', getFollowUpStatusClasses(entry.lead.status))}
+                              >
+                                {entry.lead.status}
+                              </Badge>
+                              {entry.followUp.followUpStatus && (
+                                <Badge className={cn("px-2 py-0.5 text-xs font-medium border-none shadow-none", getFollowUpStatusClasses(entry.followUp.followUpStatus))}>
+                                  {entry.followUp.followUpStatus}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
 
                           {/* Company */}
@@ -445,6 +482,16 @@ export function Calendar() {
                               {entry.director.firstName} {entry.director.lastName}
                             </span>
                           </div>
+
+                          {/* Talked To */}
+                          {entry.followUp.talkedTo && (
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-primary flex-shrink-0" />
+                              <span className="text-sm font-medium">
+                                Talked to: {entry.followUp.talkedTo}
+                              </span>
+                            </div>
+                          )}
 
                           {/* Phone */}
                           {entry.director.mobile && (
@@ -513,6 +560,16 @@ export function Calendar() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="fu-talked-to">Talked To *</Label>
+              <Input
+                id="fu-talked-to"
+                value={talkedTo}
+                onChange={(e) => setTalkedTo(e.target.value)}
+                placeholder="Director or Person Name"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="fu-remark">Remark *</Label>
               <Textarea
                 id="fu-remark"
@@ -521,6 +578,22 @@ export function Calendar() {
                 placeholder="Enter follow-up notes..."
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="followUpStatus">Status</Label>
+              <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Warm">Warm</SelectItem>
+                  <SelectItem value="Cold">Cold</SelectItem>
+                  <SelectItem value="Converted">Converted</SelectItem>
+                  <SelectItem value="Lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -533,6 +606,8 @@ export function Calendar() {
                 setFollowUpDate('');
                 setFollowUpTime('');
                 setFollowUpRemark('');
+                setFollowUpStatus('');
+                setTalkedTo('');
               }}
               className="w-full sm:w-auto"
             >
