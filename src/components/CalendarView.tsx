@@ -36,6 +36,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { HistoryModal } from './HistoryModal';
+import { Separator } from './ui/separator';
 
 interface FollowUpEntry {
   lead: Lead;
@@ -63,6 +64,10 @@ export function Calendar() {
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [historyDirectorId, setHistoryDirectorId] = useState<string | undefined>(undefined);
   const [historyDirectorName, setHistoryDirectorName] = useState<string | undefined>(undefined);
+
+  // Company Details Modal state
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companyModalLead, setCompanyModalLead] = useState<Lead | null>(null);
 
   if (!user) return null;
 
@@ -153,6 +158,41 @@ export function Calendar() {
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
+  };
+
+  // Handlers for HistoryModal integration
+  const handleOpenFollowUpEditor = (lead: Lead, directorId?: string) => {
+    setShowHistoryModal(false);
+    
+    if (directorId) {
+       const director = lead.directors.find(d => d.id === directorId);
+       if (director) {
+         setSelectedLead({ lead, director });
+         setShowFollowUpDialog(true);
+       } else {
+         toast.error('Director not found');
+       }
+    } else {
+      // If no director ID provided, we can't open the specific director follow-up form easily
+      // in this specific implementation of CalendarView which expects a selectedLead with director.
+      // We could default to the first director or show an error.
+      // Given the context, directorId should usually be present.
+       toast.error('Please select a director to add a follow-up');
+    }
+  };
+
+  const handleOpenCompanyModal = (companyId: string) => {
+    setShowHistoryModal(false);
+    // We need the lead object to show company details. 
+    // Since we are in HistoryModal context, we have the lead.
+    // But we need to pass it to the state.
+    // The `onViewCompany` prop only passes `companyId`.
+    // However, in `HistoryModal`, we have access to `lead`.
+    // We can modify `HistoryModal` to pass `lead` or just use `historyLead` here since it's the same.
+    if (historyLead && historyLead.companyId === companyId) {
+        setCompanyModalLead(historyLead);
+        setShowCompanyModal(true);
+    }
   };
 
   const days = getDaysInMonth(currentDate);
@@ -505,6 +545,91 @@ export function Calendar() {
         </DialogContent>
       </Dialog>
 
+
+
+      {/* Company Details Modal */}
+      <Dialog open={showCompanyModal} onOpenChange={setShowCompanyModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {companyModalLead?.companyName}
+            </DialogTitle>
+            <DialogDescription>
+              Full company details
+            </DialogDescription>
+          </DialogHeader>
+          
+          {companyModalLead && (
+            <div className="space-y-6 py-4">
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">CIN</p>
+                  <p className="font-mono text-sm break-all">{companyModalLead.cin || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Incorporation Date</p>
+                  <p className="text-sm">
+                    {companyModalLead.dateOfIncorporation 
+                      ? new Date(companyModalLead.dateOfIncorporation).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                      : 'N/A'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Email</p>
+                  <p className="text-sm break-all">{companyModalLead.companyEmail || 'N/A'}</p>
+                </div>
+
+              </div>
+
+              <Separator />
+
+              {/* Financials */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Authorised Capital</p>
+                  <p className="text-sm">₹ {companyModalLead.authorisedCapital || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Paid-up Capital</p>
+                  <p className="text-sm">₹ {companyModalLead.paidUpCapital || 'N/A'}</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Address */}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Registered Address</p>
+                <p className="text-sm bg-muted p-3 rounded-md">{companyModalLead.registeredAddress || 'N/A'}</p>
+              </div>
+
+              {/* Directors Summary */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Directors ({companyModalLead.directors?.length || 0})</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {companyModalLead.directors?.map((d, i) => (
+                    <div key={i} className="text-sm border p-2 rounded flex justify-between items-center">
+                      <span>{d.firstName} {d.lastName}</span>
+                      <span className="text-xs text-muted-foreground font-mono">{d.din}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setShowCompanyModal(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* History Modal */}
       {historyLead && (
         <HistoryModal
@@ -513,6 +638,8 @@ export function Calendar() {
           lead={historyLead}
           directorId={historyDirectorId}
           directorName={historyDirectorName}
+          onAddFollowUp={handleOpenFollowUpEditor}
+          onViewCompany={handleOpenCompanyModal}
         />
       )}
     </div>

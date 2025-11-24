@@ -1,12 +1,13 @@
 // src/components/HistoryModal.tsx
-import { useState, useMemo } from "react";
+
+import React, { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { ScrollArea } from "./ui/scroll-area";
 import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
+
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
-import { Search, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
 import { Lead, FollowUp } from "./LeadsContext";
 import { useAuth } from "./AuthContext";
 import { useLeads } from "./LeadsContext";
@@ -17,6 +18,8 @@ interface HistoryModalProps {
   lead: Lead;
   directorId?: string;
   directorName?: string;
+  onAddFollowUp?: (lead: Lead, directorId?: string) => void;
+  onViewCompany?: (companyId: string) => void;
 }
 
 export function HistoryModal({
@@ -25,204 +28,218 @@ export function HistoryModal({
   lead,
   directorId,
   directorName,
+  onAddFollowUp,
+  onViewCompany,
 }: HistoryModalProps) {
-  const { users } = useAuth();
+  const { users, user } = useAuth();
   const { getAllFollowUps } = useLeads();
-  
-  const [searchQuery, setSearchQuery] = useState("");
+
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  // Get all follow-ups for the director
-  const allFollowUps = useMemo(() => {
-    return getAllFollowUps(lead, directorId);
+  const allFollowUps: FollowUp[] = useMemo(() => {
+    try {
+      return getAllFollowUps(lead, directorId) || [];
+    } catch {
+      return [];
+    }
   }, [lead, directorId, getAllFollowUps]);
 
-  // Filter by search query
-  const filteredFollowUps = useMemo(() => {
-    if (!searchQuery.trim()) return allFollowUps;
-    
-    const query = searchQuery.toLowerCase();
-    return allFollowUps.filter(followUp => {
-      const remarkMatch = followUp.remark.toLowerCase().includes(query);
-      const dateMatch = followUp.date.includes(query);
-      const creatorName = users.find(u => u.id === followUp.createdBy)?.name || "";
-      const creatorMatch = creatorName.toLowerCase().includes(query);
-      
-      return remarkMatch || dateMatch || creatorMatch;
-    });
-  }, [allFollowUps, searchQuery, users]);
-
-  // Apply sort order
   const sortedFollowUps = useMemo(() => {
-    const sorted = [...filteredFollowUps];
-    if (sortOrder === "desc") {
-      sorted.reverse();
-    }
+    const sorted = [...allFollowUps].sort((a, b) =>
+      (a.createdAt || "").localeCompare(b.createdAt || "")
+    );
+    if (sortOrder === "desc") sorted.reverse();
     return sorted;
-  }, [filteredFollowUps, sortOrder]);
+  }, [allFollowUps, sortOrder]);
 
-  const toggleSort = () => {
-    setSortOrder(prev => prev === "asc" ? "desc" : "asc");
-  };
+  const toggleSort = () => setSortOrder((p) => (p === "asc" ? "desc" : "asc"));
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
+  const toggleExpand = (id: string) =>
+    setExpandedIds((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
     });
+
+  const getCreatorName = (id?: string) => {
+    const u = users.find((x) => x.id === id);
+    return u?.name || "Unknown User";
   };
 
-  const getCreatorName = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    return user?.name || "Unknown User";
-  };
+  const formatDate = (d?: string) =>
+    d
+      ? new Date(d).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "-";
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
+  const formatTime = (t?: string) => t || "-";
 
-  const formatTime = (timeStr: string) => {
-    return timeStr;
-  };
+  const formatTimestamp = (ts?: string) =>
+    ts
+      ? new Date(ts).toLocaleString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "-";
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const shouldTruncate = (text?: string) => (text || "").length > 120;
 
-  const shouldTruncate = (text: string) => {
-    return text.length > 120;
-  };
+  // Permissions
+  const canAddUpdate = !!user && user.role !== "super_admin";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>
-            Follow-Up History
+      <DialogContent
+        className="
+          max-w-6xl 
+          w-[98vw] 
+          h-screen 
+          max-h-screen 
+          flex 
+          flex-col 
+          p-0 
+          overflow-y-auto
+        "
+      >
+        <DialogHeader className="px-6 pt-6 pb-4 border-b scroll-mt-10">
+          <DialogTitle className="text-lg sm:text-xl">
+            <span className="block sm:inline mr-2">Follow-Up History</span>
             {directorName && (
-              <span className="text-sm font-normal text-muted-foreground ml-2">
+              <span className="text-sm font-normal text-muted-foreground ml-2 block sm:inline">
                 for {directorName}
               </span>
             )}
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search and Sort Controls */}
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by remark, date, or creator..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Action Buttons */}
+        <div className="px-6 py-4 border-b bg-background">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {canAddUpdate && (
+                <Button 
+                  onClick={() => onAddFollowUp?.(lead, directorId)} 
+                  className="h-9"
+                >
+                  Add / Update Follow-Up
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={() => onViewCompany?.(lead.companyId)} 
+                className="h-9"
+              >
+                View Company Details
+              </Button>
+            </div>
+
+            {/* Sort */}
+            <div className="flex items-center gap-2 w-full sm:w-auto mt-3 sm:mt-0 justify-end">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleSort}
+                title={sortOrder === "asc" ? "Oldest First" : "Newest First"}
+              >
+                <ArrowUpDown className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleSort}
-            title={sortOrder === "asc" ? "Oldest First" : "Newest First"}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
         </div>
 
         {/* Timeline */}
-        <ScrollArea className="h-[500px] pr-4">
-          {sortedFollowUps.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? "No follow-ups match your search" : "No follow-ups found"}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {sortedFollowUps.map((followUp, index) => {
-                const isActive = !followUp.status || followUp.status === "active";
-                const isExpanded = expandedIds.has(followUp.id);
-                const remarkNeedsTruncation = shouldTruncate(followUp.remark);
-                const displayRemark = remarkNeedsTruncation && !isExpanded
-                  ? followUp.remark.substring(0, 120) + "..."
-                  : followUp.remark;
+        <div className="flex-1 overflow-hidden px-6">
+          <ScrollArea className="h-full pr-4">
+            {sortedFollowUps.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No follow-ups found
+              </div>
+            ) : (
+              <div className="space-y-4 py-4">
+                {sortedFollowUps.map((fu, index) => {
+                  const isActive = !fu.status || fu.status === "active";
+                  const expanded = expandedIds.has(fu.id);
+                  const needsTruncate = shouldTruncate(fu.remark);
+                  const displayRemark =
+                    needsTruncate && !expanded
+                      ? `${fu.remark?.slice(0, 120)}...`
+                      : fu.remark;
 
-                return (
-                  <div key={followUp.id} className="relative">
-                    {/* Timeline connector */}
-                    {index < sortedFollowUps.length - 1 && (
-                      <div className="absolute left-[11px] top-8 bottom-0 w-0.5 bg-border" />
-                    )}
+                  return (
+                    <div key={fu.id} className="relative">
+                      {index < sortedFollowUps.length - 1 && (
+                        <div className="absolute left-[11px] top-8 bottom-0 w-0.5 bg-border" />
+                      )}
 
-                    {/* Timeline dot */}
-                    <div className="flex gap-4">
-                      <div className={`flex-shrink-0 w-6 h-6 rounded-full border-2 mt-1 ${
-                        isActive 
-                          ? "bg-blue-500 border-blue-600" 
-                          : "bg-gray-400 border-gray-500"
-                      }`} />
+                      <div className="flex gap-3 sm:gap-4">
+                        <div
+                          className={`flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 mt-1 ${
+                            isActive
+                              ? "bg-blue-500 border-blue-600"
+                              : "bg-gray-400 border-gray-500"
+                          }`}
+                        />
 
-                      {/* Content */}
-                      <div className={`flex-1 pb-6 ${isActive ? "bg-blue-50 dark:bg-blue-950/20" : ""} p-4 rounded-lg border`}>
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant={isActive ? "default" : "secondary"} className={isActive ? "bg-blue-600" : "bg-gray-500"}>
-                              {isActive ? "Active" : "Updated"}
-                            </Badge>
-                            {!isActive && (
-                              <Badge variant="outline" className="text-xs">
-                                Updated from earlier follow-up
+                        <div
+                          className={`flex-1 pb-6 ${
+                            isActive ? "bg-blue-50 dark:bg-blue-950/20" : ""
+                          } p-3 sm:p-4 rounded-lg border`}
+                        >
+                          {/* Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge
+                                variant={isActive ? "default" : "secondary"}
+                                className={`text-xs ${isActive ? "bg-blue-600" : "bg-gray-500"}`}
+                              >
+                                {isActive ? "Active" : "Updated"}
                               </Badge>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                            {formatTimestamp(followUp.createdAt)}
-                          </span>
-                        </div>
+                              {!isActive && (
+                                <Badge variant="outline" className="text-xs">
+                                  Updated from earlier follow-up
+                                </Badge>
+                              )}
+                            </div>
 
-                        {/* Follow-up Details */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {formatTimestamp(fu.createdAt)}
+                            </span>
+                          </div>
+
+                          {/* Date & Time */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm">
                             <div>
                               <span className="font-semibold">Date:</span>{" "}
-                              <span className="text-muted-foreground">{formatDate(followUp.date)}</span>
+                              <span className="text-muted-foreground">{formatDate(fu.date)}</span>
                             </div>
                             <div>
                               <span className="font-semibold">Time:</span>{" "}
-                              <span className="text-muted-foreground">{formatTime(followUp.time)}</span>
+                              <span className="text-muted-foreground">{formatTime(fu.time)}</span>
                             </div>
                           </div>
 
                           {/* Remark */}
-                          <div>
+                          <div className="mt-2">
                             <span className="font-semibold text-sm">Remark:</span>
                             <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
                               {displayRemark}
                             </p>
-                            {remarkNeedsTruncation && (
+
+                            {needsTruncate && (
                               <Button
                                 variant="link"
                                 size="sm"
-                                onClick={() => toggleExpand(followUp.id)}
+                                onClick={() => toggleExpand(fu.id)}
                                 className="p-0 h-auto mt-1 text-xs"
                               >
-                                {isExpanded ? (
+                                {expanded ? (
                                   <>
                                     <ChevronUp className="h-3 w-3 mr-1" />
                                     Show less
@@ -240,32 +257,33 @@ export function HistoryModal({
                           <Separator className="my-2" />
 
                           {/* Footer */}
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground">
                             <div>
                               <span className="font-semibold">Created by:</span>{" "}
-                              {getCreatorName(followUp.createdBy)}
+                              {getCreatorName(fu.createdBy)}
                             </div>
-                            {followUp.directorName && (
+
+                            {fu.directorName && (
                               <div>
                                 <span className="font-semibold">Director:</span>{" "}
-                                {followUp.directorName}
+                                {fu.directorName}
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
 
         {/* Summary */}
-        <div className="text-sm text-muted-foreground border-t pt-4">
-          Showing {sortedFollowUps.length} of {allFollowUps.length} follow-up{allFollowUps.length !== 1 ? "s" : ""}
-          {searchQuery && ` (filtered)`}
+        <div className="border-t px-6 py-4 text-sm text-muted-foreground">
+          Showing {sortedFollowUps.length} of {allFollowUps.length} follow-up
+          {allFollowUps.length !== 1 ? "s" : ""}
         </div>
       </DialogContent>
     </Dialog>

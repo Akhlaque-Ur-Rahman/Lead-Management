@@ -74,6 +74,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const [historyDirectorId, setHistoryDirectorId] = useState<string | undefined>(undefined);
   const [historyDirectorName, setHistoryDirectorName] = useState<string | undefined>(undefined);
 
+  // Company Details Modal state
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Hot': return 'destructive';
@@ -245,6 +248,25 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       .sort((a, b) => a.datetime.getTime() - b.datetime.getTime());
     
     return futureFollowUps[0] || null;
+  };
+
+  // Handlers for HistoryModal integration
+  const handleOpenFollowUpEditor = (lead: Lead, directorId?: string) => {
+    // Close history modal if open (optional, but good UX)
+    setShowHistoryModal(false);
+    
+    if (directorId) {
+      setSelectedDirectorId(directorId);
+    } else {
+      setSelectedDirectorId('overall');
+    }
+    setShowFollowUpDialog(true);
+  };
+
+  const handleOpenCompanyModal = (companyId: string) => {
+    // Close history modal if open
+    setShowHistoryModal(false);
+    setShowCompanyModal(true);
   };
 
   return (
@@ -808,32 +830,109 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 id="lostRemark"
                 value={lostRemark}
                 onChange={(e) => setLostRemark(e.target.value)}
-                placeholder="Enter reason for marking as lost..."
+                placeholder="Enter reason..."
                 rows={4}
               />
             </div>
             {user?.role === 'company_admin' && (
-              <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+              <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  id="isPermanent"
+                  id="permanentLost"
                   checked={isPermanentLost}
                   onChange={(e) => setIsPermanentLost(e.target.checked)}
-                  className="h-4 w-4"
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <Label htmlFor="isPermanent" className="cursor-pointer text-sm">
-                  Mark as permanently lost (cannot be restored)
+                <Label htmlFor="permanentLost" className="text-sm font-normal cursor-pointer">
+                  Mark as Permanently Lost (Hide from future lists)
                 </Label>
               </div>
             )}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setShowLostDialog(false)} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => {
+              setShowLostDialog(false);
+              setLostRemark('');
+              setIsPermanentLost(false);
+            }} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleMarkAsLost} className="w-full sm:w-auto">
+            <Button onClick={handleMarkAsLost} variant="destructive" className="w-full sm:w-auto">
               Mark as Lost
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Company Details Modal */}
+      <Dialog open={showCompanyModal} onOpenChange={setShowCompanyModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {lead.companyName}
+            </DialogTitle>
+            <DialogDescription>
+              Full company details
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">CIN</p>
+                <p className="font-mono text-sm break-all">{lead.cin || 'N/A'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Incorporation Date</p>
+                <p className="text-sm">{formatDate(lead.dateOfIncorporation)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Email</p>
+                <p className="text-sm break-all">{lead.companyEmail || 'N/A'}</p>
+              </div>
+
+            </div>
+
+            <Separator />
+
+            {/* Financials */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Authorised Capital</p>
+                <p className="text-sm">₹ {lead.authorisedCapital || 'N/A'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Paid-up Capital</p>
+                <p className="text-sm">₹ {lead.paidUpCapital || 'N/A'}</p>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Address */}
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">Registered Address</p>
+              <p className="text-sm bg-muted p-3 rounded-md">{lead.registeredAddress || 'N/A'}</p>
+            </div>
+
+            {/* Directors Summary */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Directors ({lead.directors?.length || 0})</p>
+              <div className="grid grid-cols-1 gap-2">
+                {lead.directors?.map((d, i) => (
+                  <div key={i} className="text-sm border p-2 rounded flex justify-between items-center">
+                    <span>{d.firstName} {d.lastName}</span>
+                    <span className="text-xs text-muted-foreground font-mono">{d.din}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setShowCompanyModal(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
