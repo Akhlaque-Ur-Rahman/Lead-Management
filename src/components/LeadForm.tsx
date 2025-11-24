@@ -196,7 +196,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
               </Label>
               <Select 
                 value={value} 
-                onValueChange={(val) => handleChange(config.key, val)}
+                onValueChange={(val: string) => handleChange(config.key, val)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={`Select ${config.label.toLowerCase()}`} />
@@ -257,9 +257,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
      'dateOfIncorporation', 'registeredAddress', 'companyEmail'].includes(c.key)
   );
 
-  const directorFields = fieldConfigs.filter(c => 
-    ['din', 'directorFirstName', 'directorLastName', 'mobile', 'directorEmail'].includes(c.key)
-  );
+
 
   const followUpFields = fieldConfigs.filter(c => 
     ['status', 'followUpDate', 'notes'].includes(c.key)
@@ -395,7 +393,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
                 <Label htmlFor="assignedTo">Assign To *</Label>
                 <Select 
                   value={formData.assignedTo} 
-                  onValueChange={(value) => handleChange('assignedTo', value)}
+                  onValueChange={(value: string) => handleChange('assignedTo', value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select user" />

@@ -1,6 +1,5 @@
 import { 
   LayoutDashboard, 
-  Users, 
   Calendar, 
   BarChart3, 
   FileSpreadsheet,
@@ -12,12 +11,12 @@ import {
   ClipboardList,
   UserCheck,
   CheckCircle,
-  Globe
+
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
 import { Badge } from './ui/badge';
-import { type RoleKey, getRoleLabel, getRoleBadgeVariant, PERMISSIONS } from '../types/roles';
+import { getRoleLabel, getRoleBadgeVariant } from '../types/roles';
 
 interface SidebarProps {
   activeTab: string;

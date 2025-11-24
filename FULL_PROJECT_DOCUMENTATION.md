@@ -96,11 +96,14 @@
 - Unassign leads when needed
 
 ### 4. Follow-Up Calendar
-- Date-based follow-up view
+- Date-based follow-up view (active follow-ups only)
 - Multiple directors per lead support
 - Time-based scheduling
-- Follow-up history tracking
+- Full history tracking with status-based lifecycle
 - Remark/notes for each follow-up
+- History Modal for complete timeline view
+- Search and sort functionality in history
+- Color-coded status indicators (active/updated)
 
 ### 5. Lost Leads Management
 - Mark leads as temporarily or permanently lost
@@ -562,6 +565,51 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **History Tab**: Dedicated view for past follow-ups in the Lead Detail section.
   - **Real-time Sync**: Edits in the Lead Detail view are immediately reflected in the Calendar and vice-versa.
 
+### 6. Build Stability & Code Quality (Nov 2025)
+- **Build Fixes**: Resolved critical build errors preventing production deployment.
+  - **Missing Imports**: Fixed missing dependencies in `CompanyManagement.tsx` (icons, Firebase functions, UI components).
+  - **Syntax Errors**: Resolved unterminated template literals and hidden character issues in `AssignedLeads.tsx`.
+  - **Permission Logic**: Updated role-based permission checks to use the correct `canAssignToUser` utility.
+- **Test Suite Updates**:
+  - **Modernization**: Updated `subscription.test.tsx` to use ES module imports instead of CommonJS `require`.
+  - **Type Safety**: Resolved TypeScript errors in test files to ensure reliable CI/CD checks.
+- **Code Cleanup**: Removed unused variables and imports across multiple components to improve code quality and reduce bundle size.
+
+### 7. Follow-Up System Upgrade (Nov 2025)
+- **Status-Based Tracking**: Implemented a comprehensive follow-up lifecycle management system.
+  - **Status Field**: Added `status: "active" | "updated"` to the FollowUp interface.
+  - **Update Behavior**: When editing a follow-up, the old entry is marked as "updated" and a new "active" entry is created, preserving full history.
+  - **Backward Compatibility**: Existing follow-ups without a status field are automatically treated as "active".
+  
+- **History Modal**: New comprehensive timeline view for follow-up history.
+  - **Timeline UI**: Vertical timeline with color-coded markers (blue for active, grey for updated).
+  - **Search Functionality**: Real-time search across remarks, dates, and creator names.
+  - **Sort Toggle**: Switch between "Oldest First" and "Newest First" views.
+  - **Expand/Collapse**: Long remarks (>120 characters) can be expanded/collapsed.
+  - **Comprehensive Data**: Displays date, time, remark, director name, status, created by, and created at timestamp.
+  - **Status Badges**: Visual indicators for "Active" and "Updated" follow-ups with "Created via Update" labels.
+  
+- **Calendar View Enhancements**:
+  - **Active-Only Filtering**: Calendar now displays only active follow-ups, hiding all updated/historical entries.
+  - **Multi-Director Support**: Supports multiple active follow-ups per lead (one per director).
+  - **History Access**: Clicking a follow-up card opens the History Modal instead of edit dialog.
+  
+- **Lead Detail Integration**:
+  - **Active Follow-Ups Display**: Shows only active follow-ups in the main view.
+  - **View History Button**: New button to access full follow-up timeline per director.
+  - **Active Badge**: Visual indicator for active follow-ups.
+  - **Sorted Display**: Active follow-ups sorted by earliest first.
+  
+- **Helper Functions**: Added utility functions in LeadsContext.
+  - `getActiveFollowUps(lead, directorId?)`: Returns only active follow-ups.
+  - `getAllFollowUps(lead, directorId?)`: Returns complete history (active + updated).
+  - `calculateNextFollowUpDate(lead)`: Finds earliest active future follow-up.
+  
+- **Data Integrity**:
+  - **No Data Loss**: All follow-up history is preserved; old entries are never deleted.
+  - **Auto-Sync**: `nextFollowUpDate` automatically recalculates based on active follow-ups only.
+  - **Chronological Sorting**: History sorted by `createdAt` timestamp for accurate timeline.
+
 ---
 
 ## Setup & Installation
@@ -592,10 +640,7 @@ The application will open automatically at `http://localhost:3000`
 ```bash
 npm run build
 ```
-4. **Build for production**
-```bash
-npm run build
-```
+
 Output will be in the `dist/` directory (configured for Vercel)
 
 ### Deployment

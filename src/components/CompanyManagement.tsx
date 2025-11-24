@@ -25,6 +25,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { AlertCircle, Plus, Users, CheckCircle, BarChart3, Building2, Copy, Mail, Phone, Edit, Trash2, Ban } from 'lucide-react';
+import { hasPermission } from '../types/roles';
+import { toast } from 'sonner';
+import { writeBatch, doc as firestoreDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import {
   Select,
   SelectContent,
@@ -32,17 +37,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Building2, Plus, Edit, Trash2, Users, AlertCircle, Phone, Mail, Search, Copy, CheckCircle, Ban, BarChart3 } from 'lucide-react';
-import { hasPermission } from '../types/roles';
-import { toast } from 'sonner';
-import { writeBatch, doc as firestoreDoc, serverTimestamp, deleteField } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-
 export function CompanyManagement() {
-  const { user, getUsersByCompany, users, addUser, updateUser, isLoading } = useAuth();
-  const { companies, addCompany, updateCompany, deleteCompany, planPricing, updatePlanPricing } = useCompanies();
+  const { user, getUsersByCompany, users, addUser, isLoading } = useAuth();
+  const { companies, addCompany, updateCompany, deleteCompany, planPricing } = useCompanies();
   const { getGlobalAggregates } = useLeads();
-  const { canChangePlan } = useCompanies();
+
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);

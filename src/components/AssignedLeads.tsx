@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Building2, User, Search, Phone, Mail, Calendar, ArrowLeft } from 'lucide-react';
+import { Building2, User, Search, Phone, Calendar, ArrowLeft } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
 import { toast } from 'sonner';
 

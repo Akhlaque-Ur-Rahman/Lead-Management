@@ -8,7 +8,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Separator } from './ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Settings as SettingsIcon, Save, AlertCircle, FileSpreadsheet, FormInput, CreditCard, FileText } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';

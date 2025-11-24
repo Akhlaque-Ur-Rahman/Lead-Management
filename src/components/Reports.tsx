@@ -24,7 +24,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Download, TrendingUp, Users, Calendar, Target, FileDown, BarChart3 } from 'lucide-react';
+import { Download, TrendingUp, Users, Target, BarChart3 } from 'lucide-react';
 import { useLeads } from './LeadsContext';
 import CompanyFilter from './CompanyFilter';
 import { useAuth } from './AuthContext';
@@ -270,7 +270,7 @@ export function Reports() {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {statusDistribution.map((entry, index) => (
+                    {statusDistribution.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>

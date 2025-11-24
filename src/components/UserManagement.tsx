@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth, type User } from './AuthContext';
-import { useCompanies, type PlanPricing } from './CompanyContext';
+import { useCompanies } from './CompanyContext';
 import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission } from '../types/roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -41,13 +41,9 @@ import {
   AlertCircle, 
   Mail, 
   Shield, 
-  Search, 
   X, 
-  Filter, 
-  BarChart3, 
   Building2,
   CheckCircle2,
-  XCircle,
   User as UserIcon,
   ChevronDown,
   SlidersHorizontal
@@ -65,7 +61,7 @@ const normalizeCompanyId = (value: string | number | null | undefined): string =
 
 export function UserManagement() {
   const { user, users, addUser, updateUser, deleteUser, isLoading } = useAuth();
-  const { companies, getCompany, planPricing } = useCompanies();
+  const { companies, planPricing } = useCompanies();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);

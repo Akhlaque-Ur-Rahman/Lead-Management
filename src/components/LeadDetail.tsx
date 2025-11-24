@@ -39,12 +39,12 @@ import {
   MapPin,
   IndianRupee,
   Plus,
-  MessageSquare,
-  XCircle
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { hasPermission } from '../types/roles';
+import { HistoryModal } from './HistoryModal';
 
 interface LeadDetailProps {
   lead: Lead;
@@ -54,12 +54,11 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { addDirectorFollowUp, markAsLost, markAsConverted, updateLead } = useLeads();
+  const { addDirectorFollowUp, markAsLost, markAsConverted, updateLead, getActiveFollowUps } = useLeads();
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [showConvertedDialog, setShowConvertedDialog] = useState(false);
-  const [selectedDirector, setSelectedDirector] = useState<Director | null>(null);
   const [selectedDirectorId, setSelectedDirectorId] = useState<string>('overall');
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
@@ -69,6 +68,11 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const [invoiceNo, setInvoiceNo] = useState('');
   const [projectValue, setProjectValue] = useState('');
   const [selectedStatus, setSelectedStatus] = useState(lead.status);
+  
+  // History modal state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyDirectorId, setHistoryDirectorId] = useState<string | undefined>(undefined);
+  const [historyDirectorName, setHistoryDirectorName] = useState<string | undefined>(undefined);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -81,7 +85,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-IN', {
       year: 'numeric',
@@ -118,7 +122,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   };
 
   const handleOpenFollowUpDialog = (director: Director | null = null) => {
-    setSelectedDirector(director);
+
     if (director) {
       setSelectedDirectorId(director.id);
     } else {
@@ -150,8 +154,6 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       date: followUpDate,
       time: followUpTime,
       remark: followUpRemark,
-      createdBy: user?.id || '',
-      createdAt: new Date().toISOString(),
       directorId: selectedDirectorId,
       directorName: directorName
     });
@@ -161,7 +163,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
-    setSelectedDirector(null);
+    setFollowUpRemark('');
     setSelectedDirectorId('overall');
   };
 
@@ -227,9 +229,14 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const getNextFollowUp = (director: Director) => {
     if (!director.followUps || director.followUps.length === 0) return null;
     
-    // Find the nearest future follow-up
+    // Find the nearest future ACTIVE follow-up
     const now = new Date();
     const futureFollowUps = director.followUps
+      .filter(fu => {
+        // Only consider active follow-ups (backward compatible: treat missing status as active)
+        const isActive = !fu.status || fu.status === "active";
+        return isActive;
+      })
       .map(fu => ({
         ...fu,
         datetime: new Date(`${fu.date}T${fu.time}`)
@@ -453,64 +460,91 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                       </div>
 
                       {/* Add Follow-up Button */}
-                      {user?.role !== 'super_admin' && (
-                        <Button 
-                          onClick={() => handleOpenFollowUpDialog(director)} 
-                          size="sm" 
-                          className="gap-2 w-full sm:w-auto"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add Follow-up
-                        </Button>
-                      )}
+                      <div className="flex gap-2 flex-wrap">
+                        {user?.role !== 'super_admin' && (
+                          <Button 
+                            onClick={() => handleOpenFollowUpDialog(director)} 
+                            size="sm" 
+                            className="gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Follow-up
+                          </Button>
+                        )}
+                        
+                        {/* View History Button */}
+                        {director.followUps && director.followUps.length > 0 && (
+                          <Button 
+                            onClick={() => {
+                              setHistoryDirectorId(director.id);
+                              setHistoryDirectorName(`${director.firstName} ${director.lastName}`);
+                              setShowHistoryModal(true);
+                            }}
+                            size="sm" 
+                            variant="outline"
+                            className="gap-2"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                            View History ({director.followUps.length})
+                          </Button>
+                        )}
+                      </div>
 
-                      {/* Follow-up History */}
-                      {director.followUps && director.followUps.length > 0 && (
-                        <div className="space-y-2">
-                          <h4 className="text-sm flex items-center gap-2">
-                            <MessageSquare className="h-3 w-3" />
-                            All Follow-ups ({director.followUps.length})
-                          </h4>
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {director.followUps
-                              .sort((a, b) => {
-                                const dateA = new Date(`${a.date}T${a.time}`);
-                                const dateB = new Date(`${b.date}T${b.time}`);
-                                return dateB.getTime() - dateA.getTime();
-                              })
-                              .map((followUp, idx) => {
-                                const isPast = new Date(`${followUp.date}T${followUp.time}`) < new Date();
-                                return (
-                                  <div key={followUp.id} className={cn(
-                                    "p-3 rounded-md space-y-2 text-sm border",
-                                    isPast ? "bg-muted/30" : "bg-primary/5 border-primary/20"
-                                  )}>
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <p className="flex items-center gap-1">
-                                            <Calendar className="h-3 w-3" />
-                                            <span className="font-medium">{formatDateTime(followUp.date, followUp.time)}</span>
+                      {/* Active Follow-ups Only */}
+                      {(() => {
+                        const activeFollowUps = (director.followUps || []).filter(fu => {
+                          const isActive = !fu.status || fu.status === "active";
+                          return isActive;
+                        });
+                        
+                        return activeFollowUps.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm flex items-center gap-2">
+                              <Clock className="h-3 w-3" />
+                              Active Follow-ups ({activeFollowUps.length})
+                            </h4>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {activeFollowUps
+                                .sort((a, b) => {
+                                  const dateA = new Date(`${a.date}T${a.time}`);
+                                  const dateB = new Date(`${b.date}T${b.time}`);
+                                  return dateA.getTime() - dateB.getTime(); // Earliest first
+                                })
+                                .map((followUp) => {
+                                  const isPast = new Date(`${followUp.date}T${followUp.time}`) < new Date();
+                                  return (
+                                    <div key={followUp.id} className={cn(
+                                      "p-3 rounded-md space-y-2 text-sm border",
+                                      isPast ? "bg-muted/30" : "bg-primary/5 border-primary/20"
+                                    )}>
+                                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="flex items-center gap-1">
+                                              <Calendar className="h-3 w-3" />
+                                              <span className="font-medium">{formatDateTime(followUp.date, followUp.time)}</span>
+                                            </p>
+                                            {!isPast && (
+                                              <Badge variant="outline" className="text-xs">Upcoming</Badge>
+                                            )}
+                                            <Badge variant="default" className="text-xs bg-blue-600">Active</Badge>
+                                          </div>
+                                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                            <User className="h-3 w-3" />
+                                            Created by: {getUserName(followUp.createdBy)}
                                           </p>
-                                          {!isPast && (
-                                            <Badge variant="outline" className="text-xs">Upcoming</Badge>
-                                          )}
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                          <User className="h-3 w-3" />
-                                          Created by: {getUserName(followUp.createdBy)}
-                                        </p>
+                                      </div>
+                                      <div className="bg-background/50 p-2 rounded border">
+                                        <p className="text-sm whitespace-pre-wrap break-words">{followUp.remark}</p>
                                       </div>
                                     </div>
-                                    <div className="bg-background/50 p-2 rounded border">
-                                      <p className="text-sm whitespace-pre-wrap break-words">{followUp.remark}</p>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </AccordionContent>
                   </AccordionItem>
                 );
@@ -701,7 +735,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
               setFollowUpDate('');
               setFollowUpTime('');
               setFollowUpRemark('');
-              setSelectedDirector(null);
+              setFollowUpRemark('');
               setSelectedDirectorId('overall');
             }} className="w-full sm:w-auto">
               Cancel
@@ -803,6 +837,15 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* History Modal */}
+      <HistoryModal
+        open={showHistoryModal}
+        onOpenChange={setShowHistoryModal}
+        lead={lead}
+        directorId={historyDirectorId}
+        directorName={historyDirectorName}
+      />
     </>
   );
 }

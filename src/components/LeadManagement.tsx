@@ -630,7 +630,7 @@ export function LeadManagement() {
       filteredLeads.forEach(lead => {
         if (lead.directors && lead.directors.length > 0) {
           // Create one row per director
-          lead.directors.forEach((director, dirIndex) => {
+          lead.directors.forEach((director) => {
             const row: any = {};
             
             fieldConfigs.forEach(config => {

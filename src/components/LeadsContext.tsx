@@ -13,7 +13,6 @@ import {
   serverTimestamp,
   getDoc,
   runTransaction,
-  runTransaction,
   DocumentData,
   writeBatch,
 } from "firebase/firestore";
@@ -33,6 +32,7 @@ export interface FollowUp {
   createdAt: string;
   directorId?: string;
   directorName?: string;
+  status?: "active" | "updated"; // NEW: track follow-up lifecycle (defaults to "active" for backward compatibility)
 }
 
 export interface Director {
@@ -171,6 +171,11 @@ interface LeadsContextValue {
     conversionRate: number;
     activeUsers: number;
   };
+  
+  // NEW: Follow-up helper functions
+  getActiveFollowUps: (lead: Lead, directorId?: string) => FollowUp[];
+  getAllFollowUps: (lead: Lead, directorId?: string) => FollowUp[];
+  calculateNextFollowUpDate: (lead: Lead) => string | null;
 }
 
 const LeadsContext = createContext<LeadsContextValue | undefined>(undefined);
@@ -470,6 +475,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           createdAt: new Date().toISOString(),
           directorId,
           directorName: directors[idx].firstName + " " + directors[idx].lastName,
+          status: "active", // NEW: Set status as active for new follow-ups
         };
         
         const updatedDirectors = [...directors];
@@ -481,14 +487,16 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         };
 
         // Recalculate nextFollowUpDate for the lead
-        // Collect all future follow-ups from all directors
+        // Collect all future ACTIVE follow-ups from all directors
         let allFutureFollowUps: { date: string, time: string }[] = [];
         
         updatedDirectors.forEach(d => {
           (d.followUps || []).forEach(f => {
-             if (new Date(f.date) >= today) {
-               allFutureFollowUps.push({ date: f.date, time: f.time });
-             }
+            // Only consider active follow-ups (backward compatibility: treat missing status as active)
+            const isActive = !f.status || f.status === "active";
+            if (isActive && new Date(f.date) >= today) {
+              allFutureFollowUps.push({ date: f.date, time: f.time });
+            }
           });
         });
         
@@ -537,29 +545,54 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         const updatedDirectors = [...directors];
         const currentFollowUps = updatedDirectors[idx].followUps ?? [];
         
-        // Find and replace
+        // Find the old follow-up
         const followUpIdx = currentFollowUps.findIndex(f => f.id === followUp.id);
         if (followUpIdx === -1) throw new Error("Follow-up not found");
         
+        // NEW BEHAVIOR: Mark old follow-up as "updated" and create new one as "active"
         const updatedFollowUps = [...currentFollowUps];
+        
+        // Mark the old follow-up as "updated"
         updatedFollowUps[followUpIdx] = {
-          ...followUp,
-          directorId, // Ensure consistency
-          directorName: directors[idx].firstName + " " + directors[idx].lastName
+          ...updatedFollowUps[followUpIdx],
+          status: "updated"
         };
+        
+        // Create a new follow-up with updated data and "active" status
+        const newFollowUp: FollowUp = {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          date: followUp.date,
+          time: followUp.time,
+          remark: followUp.remark,
+          createdBy: user?.id ?? "unknown",
+          createdAt: new Date().toISOString(),
+          directorId,
+          directorName: directors[idx].firstName + " " + directors[idx].lastName,
+          status: "active"
+        };
+        
+        // Add the new follow-up to the array
+        updatedFollowUps.push(newFollowUp);
+        
+        // Sort follow-ups by createdAt (chronological order)
+        updatedFollowUps.sort((a, b) => {
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
 
         updatedDirectors[idx] = {
           ...updatedDirectors[idx],
           followUps: updatedFollowUps,
         };
 
-        // Recalculate nextFollowUpDate
+        // Recalculate nextFollowUpDate (only active follow-ups)
         let allFutureFollowUps: { date: string, time: string }[] = [];
         updatedDirectors.forEach(d => {
           (d.followUps || []).forEach(f => {
-             if (new Date(f.date) >= today) {
-               allFutureFollowUps.push({ date: f.date, time: f.time });
-             }
+            // Only consider active follow-ups
+            const isActive = !f.status || f.status === "active";
+            if (isActive && new Date(f.date) >= today) {
+              allFutureFollowUps.push({ date: f.date, time: f.time });
+            }
           });
         });
         
@@ -735,7 +768,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     filteredLeads.forEach((lead) => {
       (lead.directors ?? []).forEach((director) => {
         (director.followUps ?? []).forEach((followUp) => {
-          if (followUp.date === date) {
+          // Only show active follow-ups in calendar (backward compatible: treat missing status as active)
+          const isActive = !followUp.status || followUp.status === "active";
+          if (isActive && followUp.date === date) {
             result.push({ lead, director, followUp });
           }
         });
@@ -762,6 +797,81 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     const activeUsers = userSet.size;
     const totalCompanies = new Set(filteredLeads.map(l => l.companyId)).size;
     return { totalCompanies, totalLeads, convertedLeads, conversionRate, activeUsers };
+  };
+
+  // -------------------- NEW: Follow-up Helper Functions --------------------
+
+  /**
+   * Get only active follow-ups for a lead (optionally filtered by director)
+   * Backward compatible: treats missing status as "active"
+   */
+  const getActiveFollowUps = (lead: Lead, directorId?: string): FollowUp[] => {
+    const allFollowUps: FollowUp[] = [];
+    
+    lead.directors?.forEach(director => {
+      if (directorId && director.id !== directorId) return;
+      
+      (director.followUps || []).forEach(followUp => {
+        const isActive = !followUp.status || followUp.status === "active";
+        if (isActive) {
+          allFollowUps.push(followUp);
+        }
+      });
+    });
+    
+    // Sort by date + time
+    return allFollowUps.sort((a, b) => {
+      return new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime();
+    });
+  };
+
+  /**
+   * Get ALL follow-ups for a lead (both active and updated), optionally filtered by director
+   * Used for History Modal
+   */
+  const getAllFollowUps = (lead: Lead, directorId?: string): FollowUp[] => {
+    const allFollowUps: FollowUp[] = [];
+    
+    lead.directors?.forEach(director => {
+      if (directorId && director.id !== directorId) return;
+      
+      (director.followUps || []).forEach(followUp => {
+        allFollowUps.push(followUp);
+      });
+    });
+    
+    // Sort by createdAt (chronological order)
+    return allFollowUps.sort((a, b) => {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+  };
+
+  /**
+   * Calculate the next follow-up date for a lead (earliest active future follow-up)
+   */
+  const calculateNextFollowUpDate = (lead: Lead): string | null => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const futureActiveFollowUps: { date: string, time: string }[] = [];
+    
+    lead.directors?.forEach(director => {
+      (director.followUps || []).forEach(followUp => {
+        const isActive = !followUp.status || followUp.status === "active";
+        if (isActive && new Date(followUp.date) >= today) {
+          futureActiveFollowUps.push({ date: followUp.date, time: followUp.time });
+        }
+      });
+    });
+    
+    if (futureActiveFollowUps.length === 0) return null;
+    
+    // Sort and return earliest
+    futureActiveFollowUps.sort((a, b) => {
+      return new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime();
+    });
+    
+    return futureActiveFollowUps[0].date;
   };
 
   // -------------------- Context Value --------------------
@@ -792,6 +902,10 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     getGlobalAggregates,
     updateDirectorFollowUp,
     batchAddLeads,
+    // NEW: Follow-up helpers
+    getActiveFollowUps,
+    getAllFollowUps,
+    calculateNextFollowUpDate,
   };
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>;

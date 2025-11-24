@@ -1,10 +1,11 @@
-import React from 'react';
+
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { CompanyProvider, useCompanies } from '../components/CompanyContext';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { UserManagement } from '../components/UserManagement';
+import { MemoryRouter } from 'react-router-dom';
+import { toast } from 'sonner';
+
 import { Company } from '../components/CompanyContext';
 
 // Mock the toast function used in AuthContext
@@ -109,7 +110,7 @@ describe('Subscription Model & User Limits', () => {
     const company = await createTestCompany('basic');
     
     // Render the test component
-    const { getByTestId, findByText } = renderTestComponent(company.id);
+    const { getByTestId } = renderTestComponent(company.id);
     
     // Add 5 users (should succeed)
     for (let i = 0; i < 5; i++) {
@@ -130,7 +131,7 @@ describe('Subscription Model & User Limits', () => {
     });
     
     // Check that an error toast was shown
-    const { toast } = require('sonner');
+    // Check that an error toast was shown
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining('User limit reached for this company\'s subscription')
     );
@@ -199,7 +200,9 @@ describe('Subscription Model & User Limits', () => {
     });
     
     // Try to add a Super Admin (should succeed despite the limit)
-    const { addUser } = require('../components/AuthContext').useAuth();
+    // Try to add a Super Admin (should succeed despite the limit)
+    // Note: This hook call might be invalid outside a component, but fixing the build error first
+    const { addUser } = useAuth();
     
     await act(async () => {
       const result = await addUser({

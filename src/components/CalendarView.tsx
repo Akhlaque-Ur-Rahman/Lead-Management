@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
+import { HistoryModal } from './HistoryModal';
 
 interface FollowUpEntry {
   lead: Lead;
@@ -56,6 +57,12 @@ export function Calendar() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
+  
+  // History modal
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyLead, setHistoryLead] = useState<Lead | null>(null);
+  const [historyDirectorId, setHistoryDirectorId] = useState<string | undefined>(undefined);
+  const [historyDirectorName, setHistoryDirectorName] = useState<string | undefined>(undefined);
 
   if (!user) return null;
 
@@ -119,14 +126,11 @@ export function Calendar() {
   };
 
   const handleLeadClick = (lead: Lead, director: Director) => {
-    setSelectedLead({ lead, director });
-    setShowFollowUpDialog(true);
-    
-    // Set default date to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setFollowUpDate(getLocalDateString(tomorrow));
-    setFollowUpTime('10:00');
+    // Open history modal to show full follow-up timeline
+    setHistoryLead(lead);
+    setHistoryDirectorId(director.id);
+    setHistoryDirectorName(`${director.firstName} ${director.lastName}`);
+    setShowHistoryModal(true);
   };
 
   const handleAddFollowUp = () => {
@@ -139,8 +143,6 @@ export function Calendar() {
       date: followUpDate,
       time: followUpTime,
       remark: followUpRemark,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
       directorId: selectedLead.director.id,
       directorName: `${selectedLead.director.firstName} ${selectedLead.director.lastName}`,
     });
@@ -182,7 +184,6 @@ export function Calendar() {
     ? selectedDateFollowUps
     : (followUpsByHour[filterHour] || []);
 
-  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const availableHours = Object.keys(followUpsByHour).sort();
 
   const getStatusColor = (status: string) => {
@@ -503,6 +504,17 @@ export function Calendar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* History Modal */}
+      {historyLead && (
+        <HistoryModal
+          open={showHistoryModal}
+          onOpenChange={setShowHistoryModal}
+          lead={historyLead}
+          directorId={historyDirectorId}
+          directorName={historyDirectorName}
+        />
+      )}
     </div>
   );
 }
