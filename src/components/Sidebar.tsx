@@ -30,6 +30,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] },
     { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: ['company_admin', 'team_lead', 'sales_user'] },
+    { id: 'active-leads', label: 'Active Leads', icon: UserCheck, roles: ['company_admin', 'team_lead', 'sales_user'] },
     { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['company_admin', 'team_lead'] },
     { id: 'calendar', label: 'Follow-up Calendar', icon: Calendar, roles: ['company_admin', 'team_lead', 'sales_user'] },
     { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['super_admin', 'platform_admin', 'company_admin'] },

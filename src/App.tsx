@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { LeadManagement } from './components/LeadManagement';
+import { ActiveLeads } from './components/ActiveLeads';
 import { AssignedLeads } from './components/AssignedLeads';
 import { Calendar } from './components/CalendarView';
 import { Reports } from './components/Reports';
@@ -35,6 +36,8 @@ function DashboardLayout() {
         return <Dashboard />;
       case 'leads':
         return <LeadManagement />;
+      case 'active-leads':
+        return <ActiveLeads />;
       case 'assigned':
         return <AssignedLeads />;
       case 'calendar':

@@ -30,9 +30,7 @@ export interface FollowUp {
   remark: string;
   createdBy: string;
   createdAt: string;
-  directorId?: string;
-  directorName?: string;
-  talkedTo: string; // Legacy field, kept for backward compatibility
+  talkedTo: string; // Required: Full Name of the director talked to
   talkedToId?: string; // ID of the director talked to
   talkedToName?: string; // Name of the director talked to
   followUpStatus: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
@@ -141,15 +139,13 @@ interface LeadsContextValue {
   unassignLead: (leadId: string) => Promise<boolean>;
 
   // Follow-ups
-  addDirectorFollowUp: (
+  addFollowUp: (
     leadId: string,
-    directorId: string,
     followUp: Omit<FollowUp, "id" | "createdAt" | "createdBy" | "status">,
     leadUpdates?: Partial<Lead>
   ) => Promise<boolean>;
-  updateDirectorFollowUp: (
+  updateFollowUp: (
     leadId: string,
-    directorId: string,
     followUp: FollowUp,
     leadUpdates?: Partial<Lead>
   ) => Promise<boolean>;
@@ -551,9 +547,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addDirectorFollowUp = async (
+  const addFollowUp = async (
     leadId: string,
-    directorId: string,
     followUpData: Omit<FollowUp, "id" | "createdAt" | "createdBy" | "status">,
     leadUpdates?: Partial<Lead>
   ): Promise<boolean> => {
@@ -567,24 +562,18 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         if (!leadDoc.exists()) throw new Error("Lead not found");
 
         const leadData = leadDoc.data() as Lead;
-        
-        // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
-        // Get all leads for this company to enforce singleton across the entire company
-        // Note: Ideally we should query all leads for the company, but for now we assume the current lead context is sufficient
-        // or that the user is working on the correct lead.
-        // To be strictly correct as per user request "getLeadsByCompanyId must return all leads for this company",
-        // we would need to query all leads. However, inside a transaction, we can't easily query multiple docs unless we know IDs.
-        // Given the constraints and typical usage (one lead per company usually, or leads are company-centric),
-        // we will enforce it on the CURRENT lead's directors.
-        // If there are multiple LEAD documents for the same company, this might be insufficient, 
-        // but typically "Lead" = "Company" in this system.
-        
         const directors = leadData.directors || [];
-        const directorIndex = directors.findIndex(d => d.id === directorId);
         
-        if (directorIndex === -1) throw new Error("Director not found");
+        // Infer director from talkedTo name
+        const talkedToName = followUpData.talkedTo;
+        const directorIndex = directors.findIndex(d => 
+          `${d.firstName} ${d.lastName}` === talkedToName || 
+          d.firstName === talkedToName // Fallback for single name
+        );
+        
+        if (directorIndex === -1) throw new Error(`Director not found for name: ${talkedToName}`);
 
-        // Mark all existing active follow-ups as updated
+        // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
         directors.forEach((director, idx) => {
           const updatedFollowUps = (director.followUps || []).map(f => {
             if (!f.status || f.status === "active") {
@@ -603,7 +592,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           status: "active", // Always active when created
         };
 
-        // Add new follow-up to the specified director
+        // Add new follow-up to the inferred director
         directors[directorIndex].followUps = directors[directorIndex].followUps || [];
         directors[directorIndex].followUps.push(newFollowUp);
 
@@ -640,14 +629,13 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       });
       return true;
     } catch (error) {
-      console.error("Error adding director follow-up:", error);
+      console.error("Error adding follow-up:", error);
       throw error;
     }
   };
 
-  const updateDirectorFollowUp = async (
+  const updateFollowUp = async (
     leadId: string,
-    directorId: string,
     followUp: FollowUp,
     leadUpdates?: Partial<Lead>
   ): Promise<boolean> => {
@@ -661,63 +649,75 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const leadRef = doc(db, "leads", leadId);
-      await runTransaction(db, async (t) => {
-        const snap = await t.get(leadRef);
-        if (!snap.exists()) throw new Error("Lead not found");
-        const data = snap.data();
-        const directors: Director[] = data.directors ?? [];
-        const idx = directors.findIndex((d) => d.id === directorId);
-        if (idx === -1) throw new Error("Director not found on lead");
+      
+      await runTransaction(db, async (transaction) => {
+        const leadDoc = await transaction.get(leadRef);
+        if (!leadDoc.exists()) throw new Error("Lead not found");
 
-        // COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
-        directors.forEach((director, dirIdx) => {
+        const leadData = leadDoc.data() as Lead;
+        const directors = leadData.directors || [];
+        
+        // Find which director currently has this follow-up
+        let currentDirectorIndex = -1;
+        let followUpIndex = -1;
+        
+        directors.forEach((d, dIdx) => {
+          const fIdx = (d.followUps || []).findIndex(f => f.id === followUp.id);
+          if (fIdx !== -1) {
+            currentDirectorIndex = dIdx;
+            followUpIndex = fIdx;
+          }
+        });
+
+        if (currentDirectorIndex === -1) throw new Error("Follow-up not found");
+
+        // Infer NEW director from talkedTo name
+        const talkedToName = followUp.talkedTo;
+        const newDirectorIndex = directors.findIndex(d => 
+          `${d.firstName} ${d.lastName}` === talkedToName || 
+          d.firstName === talkedToName
+        );
+        
+        if (newDirectorIndex === -1) throw new Error(`Director not found for name: ${talkedToName}`);
+
+        // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
+        // (Except the one we are updating, which will become the new active one)
+        directors.forEach((director, idx) => {
           const updatedFollowUps = (director.followUps || []).map(f => {
-            if (!f.status || f.status === "active") {
+            if (f.id !== followUp.id && (!f.status || f.status === "active")) {
               return { ...f, status: "updated" as const };
             }
             return f;
           });
-          directors[dirIdx].followUps = updatedFollowUps;
+          directors[idx].followUps = updatedFollowUps;
         });
-        
-        // Create a new follow-up with updated data and "active" status
-        const newFollowUp: FollowUp = {
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          date: followUp.date,
-          time: followUp.time,
-          remark: followUp.remark,
-          talkedTo: followUp.talkedTo,
-          talkedToId: followUp.talkedToId,
-          talkedToName: followUp.talkedToName,
-          createdBy: user?.id ?? "unknown",
-          createdAt: new Date().toISOString(),
-          directorId,
-          directorName: directors[idx].firstName + " " + directors[idx].lastName,
-          status: "active",
-          followUpStatus: followUp.followUpStatus
+
+        // Remove from old director
+        const [existingFollowUp] = directors[currentDirectorIndex].followUps!.splice(followUpIndex, 1);
+
+        // Update follow-up data
+        const updatedFollowUp: FollowUp = {
+          ...existingFollowUp,
+          ...followUp,
+          status: "active", // Ensure it's active
         };
-        
-        // Add the new follow-up to the specified director
-        directors[idx].followUps = directors[idx].followUps || [];
-        directors[idx].followUps.push(newFollowUp);
-        
-        // Sort follow-ups by createdAt (chronological order)
-        directors[idx].followUps.sort((a, b) => {
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        });
 
-        // Recalculate nextFollowUpDate (only active follow-ups)
-        const nextFollowUpDate = calculateNextFollowUpDate({ ...data, directors } as Lead);
+        // Add to new director (or same if didn't change)
+        directors[newDirectorIndex].followUps = directors[newDirectorIndex].followUps || [];
+        directors[newDirectorIndex].followUps.push(updatedFollowUp);
 
-        const updates: any = { 
+        // Calculate next follow-up date
+        const nextDate = calculateNextFollowUpDate({ ...leadData, directors });
+
+        // Prepare updates
+        const updates: any = {
           directors,
-          nextFollowUpDate: nextFollowUpDate
+          nextFollowUpDate: nextDate
         };
 
-        // Apply additional lead updates
         if (leadUpdates) {
           Object.assign(updates, leadUpdates);
-
+          
           if (leadUpdates.status === 'Converted') {
             updates.assignedTo = null;
             updates.isAssigned = false;
@@ -725,19 +725,19 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
             updates.convertedAt = new Date().toISOString();
             updates.convertedBy = user?.id;
           }
-
+          
           if (leadUpdates.status === 'Lost') {
              updates.lostAt = new Date().toISOString();
              updates.lostBy = user?.id;
           }
         }
 
-        t.update(leadRef, updates);
+        transaction.update(leadRef, updates);
       });
       return true;
-    } catch (err) {
-      console.error("updateDirectorFollowUp error:", err);
-      throw err;
+    } catch (error) {
+      console.error("Error updating follow-up:", error);
+      throw error;
     }
   };
 
@@ -896,6 +896,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     const filteredLeads = companyId ? getLeadsByCompany(companyId) : leads;
     const result: Array<{lead: Lead; director: Director; followUp: FollowUp}> = [];
     filteredLeads.forEach((lead) => {
+      // Exclude Converted and Lost leads from calendar
+      if (lead.status === 'Converted' || lead.status === 'Lost') return;
+
       (lead.directors ?? []).forEach((director) => {
         (director.followUps ?? []).forEach((followUp) => {
           // Only show active follow-ups in calendar (backward compatible: treat missing status as active)
@@ -944,7 +947,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     updateLead,
     assignLead,
     unassignLead,
-    addDirectorFollowUp,
+    addFollowUp,
     markAsLost,
     restoreLostLead,
     permanentlyDeleteLost,
@@ -956,7 +959,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     getConvertedLeads,
     getDirectorFollowUpsForDate,
     getGlobalAggregates,
-    updateDirectorFollowUp,
+    updateFollowUp,
     batchAddLeads,
     // NEW: Follow-up helpers
     getActiveFollowUps,

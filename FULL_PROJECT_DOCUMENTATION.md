@@ -80,6 +80,7 @@
 
 ### 2. Lead Pool Management
 - View unassigned leads by company with filtering
+- **Definition**: Leads with **0 follow-ups** (and not Converted/Lost)
 - Bulk import from Excel files with validation
 - Manual lead creation via forms with input sanitization
 - Customizable field configurations per company
@@ -87,9 +88,12 @@
 - Assign leads to sales users with permission checks
 - Lead assignment history and audit trail
 - Duplicate lead detection and prevention
+- Converted lead visibility rules (hidden for Sales/Team Lead)
 
 ### 3. Assigned Leads
 - View leads assigned to specific users
+- **Definition**: Leads with **at least 1 follow-up** (and not Converted/Lost)
+- Sorted by latest follow-up (newest first)
 - Update lead information
 - Manage director-level follow-ups
 - Track assignment dates
@@ -104,12 +108,18 @@
 - History Modal for complete timeline view
 - Search and sort functionality in history
 - Color-coded status indicators (active/updated)
+- Company-Level Singleton: Shows only ONE active follow-up per company
+- Converted leads automatically excluded from calendar
 
 ### 5. Lost Leads Management
 - Mark leads as temporarily or permanently lost
 - Reason tracking for lost leads
-- Restore temporarily lost leads
-- Permanent deletion (Super Admin only)
+- **Visibility**:
+  - Company Admin & Team Lead: Full Access
+  - Sales User: View Only (leads they marked as lost)
+- **Actions**:
+  - Restore: Team Lead & Company Admin only
+  - Permanent Delete: Team Lead & Company Admin only
 - Lost by user tracking
 
 ### 6. Reports & Analytics
@@ -140,6 +150,13 @@
 - Recent leads
 - Performance metrics
 - Role-specific data views
+
+### 10. Converted Leads Management
+- Dedicated view for Company Admin & Super Admin
+- Track converted leads with financial details (Invoice No, Project Value)
+- Sort by date or project value
+- Search by company, invoice, or converter name
+- Hidden from Sales Users and Team Leads to maintain focus on active leads
 
 ---
 
@@ -215,12 +232,12 @@ interface Company {
   - Edit team leads
   - Access reports (performance metrics only, no financial data)
   - Manage team follow-ups
-  - Restore lost leads (cannot permanently delete)
+  - Restore lost leads
+  - Permanently delete lost leads
 - **Restrictions**:
   - ❌ Cannot view Converted Leads page
   - ❌ Cannot see Invoice Numbers or Project Values
   - ❌ Cannot mark leads as Converted
-  - ❌ Cannot permanently delete lost leads
   - ❌ Cannot assign to Company Admins or other Team Leaders
 
 #### 4. Sales User (Level 1)
@@ -233,6 +250,11 @@ interface Company {
   - Add follow-ups for assigned leads
   - Mark assigned leads as lost
   - View personal calendar
+  - View lost leads (marked by them)
+- **Restrictions**:
+  - ❌ Cannot delete lost leads
+  - ❌ Cannot restore lost leads
+  - ❌ Cannot view Converted Leads page
 
 ---
 
@@ -315,9 +337,9 @@ interface FollowUp {
   remark: string;
   createdBy: string;            // User ID
   createdAt: string;            // ISO timestamp
-  directorId?: string;          // Associated director
-  directorName?: string;
   talkedTo: string;             // Person contacted during follow-up (required)
+  talkedToId?: string;          // ID of the director talked to
+  talkedToName?: string;        // Name of the director talked to
   followUpStatus: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
   status?: "active" | "updated"; // Lifecycle status (active/updated)
 }
@@ -426,9 +448,10 @@ interface User {
 - Lead statistics overview
 - Status distribution pie chart
 - Conversion rate metrics
-- User performance tables
-- Follow-up completion tracking
-- Export capabilities
+- User performance metrics
+- Follow-up statistics
+- Visual charts and graphs
+- Company-specific reports
 
 #### 10. **UserManagement.tsx**
 - User listing by company
@@ -579,6 +602,30 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **Modernization**: Updated `subscription.test.tsx` to use ES module imports instead of CommonJS `require`.
   - **Type Safety**: Resolved TypeScript errors in test files to ensure reliable CI/CD checks.
 - **Code Cleanup**: Removed unused variables and imports across multiple components to improve code quality and reduce bundle size.
+  - **TypeScript Configuration**: Updated `tsconfig.json` to target `ES2022` to support modern features like `Array.prototype.at()`.
+
+### 10. Active Leads Page & Workflow Updates (Nov 2025)
+- **New Active Leads Page**:
+  - **Purpose**: Replaces "Assigned Leads" for managing leads with active engagement.
+  - **Definition**: Leads with > 0 follow-ups AND status NOT "Converted" or "Lost".
+  - **Visibility**:
+    - **Sales User**: Sees only their assigned active leads.
+    - **Team Lead/Admin**: Sees all active leads in their company.
+  - **Auto-Movement**:
+    - **Lead Pool -> Active Leads**: Automatically moves when first follow-up is added.
+    - **Active Leads -> Converted**: Moves to "Converted Leads" page upon conversion (Admin only).
+    - **Active Leads -> Lost**: Moves to "Lost Leads" page when marked as Lost.
+
+- **Navigation Updates**:
+  - Added "Active Leads" to Sidebar under Lead Pool.
+  - **Converted Leads Visibility**: Now hidden for Sales Users and Team Leads (Admin only).
+
+- **Follow-Up System Refinements**:
+  - **Director Selection**: Removed "Director" dropdown from Add Follow-Up modal.
+  - **Talked To**: Standardized "Talked To" field using a dropdown of all directors.
+  - **Status Handling**: All statuses (Hot, Warm, Cold, Lost, Converted) visible in dropdown.
+    - "Converted" triggers Converted Modal.
+    - "Lost" triggers Lost Modal.
 
 ### 7. Follow-Up System Upgrade (Nov 2025)
 - **Company-Level Singleton Rule** (Nov 2025): Enforces **ONE active follow-up per company** globally.
@@ -654,6 +701,22 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
 
 - **Calendar View Integration**:
   - **Unified Experience**: "Add Follow-Up" and "View Company Details" actions from the History Modal work identically within the Calendar View.
+
+### 9. Follow-Up System Upgrades (Nov 2025)
+- **Converted Status Workflow**:
+  - **Role Expansion**: Sales Users and Team Leads can now convert leads.
+  - **Visibility Control**: Converted leads disappear from Sales/Team Lead views (Lead Pool, Assigned, Calendar) to focus on active leads.
+  - **Dedicated View**: Converted leads are accessible only in the "Converted Leads" page for Admins.
+  - **Data Capture**: Mandatory Invoice No and Project Value collection upon conversion.
+
+- **Singleton Follow-Up Rule**:
+  - **One Active per Company**: Enforced rule where only the latest follow-up remains active per company.
+  - **Auto-Update**: Adding a new follow-up automatically marks previous active ones as "updated".
+  - **Calendar Clarity**: Calendar view now shows a single, clear next action for each company.
+
+- **UI Refinements**:
+  - **Talked To Dropdown**: Standardized input using a dropdown of company directors.
+  - **Status Consistency**: "Converted" status integrated into all follow-up workflows.
 - Node.js 20.x or higher
 - npm or yarn package manager
 

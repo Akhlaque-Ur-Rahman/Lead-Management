@@ -51,6 +51,15 @@ export function LeadManagement() {
 
   // Lead Pool logic varies by role
   const filteredLeads = leads.filter(lead => {
+    // Lead Pool Definition:
+    // 1. Must have 0 follow-ups
+    // 2. Must NOT be Converted
+    // 3. Must NOT be Lost
+    const hasFollowUps = (lead.followUpHistory?.length || 0) > 0;
+    if (hasFollowUps) return false;
+    if (lead.status === 'Converted') return false;
+    if (lead.status === 'Lost') return false;
+
     const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (lead.directors && lead.directors.some(d => 
@@ -60,11 +69,6 @@ export function LeadManagement() {
                            d.email.toLowerCase().includes(searchTerm.toLowerCase())
                          ));
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-
-    // Exclude converted leads for Sales User and Team Lead
-    if (lead.status === 'Converted' && ['sales_user', 'team_lead'].includes(user?.role || '')) {
-      return false;
-    }
 
     // Role-based Lead Pool filtering
     let hasAccess = false;

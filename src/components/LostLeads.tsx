@@ -48,23 +48,29 @@ export function LostLeads() {
         d.email.toLowerCase().includes(searchTerm.toLowerCase())
       ));
 
-    // Super Admin and Company Admin can see all lost leads
-    // Team Lead and Sales User can only see leads they marked as lost (non-permanent)
-    if (user?.role === 'super_admin' || user?.role === 'company_admin') {
+    // Super Admin, Company Admin, and Team Lead can see all lost leads
+    // Sales User can only see leads they marked as lost
+    if (['super_admin', 'company_admin', 'team_lead'].includes(user?.role || '')) {
       return matchesSearch;
-    } else if (user?.role === 'team_lead' || user?.role === 'sales_user') {
-      return matchesSearch && lostLead.lostBy === user?.id && !lostLead.isPermanent;
+    } else if (user?.role === 'sales_user') {
+      return matchesSearch && lostLead.lostBy === user?.id;
     }
     return false;
   });
 
   const handleRestore = async (leadId: string) => {
+    // Sales users cannot restore
+    if (user?.role === 'sales_user') {
+      toast.error('You do not have permission to restore lost leads.');
+      return;
+    }
+
     const lostLead = lostLeads.find(l => l.lead.id === leadId);
     
     if (!lostLead) return;
 
-    if (lostLead.isPermanent) {
-      toast.error('Permanent lost leads cannot be restored. Only Admin can delete them permanently.');
+    if (lostLead.isPermanent && user?.role !== 'super_admin' && user?.role !== 'company_admin') {
+      toast.error('Only Admins can restore permanently lost leads.');
       return;
     }
 
@@ -77,7 +83,14 @@ export function LostLeads() {
   };
 
   const handlePermanentDelete = (leadId: string) => {
-    if (!user?.role || !hasPermission(user.role, 'DELETE_LOST_LEADS_PERMANENT')) {
+    // Sales users cannot delete
+    if (user?.role === 'sales_user') {
+      toast.error('You do not have permission to delete lost leads.');
+      return;
+    }
+
+    // Check permission for permanent delete (Team Lead and up)
+    if (!user?.role || !['super_admin', 'company_admin', 'team_lead'].includes(user.role)) {
       toast.error('You don\'t have permission to permanently delete lost leads.');
       return;
     }
@@ -126,9 +139,9 @@ export function LostLeads() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Info:</strong> {user?.role === 'team_lead' 
-            ? 'You can view and restore leads marked as lost by your team. Permanent deletion is restricted to Company Admins.' 
-            : 'Regular users can restore leads they marked as lost. Only Company Admin can permanently delete lost leads.'}
+          <strong>Info:</strong> {user?.role === 'sales_user' 
+            ? 'You can view leads you marked as lost. Contact a Team Lead or Admin to restore them.' 
+            : 'Team Leads and Admins can manage lost leads.'}
         </AlertDescription>
       </Alert>
 
@@ -213,7 +226,7 @@ export function LostLeads() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {!lostLead.isPermanent && (
+                          {user?.role !== 'sales_user' && !lostLead.isPermanent && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -223,12 +236,12 @@ export function LostLeads() {
                               <RotateCcw className="h-4 w-4" />
                             </Button>
                           )}
-                          {user?.role && hasPermission(user.role, 'DELETE_LOST_LEADS_PERMANENT') && (
+                          {user?.role !== 'sales_user' && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handlePermanentDelete(lostLead.lead.id)}
-                              title="Permanently Delete (Admin Only)"
+                              title="Permanently Delete"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>

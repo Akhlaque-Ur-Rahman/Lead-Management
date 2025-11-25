@@ -56,12 +56,12 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { updateLead, addDirectorFollowUp } = useLeads();
+  const { updateLead, addFollowUp } = useLeads();
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [showConvertedDialog, setShowConvertedDialog] = useState(false);
-  const [selectedDirectorId, setSelectedDirectorId] = useState<string>('overall');
+  // Removed selectedDirectorId state
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
@@ -82,8 +82,6 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
 
   // Company Details Modal state
   const [showCompanyModal, setShowCompanyModal] = useState(false);
-
-
 
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return 'N/A';
@@ -122,16 +120,21 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   };
 
   const handleOpenFollowUpDialog = (director: Director | null = null) => {
-
     if (director) {
-      setSelectedDirectorId(director.id);
+       // Pre-select talkedTo if a director is passed
+       const name = `${director.firstName} ${director.lastName}`;
+       setTalkedTo(name);
+       setTalkedToId(director.id);
+       setTalkedToName(name);
     } else {
-      setSelectedDirectorId('overall');
+       // Reset talkedTo
+       setTalkedTo('');
+       setTalkedToId('');
+       setTalkedToName('');
     }
     setFollowUpStatus(lead.status); // Initialize with current status
     setShowFollowUpDialog(true);
   };
-
 
   const resetFollowUpForm = () => {
     setFollowUpDate('');
@@ -140,11 +143,8 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setTalkedTo('');
     setTalkedToId('');
     setTalkedToName('');
-    setSelectedDirectorId('overall');
     setFollowUpStatus('');
   };
-
-
 
   const handleAddFollowUp = async () => {
     if (!followUpDate || !followUpTime || !followUpRemark || !talkedTo) {
@@ -171,23 +171,10 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         talkedTo,
         talkedToId,
         talkedToName,
-        directorId: selectedDirectorId,
-        directorName: lead.directors.find(d => d.id === selectedDirectorId)?.firstName || 'Unknown',
         followUpStatus: followUpStatus as any
       };
 
-      if (selectedDirectorId === 'overall') {
-        // Add for all directors
-        await Promise.all(lead.directors.map(d => 
-          addDirectorFollowUp(lead.id, d.id, {
-            ...followUpData,
-            directorId: d.id,
-            directorName: d.firstName + ' ' + d.lastName
-          })
-        ));
-      } else {
-        await addDirectorFollowUp(lead.id, selectedDirectorId, followUpData);
-      }
+      await addFollowUp(lead.id, followUpData);
 
       toast.success('Follow-up added successfully');
       setShowFollowUpDialog(false);
@@ -234,15 +221,12 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         talkedTo: talkedTo || 'N/A',
         talkedToId: talkedToId || '',
         talkedToName: talkedToName || '',
-        directorId: selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId,
-        directorName: selectedDirectorId === 'overall' ? 'Overall' : (lead.directors.find(d => d.id === selectedDirectorId)?.firstName || 'Unknown'),
         followUpStatus: 'Lost' as const
       };
 
-      const targetDirectorId = selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId;
       const permanent = user?.role === 'company_admin' && isPermanentLost;
 
-      await addDirectorFollowUp(lead.id, targetDirectorId, followUpData, {
+      await addFollowUp(lead.id, followUpData, {
         status: 'Lost',
         lostRemark,
         lostBy: user?.id || '',
@@ -284,15 +268,10 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         talkedTo: talkedTo || 'N/A',
         talkedToId: talkedToId || '',
         talkedToName: talkedToName || '',
-        directorId: selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId,
-        directorName: selectedDirectorId === 'overall' ? 'Overall' : (lead.directors.find(d => d.id === selectedDirectorId)?.firstName || 'Unknown'),
         followUpStatus: 'Converted' as const
       };
 
-      // Use the first director if "overall" is selected, or the specific director
-      const targetDirectorId = selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId;
-
-      await addDirectorFollowUp(lead.id, targetDirectorId, followUpData, {
+      await addFollowUp(lead.id, followUpData, {
         status: 'Converted',
         invoiceNo,
         projectValue,
@@ -339,9 +318,17 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setShowHistoryModal(false);
     
     if (directorId) {
-      setSelectedDirectorId(directorId);
+      const director = lead.directors.find(d => d.id === directorId);
+      if (director) {
+        const name = `${director.firstName} ${director.lastName}`;
+        setTalkedTo(name);
+        setTalkedToId(director.id);
+        setTalkedToName(name);
+      }
     } else {
-      setSelectedDirectorId('overall');
+       setTalkedTo('');
+       setTalkedToId('');
+       setTalkedToName('');
     }
     setFollowUpStatus(lead.status); // Initialize with current status
     setShowFollowUpDialog(true);
@@ -786,22 +773,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="directorSelect">Director *</Label>
-              <Select value={selectedDirectorId} onValueChange={setSelectedDirectorId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select director" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="overall">Overall Company</SelectItem>
-                  {lead.directors.map(director => (
-                    <SelectItem key={director.id} value={director.id}>
-                      {director.firstName} {director.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Removed Director Select */}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -833,20 +805,22 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
 
             <div className="space-y-2">
               <Label htmlFor="talkedTo">Talked To *</Label>
-              <Select value={talkedToId} onValueChange={(value: string) => {
-                const director = lead.directors.find(d => d.id === value);
-                if (director) {
-                  setTalkedToId(director.id);
-                  const name = `${director.firstName} ${director.lastName}`;
-                  setTalkedToName(name);
-                  setTalkedTo(name);
-                }
-              }}>
+              <Select 
+                value={talkedToId} 
+                onValueChange={(value: string) => {
+                  const director = lead.directors.find(d => d.id === value);
+                  if (director) {
+                    setTalkedToId(director.id);
+                    setTalkedToName(`${director.firstName} ${director.lastName}`);
+                    setTalkedTo(`${director.firstName} ${director.lastName}`);
+                  }
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select person" />
+                  <SelectValue placeholder="Select director" />
                 </SelectTrigger>
                 <SelectContent>
-                  {lead.directors.map(director => (
+                  {lead.directors.map((director) => (
                     <SelectItem key={director.id} value={director.id}>
                       {director.firstName} {director.lastName}
                     </SelectItem>
@@ -856,7 +830,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="followUpStatus">Status</Label>
+              <Label htmlFor="followUpStatus">Status *</Label>
               <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
@@ -865,7 +839,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                   <SelectItem value="Hot">Hot</SelectItem>
                   <SelectItem value="Warm">Warm</SelectItem>
                   <SelectItem value="Cold">Cold</SelectItem>
-                  {['company_admin', 'sales_user', 'team_lead'].includes(user?.role || '') && (
+                  {user?.role && ['company_admin', 'sales_user', 'team_lead'].includes(user.role) && (
                     <SelectItem value="Converted">Converted</SelectItem>
                   )}
                   <SelectItem value="Lost">Lost</SelectItem>
@@ -879,24 +853,22 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 id="followUpRemark"
                 value={followUpRemark}
                 onChange={(e) => setFollowUpRemark(e.target.value)}
-                placeholder="Enter follow-up notes..."
-                rows={4}
+                placeholder="Enter follow-up details..."
+                className="min-h-[100px]"
               />
             </div>
 
-
-
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowFollowUpDialog(false);
               setFollowUpDate('');
               setFollowUpTime('');
-              setFollowUpDate('');
-              setFollowUpTime('');
               setFollowUpRemark('');
               setTalkedTo('');
-              setSelectedDirectorId('overall');
+              setTalkedToId('');
+              setTalkedToName('');
+              setFollowUpStatus('');
             }} className="w-full sm:w-auto">
               Cancel
             </Button>

@@ -268,12 +268,7 @@ export function HistoryModal({
                               {getCreatorName(fu.createdBy)}
                             </div>
 
-                            {fu.directorName && (
-                              <div>
-                                <span className="font-semibold">Director:</span>{" "}
-                                {fu.directorName}
-                              </div>
-                            )}
+
                             
                             {fu.talkedTo && (
                               <div>
