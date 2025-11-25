@@ -58,8 +58,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { addDirectorFollowUp,
     updateLead,
     markAsLost,
-    markAsConverted,
-    getAllFollowUps
+    markAsConverted
   } = useLeads();
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
@@ -69,8 +68,8 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
-  const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
   const [talkedTo, setTalkedTo] = useState(''); // New state for talked to field
+  const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
   const [lostRemark, setLostRemark] = useState('');
   const [isPermanentLost, setIsPermanentLost] = useState(false);
   const [invoiceNo, setInvoiceNo] = useState('');
@@ -135,7 +134,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   };
 
   const handleAddFollowUp = () => {
-    if (!followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo.trim()) {
+    if (!followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -153,30 +152,36 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
 
     const directorName = `${director.firstName} ${director.lastName}`;
     
+    // Find talked to name
+    const talkedToDirector = lead.directors.find(d => d.id === talkedTo);
+    const talkedToName = talkedToDirector 
+      ? `${talkedToDirector.firstName} ${talkedToDirector.lastName}` 
+      : 'Unknown';
+
     addDirectorFollowUp(lead.id, selectedDirectorId, {
       date: followUpDate,
       time: followUpTime,
       remark: followUpRemark,
-      talkedTo: talkedTo,
+      talkedTo: talkedToName, // Legacy field
+      talkedToId: talkedTo,
+      talkedToName: talkedToName,
       directorId: selectedDirectorId,
       directorName: directorName,
       followUpStatus: followUpStatus as any
     });
 
-    // Update lead status if changed
+    // Update lead status if changed (except for Converted/Lost which are handled by dialogs)
     if (followUpStatus && followUpStatus !== lead.status) {
-      if (followUpStatus === 'Converted') {
-        if (user?.role !== 'company_admin') {
-           toast.error('Only Company Admin can mark leads as converted');
-        } else {
-           setShowConvertedDialog(true);
-        }
-      } else if (followUpStatus === 'Lost') {
+       if (followUpStatus !== 'Converted' && followUpStatus !== 'Lost') {
+         updateLead(lead.id, { status: followUpStatus as Lead['status'] });
+       }
+    }
+    
+    // Trigger dialogs if needed
+    if (followUpStatus === 'Converted') {
+        setShowConvertedDialog(true);
+    } else if (followUpStatus === 'Lost') {
         setShowLostDialog(true);
-      } else {
-        updateLead(lead.id, { status: followUpStatus as Lead['status'] });
-        toast.success(`Lead status updated to ${followUpStatus}`);
-      }
     }
 
     toast.success('Follow-up scheduled');
@@ -184,7 +189,6 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
-    setFollowUpStatus('');
     setTalkedTo('');
     setSelectedDirectorId('overall');
   };
@@ -570,11 +574,6 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                                               <Badge variant="outline" className="text-xs">Upcoming</Badge>
                                             )}
                                             <Badge variant="default" className="text-xs bg-blue-600">Active</Badge>
-                                            {followUp.followUpStatus && (
-                                              <Badge className={cn("px-2 py-0.5 text-xs font-medium border-none shadow-none", getFollowUpStatusClasses(followUp.followUpStatus))}>
-                                                {followUp.followUpStatus}
-                                              </Badge>
-                                            )}
                                           </div>
                                           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                                             <User className="h-3 w-3" />
@@ -774,12 +773,18 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
 
             <div className="space-y-2">
               <Label htmlFor="talkedTo">Talked To *</Label>
-              <Input
-                id="talkedTo"
-                value={talkedTo}
-                onChange={(e) => setTalkedTo(e.target.value)}
-                placeholder="Director or Person Name"
-              />
+              <Select value={talkedTo} onValueChange={setTalkedTo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select person" />
+                </SelectTrigger>
+                <SelectContent>
+                  {lead.directors.map(director => (
+                    <SelectItem key={director.id} value={director.id}>
+                      {director.firstName} {director.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">
@@ -792,7 +797,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 rows={4}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="followUpStatus">Status</Label>
               <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
@@ -808,6 +813,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 </SelectContent>
               </Select>
             </div>
+
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
@@ -817,7 +823,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
               setFollowUpDate('');
               setFollowUpTime('');
               setFollowUpRemark('');
-              setFollowUpStatus('');
+              setTalkedTo('');
               setSelectedDirectorId('overall');
             }} className="w-full sm:w-auto">
               Cancel
@@ -1004,7 +1010,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         lead={lead}
         directorId={historyDirectorId}
         directorName={historyDirectorName}
-        onAddFollowUp={handleOpenFollowUpEditor}
+        onAddFollowUp={() => handleOpenFollowUpEditor(lead, historyDirectorId)}
         onViewCompany={handleOpenCompanyModal}
       />
     </>

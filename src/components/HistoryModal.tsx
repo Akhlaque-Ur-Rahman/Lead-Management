@@ -4,6 +4,8 @@ import React, { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { ScrollArea } from "./ui/scroll-area";
 import { Badge } from "./ui/badge";
+import { cn } from "./ui/utils";
+import { getFollowUpStatusClasses } from "../utils/followUpStatusColors";
 
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
@@ -18,7 +20,7 @@ interface HistoryModalProps {
   lead: Lead;
   directorId?: string;
   directorName?: string;
-  onAddFollowUp?: (lead: Lead, directorId?: string) => void;
+  onAddFollowUp?: () => void;
   onViewCompany?: (companyId: string) => void;
 }
 
@@ -125,7 +127,7 @@ export function HistoryModal({
             <div className="flex items-center gap-2">
               {canAddUpdate && (
                 <Button 
-                  onClick={() => onAddFollowUp?.(lead, directorId)} 
+                  onClick={onAddFollowUp} 
                   className="h-9"
                 >
                   Add / Update Follow-Up
@@ -204,6 +206,11 @@ export function HistoryModal({
                               {!isActive && (
                                 <Badge variant="outline" className="text-xs">
                                   Updated from earlier follow-up
+                                </Badge>
+                              )}
+                              {fu.followUpStatus && (
+                                <Badge className={cn("px-2 py-0.5 text-xs border-none shadow-none", getFollowUpStatusClasses(fu.followUpStatus))}>
+                                  {fu.followUpStatus}
                                 </Badge>
                               )}
                             </div>

@@ -49,8 +49,10 @@ export function Calendar() {
   const { user } = useAuth();
   const { 
     getDirectorFollowUpsForDate, 
-    addDirectorFollowUp, 
-    updateLead 
+    addDirectorFollowUp,
+    updateLead,
+    markAsLost,
+    markAsConverted
   } = useLeads();
   
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -65,6 +67,14 @@ export function Calendar() {
   const [followUpRemark, setFollowUpRemark] = useState('');
   const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
   const [talkedTo, setTalkedTo] = useState(''); // New state for talked to field
+
+  // Status Dialogs State
+  const [showLostDialog, setShowLostDialog] = useState(false);
+  const [showConvertedDialog, setShowConvertedDialog] = useState(false);
+  const [lostRemark, setLostRemark] = useState('');
+  const [isPermanentLost, setIsPermanentLost] = useState(false);
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [projectValue, setProjectValue] = useState('');
   
   // History modal
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -146,40 +156,83 @@ export function Calendar() {
   };
 
   const handleAddFollowUp = () => {
-    if (!selectedLead || !followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo.trim()) {
+    if (!selectedLead || !followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo) {
       toast.error('Please fill in all required fields');
       return;
     }
+
+    // Find talked to name
+    const talkedToDirector = selectedLead.lead.directors.find(d => d.id === talkedTo);
+    const talkedToName = talkedToDirector 
+      ? `${talkedToDirector.firstName} ${talkedToDirector.lastName}` 
+      : 'Unknown';
 
     addDirectorFollowUp(selectedLead.lead.id, selectedLead.director.id, {
       date: followUpDate,
       time: followUpTime,
       remark: followUpRemark,
-      talkedTo: talkedTo,
+      talkedTo: talkedToName,
+      talkedToId: talkedTo,
+      talkedToName: talkedToName,
       directorId: selectedLead.director.id,
       directorName: `${selectedLead.director.firstName} ${selectedLead.director.lastName}`,
       followUpStatus: followUpStatus as any
     });
 
-    // Update lead status if changed
+    // Update lead status if changed (except Converted/Lost)
     if (followUpStatus && followUpStatus !== selectedLead.lead.status) {
-      if (followUpStatus === 'Converted' || followUpStatus === 'Lost') {
-        toast.warning(`To mark as ${followUpStatus}, please open the Lead Detail view for full options.`);
-        updateLead(selectedLead.lead.id, { status: followUpStatus as Lead['status'] });
-      } else {
+      if (followUpStatus !== 'Converted' && followUpStatus !== 'Lost') {
         updateLead(selectedLead.lead.id, { status: followUpStatus as Lead['status'] });
       }
-      toast.success(`Lead status updated to ${followUpStatus}`);
+    }
+
+    // Trigger dialogs
+    if (followUpStatus === 'Converted') {
+        setShowConvertedDialog(true);
+    } else if (followUpStatus === 'Lost') {
+        setShowLostDialog(true);
     }
 
     toast.success('Follow-up scheduled');
     setShowFollowUpDialog(false);
-    setSelectedLead(null);
+    
+    // Only clear if not opening another dialog, or clear relevant fields
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
     setFollowUpStatus('');
     setTalkedTo('');
+    
+    if (followUpStatus !== 'Converted' && followUpStatus !== 'Lost') {
+      setSelectedLead(null);
+    }
+  };
+
+  const handleMarkAsLost = () => {
+    if (!selectedLead || !lostRemark.trim()) {
+      toast.error('Please provide a reason');
+      return;
+    }
+    const permanent = user?.role === 'company_admin' && isPermanentLost;
+    markAsLost(selectedLead.lead.id, lostRemark, user.id, permanent);
+    toast.success(permanent ? 'Lead permanently lost' : 'Lead marked as lost');
+    setShowLostDialog(false);
+    setLostRemark('');
+    setIsPermanentLost(false);
+    setSelectedLead(null);
+  };
+
+  const handleMarkAsConverted = () => {
+    if (!selectedLead || !invoiceNo.trim() || !projectValue.trim()) {
+      toast.error('Please provide details');
+      return;
+    }
+    markAsConverted(selectedLead.lead.id, invoiceNo, projectValue, user.name || user.id);
+    toast.success('Lead marked as converted');
+    setShowConvertedDialog(false);
+    setInvoiceNo('');
+    setProjectValue('');
+    setSelectedLead(null);
   };
 
   // Handlers for HistoryModal integration
@@ -242,9 +295,18 @@ export function Calendar() {
     const existing = seenCompanies.get(companyKey);
     
     // Only keep the latest active follow-up for this company
-    if (!existing || 
-        new Date(entry.followUp.createdAt).getTime() > new Date(existing.followUp.createdAt).getTime()) {
-      seenCompanies.set(companyKey, entry);
+    // The singleton rule in LeadsContext ensures there is only one active follow-up per company globally.
+    // So if we filter by status="active", we should get at most one per company.
+    // But getDirectorFollowUpsForDate might return updated ones too if not filtered?
+    // Let's ensure we only show ACTIVE ones.
+    const isActive = !entry.followUp.status || entry.followUp.status === 'active';
+    
+    if (isActive) {
+      // If we somehow have multiple active (shouldn't happen), take the latest
+      if (!existing || 
+          new Date(entry.followUp.createdAt).getTime() > new Date(existing.followUp.createdAt).getTime()) {
+        seenCompanies.set(companyKey, entry);
+      }
     }
   });
   
@@ -561,23 +623,18 @@ export function Calendar() {
 
             <div className="space-y-2">
               <Label htmlFor="fu-talked-to">Talked To *</Label>
-              <Input
-                id="fu-talked-to"
-                value={talkedTo}
-                onChange={(e) => setTalkedTo(e.target.value)}
-                placeholder="Director or Person Name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fu-remark">Remark *</Label>
-              <Textarea
-                id="fu-remark"
-                value={followUpRemark}
-                onChange={(e) => setFollowUpRemark(e.target.value)}
-                placeholder="Enter follow-up notes..."
-                rows={4}
-              />
+              <Select value={talkedTo} onValueChange={setTalkedTo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select person" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedLead?.lead.directors.map(director => (
+                    <SelectItem key={director.id} value={director.id}>
+                      {director.firstName} {director.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -595,6 +652,18 @@ export function Calendar() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fu-remark">Remark *</Label>
+              <Textarea
+                id="fu-remark"
+                value={followUpRemark}
+                onChange={(e) => setFollowUpRemark(e.target.value)}
+                placeholder="Enter follow-up notes..."
+                rows={4}
+              />
+            </div>
+
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -621,6 +690,103 @@ export function Calendar() {
       </Dialog>
 
 
+
+      {/* Converted Modal */}
+      <Dialog open={showConvertedDialog} onOpenChange={setShowConvertedDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Mark Lead as Converted</DialogTitle>
+            <DialogDescription>
+              Provide invoice and project details for this conversion
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoiceNo">Invoice Number *</Label>
+              <Input
+                id="invoiceNo"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+                placeholder="Enter invoice number..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="projectValue">Total Project Value (₹) *</Label>
+              <Input
+                id="projectValue"
+                type="text"
+                value={projectValue}
+                onChange={(e) => setProjectValue(e.target.value)}
+                placeholder="Enter project value..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowConvertedDialog(false);
+              setInvoiceNo('');
+              setProjectValue('');
+              setSelectedLead(null);
+            }} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button onClick={handleMarkAsConverted} className="w-full sm:w-auto">
+              Mark as Converted
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark as Lost Dialog */}
+      <Dialog open={showLostDialog} onOpenChange={setShowLostDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Mark Lead as Lost</DialogTitle>
+            <DialogDescription>
+              Provide a reason for marking this lead as lost
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="lostRemark">Reason *</Label>
+              <Textarea
+                id="lostRemark"
+                value={lostRemark}
+                onChange={(e) => setLostRemark(e.target.value)}
+                placeholder="Enter reason..."
+                rows={4}
+              />
+            </div>
+            {user?.role === 'company_admin' && (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="permanentLost"
+                  checked={isPermanentLost}
+                  onChange={(e) => setIsPermanentLost(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="permanentLost" className="text-sm font-normal cursor-pointer">
+                  Mark as Permanently Lost (Hide from future lists)
+                </Label>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowLostDialog(false);
+              setLostRemark('');
+              setIsPermanentLost(false);
+              setSelectedLead(null);
+            }} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button onClick={handleMarkAsLost} variant="destructive" className="w-full sm:w-auto">
+              Mark as Lost
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Company Details Modal */}
       <Dialog open={showCompanyModal} onOpenChange={setShowCompanyModal}>
@@ -713,7 +879,7 @@ export function Calendar() {
           lead={historyLead}
           directorId={historyDirectorId}
           directorName={historyDirectorName}
-          onAddFollowUp={handleOpenFollowUpEditor}
+          onAddFollowUp={() => handleOpenFollowUpEditor(historyLead, historyDirectorId)}
           onViewCompany={handleOpenCompanyModal}
         />
       )}

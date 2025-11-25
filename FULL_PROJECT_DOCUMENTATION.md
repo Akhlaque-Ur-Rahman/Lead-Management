@@ -318,8 +318,8 @@ interface FollowUp {
   directorId?: string;          // Associated director
   directorName?: string;
   talkedTo: string;             // Person contacted during follow-up (required)
+  followUpStatus: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
   status?: "active" | "updated"; // Lifecycle status (active/updated)
-  followUpStatus?: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
 }
 ```
 
@@ -596,7 +596,7 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
 
 - **Status-Based Tracking**: Implemented a comprehensive follow-up lifecycle management system.
   - **Lifecycle Status Field**: Added `status: "active" | "updated"` to the FollowUp interface.
-  - **Business Status Field**: Added `followUpStatus: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"` to track lead temperature alongside lifecycle.
+  - **Business Status Field**: Restored `followUpStatus` to track lead temperature ("Hot", "Warm", "Cold") per follow-up.
   - **Update Behavior**: When editing a follow-up, the old entry is marked as "updated" and a new "active" entry is created, preserving full history.
   - **Backward Compatibility**: Existing follow-ups without a status field are automatically treated as "active".
   
@@ -606,7 +606,7 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **Sort Toggle**: Switch between "Oldest First" and "Newest First" views.
   - **Expand/Collapse**: Long remarks (>120 characters) can be expanded/collapsed.
   - **Comprehensive Data**: Displays date, time, remark, director name, talked to, lifecycle status, business status, created by, and created at timestamp.
-  - **Status Badges**: Visual indicators for both "Active/Updated" (lifecycle) and "Hot/Warm/Cold/Converted/Lost" (business) statuses.
+  - **Status Badges**: Visual indicators for "Active/Updated" lifecycle status and "Hot/Warm/Cold" business status.
   
 - **Calendar View Enhancements**:
   - **Company-Level Singleton**: Shows only ONE active follow-up per company (Nov 2025).
@@ -621,7 +621,6 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **View History Button**: New button to access full follow-up timeline per director.
   - **Active Badge**: Visual indicator for active follow-ups.
   - **Sorted Display**: Active follow-ups sorted by earliest first.
-  - **Business Status Badges**: Displays both lifecycle and business status for each follow-up.
   - **Talked To Display**: Shows who was contacted in active follow-ups list (Nov 2025).
   
 - **Helper Functions**: Added utility functions in LeadsContext.
@@ -647,17 +646,14 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
   - **Responsiveness**: Improved layout to be full-screen and scrollable on all devices, ensuring better visibility of long histories.
   - **Permissions**: "Add / Update Follow-Up" button is restricted (hidden for Super Admins).
   - **Search Functionality**: Real-time search across remarks, dates, and creator names for easy filtering.
-  - **Business Status Display**: Shows both lifecycle status (Active/Updated) and business status (Hot/Warm/Cold/Converted/Lost) badges.
+  - **Status Display**: Shows lifecycle status (Active/Updated) badges.
 
 - **Lead Detail Integration**:
   - **Seamless Navigation**: Opening "Add Follow-Up" from History Modal opens the existing follow-up dialog with the correct director pre-selected.
   - **Company Details Modal**: New dedicated modal displays comprehensive company info (CIN, Capital, Directors, Registered Address) without leaving the context.
-  - **Status Management**: Added Status dropdown (Hot, Warm, Cold, Converted, Lost) to the "Add Follow-Up" dialog for immediate status updates.
-  - **Converted/Lost Handling**: Selecting "Converted" or "Lost" status automatically triggers the respective detailed dialogs to capture required information (Invoice No, Lost Remark).
 
 - **Calendar View Integration**:
   - **Unified Experience**: "Add Follow-Up" and "View Company Details" actions from the History Modal work identically within the Calendar View.
-  - **Status Updates**: Users can update lead status directly when adding a follow-up from the calendar.
   - **Context Awareness**: Company Details modal correctly fetches and displays data for the lead associated with the calendar event.
 
 ---

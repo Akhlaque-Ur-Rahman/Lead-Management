@@ -32,9 +32,11 @@ export interface FollowUp {
   createdAt: string;
   directorId?: string;
   directorName?: string;
-  talkedTo: string; // Person contacted during follow-up
+  talkedTo: string; // Legacy field, kept for backward compatibility
+  talkedToId?: string; // ID of the director talked to
+  talkedToName?: string; // Name of the director talked to
+  followUpStatus: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
   status?: "active" | "updated"; // Lifecycle status
-  followUpStatus?: "Hot" | "Warm" | "Cold" | "Converted" | "Lost"; // Business status
 }
 
 export interface Director {
@@ -546,13 +548,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           createdAt: new Date().toISOString(),
           createdBy: user.id,
           status: "active", // Always active when created
-          // talkedTo and followUpStatus are passed in followUpData
+          // talkedTo, talkedToId, talkedToName and followUpStatus are passed in followUpData
         };
 
         // COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
         // This ensures only ONE active follow-up exists per company
         directors.forEach((director, idx) => {
           const updatedFollowUps = (director.followUps || []).map(f => {
+            // Mark any existing active follow-up as updated
             if (!f.status || f.status === "active") {
               return { ...f, status: "updated" as const };
             }
@@ -565,7 +568,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         directors[directorIndex].followUps = directors[directorIndex].followUps || [];
         directors[directorIndex].followUps.push(newFollowUp);
 
-        // Calculate next follow-up date
+        // Calculate next follow-up date (based on active follow-ups only)
         const nextDate = calculateNextFollowUpDate({ ...leadData, directors });
 
         transaction.update(leadRef, {
@@ -621,12 +624,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           time: followUp.time,
           remark: followUp.remark,
           talkedTo: followUp.talkedTo,
+          talkedToId: followUp.talkedToId,
+          talkedToName: followUp.talkedToName,
           createdBy: user?.id ?? "unknown",
           createdAt: new Date().toISOString(),
           directorId,
           directorName: directors[idx].firstName + " " + directors[idx].lastName,
           status: "active",
-          followUpStatus: followUp.followUpStatus // Preserve/Update business status
+          followUpStatus: followUp.followUpStatus
         };
         
         // Add the new follow-up to the specified director
