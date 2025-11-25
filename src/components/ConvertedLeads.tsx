@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -63,15 +63,23 @@ export function ConvertedLeads() {
   const convertedLeads = user.companyId ? getConvertedLeads(user.companyId) : [];
 
   // Filter by search
-  const filteredLeads = convertedLeads.filter(lead =>
-    lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.invoiceNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.convertedBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (lead.directors && lead.directors.some(d => 
-      d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.lastName.toLowerCase().includes(searchTerm.toLowerCase())
-    ))
-  );
+  const filteredLeads = useMemo(() => {
+    return convertedLeads.filter(lead => {
+      // Ensure we only show converted leads
+      if (lead.status !== 'Converted') return false;
+
+      const matchesSearch = 
+        lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.invoiceNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.convertedBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (lead.directors && lead.directors.some(d => 
+          d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.lastName.toLowerCase().includes(searchTerm.toLowerCase())
+        ));
+      
+      return matchesSearch;
+    });
+  }, [convertedLeads, searchTerm]);
 
   // Sort leads
   const sortedLeads = [...filteredLeads].sort((a, b) => {

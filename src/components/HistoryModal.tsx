@@ -1,18 +1,15 @@
-// src/components/HistoryModal.tsx
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { ScrollArea } from "./ui/scroll-area";
 import { Badge } from "./ui/badge";
 import { cn } from "./ui/utils";
-import { getFollowUpStatusClasses } from "../utils/followUpStatusColors";
-
+import { getFollowUpStatusClasses, lifecycleStatusColors } from "../utils/followUpStatusColors";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
-import { Lead, FollowUp } from "./LeadsContext";
+import { Lead, FollowUp, useLeads } from "./LeadsContext";
 import { useAuth } from "./AuthContext";
-import { useLeads } from "./LeadsContext";
 
 interface HistoryModalProps {
   open: boolean;
@@ -198,13 +195,14 @@ export function HistoryModal({
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
                             <div className="flex items-center gap-2 flex-wrap">
                               <Badge
-                                variant={isActive ? "default" : "secondary"}
-                                className={`text-xs ${isActive ? "bg-blue-600" : "bg-gray-500"}`}
+                                className={cn("text-xs hover:opacity-90", 
+                                  isActive ? lifecycleStatusColors.active : lifecycleStatusColors.updated
+                                )}
                               >
                                 {isActive ? "Active" : "Updated"}
                               </Badge>
                               {!isActive && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge className="text-xs bg-slate-100 text-slate-700 border border-slate-300">
                                   Updated from earlier follow-up
                                 </Badge>
                               )}
@@ -280,7 +278,7 @@ export function HistoryModal({
                             {fu.talkedTo && (
                               <div>
                                 <span className="font-semibold text-primary">Talked To:</span>{" "}
-                                {fu.talkedTo}
+                                {fu.talkedToName || fu.talkedTo}
                               </div>
                             )}
                           </div>

@@ -654,13 +654,6 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
 
 - **Calendar View Integration**:
   - **Unified Experience**: "Add Follow-Up" and "View Company Details" actions from the History Modal work identically within the Calendar View.
-  - **Context Awareness**: Company Details modal correctly fetches and displays data for the lead associated with the calendar event.
-
----
-
-## Setup & Installation
-
-### Prerequisites
 - Node.js 20.x or higher
 - npm or yarn package manager
 

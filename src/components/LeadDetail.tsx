@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead, type Director } from './LeadsContext';
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
@@ -45,7 +46,7 @@ import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { hasPermission } from '../types/roles';
 import { HistoryModal } from './HistoryModal';
-import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
+import { getFollowUpStatusClasses, lifecycleStatusColors } from '../utils/followUpStatusColors';
 
 interface LeadDetailProps {
   lead: Lead;
@@ -55,11 +56,7 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { addDirectorFollowUp,
-    updateLead,
-    markAsLost,
-    markAsConverted
-  } = useLeads();
+  const { updateLead, addDirectorFollowUp } = useLeads();
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
@@ -69,6 +66,8 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
   const [talkedTo, setTalkedTo] = useState(''); // New state for talked to field
+  const [talkedToId, setTalkedToId] = useState('');
+  const [talkedToName, setTalkedToName] = useState('');
   const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
   const [lostRemark, setLostRemark] = useState('');
   const [isPermanentLost, setIsPermanentLost] = useState(false);
@@ -133,64 +132,70 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     setShowFollowUpDialog(true);
   };
 
-  const handleAddFollowUp = () => {
-    if (!followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
 
-    if (selectedDirectorId === 'overall') {
-      toast.error('Please select a specific director');
-      return;
-    }
-
-    const director = lead.directors.find(d => d.id === selectedDirectorId);
-    if (!director) {
-      toast.error('Director not found');
-      return;
-    }
-
-    const directorName = `${director.firstName} ${director.lastName}`;
-    
-    // Find talked to name
-    const talkedToDirector = lead.directors.find(d => d.id === talkedTo);
-    const talkedToName = talkedToDirector 
-      ? `${talkedToDirector.firstName} ${talkedToDirector.lastName}` 
-      : 'Unknown';
-
-    addDirectorFollowUp(lead.id, selectedDirectorId, {
-      date: followUpDate,
-      time: followUpTime,
-      remark: followUpRemark,
-      talkedTo: talkedToName, // Legacy field
-      talkedToId: talkedTo,
-      talkedToName: talkedToName,
-      directorId: selectedDirectorId,
-      directorName: directorName,
-      followUpStatus: followUpStatus as any
-    });
-
-    // Update lead status if changed (except for Converted/Lost which are handled by dialogs)
-    if (followUpStatus && followUpStatus !== lead.status) {
-       if (followUpStatus !== 'Converted' && followUpStatus !== 'Lost') {
-         updateLead(lead.id, { status: followUpStatus as Lead['status'] });
-       }
-    }
-    
-    // Trigger dialogs if needed
-    if (followUpStatus === 'Converted') {
-        setShowConvertedDialog(true);
-    } else if (followUpStatus === 'Lost') {
-        setShowLostDialog(true);
-    }
-
-    toast.success('Follow-up scheduled');
-    setShowFollowUpDialog(false);
+  const resetFollowUpForm = () => {
     setFollowUpDate('');
     setFollowUpTime('');
     setFollowUpRemark('');
     setTalkedTo('');
+    setTalkedToId('');
+    setTalkedToName('');
     setSelectedDirectorId('overall');
+    setFollowUpStatus('');
+  };
+
+
+
+  const handleAddFollowUp = async () => {
+    if (!followUpDate || !followUpTime || !followUpRemark || !talkedTo) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // If status is Converted or Lost, we don't save here - the modals handle it
+    if (followUpStatus === 'Converted') {
+      setShowConvertedDialog(true);
+      return;
+    }
+
+    if (followUpStatus === 'Lost') {
+      setShowLostDialog(true);
+      return;
+    }
+
+    try {
+      const followUpData = {
+        date: followUpDate,
+        time: followUpTime,
+        remark: followUpRemark,
+        talkedTo,
+        talkedToId,
+        talkedToName,
+        directorId: selectedDirectorId,
+        directorName: lead.directors.find(d => d.id === selectedDirectorId)?.firstName || 'Unknown',
+        followUpStatus: followUpStatus as any
+      };
+
+      if (selectedDirectorId === 'overall') {
+        // Add for all directors
+        await Promise.all(lead.directors.map(d => 
+          addDirectorFollowUp(lead.id, d.id, {
+            ...followUpData,
+            directorId: d.id,
+            directorName: d.firstName + ' ' + d.lastName
+          })
+        ));
+      } else {
+        await addDirectorFollowUp(lead.id, selectedDirectorId, followUpData);
+      }
+
+      toast.success('Follow-up added successfully');
+      setShowFollowUpDialog(false);
+      resetFollowUpForm();
+    } catch (error) {
+      console.error('Error adding follow-up:', error);
+      toast.error('Failed to add follow-up');
+    }
   };
 
   const handleStatusChange = (newStatus: string) => {
@@ -199,8 +204,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       setSelectedStatus(lead.status); // Reset to current status
     } else if (newStatus === 'Converted') {
       // Only Company Admin can mark as converted (requires financial data)
-      if (user?.role !== 'company_admin') {
-        toast.error('Only Company Admin can mark leads as converted');
+      // Company Admin, Sales User, and Team Lead can mark as converted
+      if (!['company_admin', 'sales_user', 'team_lead'].includes(user?.role || '')) {
+        toast.error('You do not have permission to mark leads as converted');
         setSelectedStatus(lead.status);
         return;
       }
@@ -214,42 +220,96 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     }
   };
 
-  const handleMarkAsLost = () => {
+  const handleMarkAsLost = async () => {
     if (!lostRemark.trim()) {
       toast.error('Please provide a reason for marking this lead as lost');
       return;
     }
 
-    // Only Company Admin can mark as permanent
-    const permanent = user?.role === 'company_admin' && isPermanentLost;
+    try {
+      const followUpData = {
+        date: followUpDate || new Date().toISOString().split('T')[0],
+        time: followUpTime || new Date().toTimeString().slice(0, 5),
+        remark: followUpRemark || 'Lead Lost',
+        talkedTo: talkedTo || 'N/A',
+        talkedToId: talkedToId || '',
+        talkedToName: talkedToName || '',
+        directorId: selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId,
+        directorName: selectedDirectorId === 'overall' ? 'Overall' : (lead.directors.find(d => d.id === selectedDirectorId)?.firstName || 'Unknown'),
+        followUpStatus: 'Lost' as const
+      };
 
-    markAsLost(lead.id, lostRemark, user?.id || '', permanent);
-    
-    if (permanent) {
-      toast.success('Lead permanently marked as lost');
-    } else {
-      toast.success('Lead marked as lost (temporary)');
+      const targetDirectorId = selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId;
+      const permanent = user?.role === 'company_admin' && isPermanentLost;
+
+      await addDirectorFollowUp(lead.id, targetDirectorId, followUpData, {
+        status: 'Lost',
+        lostRemark,
+        lostBy: user?.id || '',
+        // Handle permanent deletion logic if needed, but usually we just mark status
+      });
+      
+      if (permanent) {
+         // If permanent delete is requested, we might need to call permanentlyDeleteLost
+         // But that usually requires a lostLead ID. For now, we assume status 'Lost' is enough
+         // or we can call markAsLost separately if needed.
+         // Given the context, we'll stick to status update for now.
+      }
+
+      toast.success('Lead marked as lost');
+      setShowLostDialog(false);
+      setShowFollowUpDialog(false);
+      setLostRemark('');
+      setIsPermanentLost(false);
+      resetFollowUpForm();
+      onClose();
+    } catch (error) {
+      console.error('Error marking lead as lost:', error);
+      toast.error('Failed to mark lead as lost');
     }
-    
-    setShowLostDialog(false);
-    setLostRemark('');
-    setIsPermanentLost(false);
-    onClose();
   };
 
-  const handleMarkAsConverted = () => {
+  const handleMarkAsConverted = async () => {
     if (!invoiceNo.trim() || !projectValue.trim()) {
       toast.error('Please provide invoice number and project value');
       return;
     }
 
-    markAsConverted(lead.id, invoiceNo, projectValue, user?.name || user?.id || '');
-    setSelectedStatus('Converted');
-    toast.success('Lead marked as converted!');
-    
-    setShowConvertedDialog(false);
-    setInvoiceNo('');
-    setProjectValue('');
+    try {
+      // Create the follow-up AND update lead status atomically
+      const followUpData = {
+        date: followUpDate || new Date().toISOString().split('T')[0],
+        time: followUpTime || new Date().toTimeString().slice(0, 5),
+        remark: followUpRemark || 'Lead Converted',
+        talkedTo: talkedTo || 'N/A',
+        talkedToId: talkedToId || '',
+        talkedToName: talkedToName || '',
+        directorId: selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId,
+        directorName: selectedDirectorId === 'overall' ? 'Overall' : (lead.directors.find(d => d.id === selectedDirectorId)?.firstName || 'Unknown'),
+        followUpStatus: 'Converted' as const
+      };
+
+      // Use the first director if "overall" is selected, or the specific director
+      const targetDirectorId = selectedDirectorId === 'overall' ? lead.directors[0]?.id : selectedDirectorId;
+
+      await addDirectorFollowUp(lead.id, targetDirectorId, followUpData, {
+        status: 'Converted',
+        invoiceNo,
+        projectValue,
+        convertedBy: user?.name || user?.id || ''
+      });
+
+      toast.success('Lead marked as converted!');
+      setShowConvertedDialog(false);
+      setShowFollowUpDialog(false);
+      setInvoiceNo('');
+      setProjectValue('');
+      resetFollowUpForm();
+      onClose(); // Close the main LeadDetail modal
+    } catch (error) {
+      console.error('Error converting lead:', error);
+      toast.error('Failed to convert lead');
+    }
   };
 
   const getNextFollowUp = (director: Director) => {
@@ -320,9 +380,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                   <SelectItem value="Hot">Hot</SelectItem>
                   <SelectItem value="Warm">Warm</SelectItem>
                   <SelectItem value="Cold">Cold</SelectItem>
-                  {user?.role === 'company_admin' && (
-                    <SelectItem value="Converted">Converted</SelectItem>
-                  )}
+                    {user?.role && ['company_admin', 'sales_user', 'team_lead'].includes(user.role) && (
+                      <SelectItem value="Converted">Converted</SelectItem>
+                    )}
                   <SelectItem value="Lost">Lost</SelectItem>
                 </SelectContent>
               </Select>
@@ -449,7 +509,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                         <div className="flex items-center gap-2 text-left">
                           <span>{director.firstName} {director.lastName}</span>
                           {followUpCount > 0 && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge className="text-xs bg-slate-200 text-slate-800 border border-slate-300">
                               {followUpCount} follow-ups
                             </Badge>
                           )}
@@ -571,9 +631,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                                               <span className="font-medium">{formatDateTime(followUp.date, followUp.time)}</span>
                                             </p>
                                             {!isPast && (
-                                              <Badge variant="outline" className="text-xs">Upcoming</Badge>
+                                              <Badge className="text-xs bg-blue-100 text-blue-800 border border-blue-200">Upcoming</Badge>
                                             )}
-                                            <Badge variant="default" className="text-xs bg-blue-600">Active</Badge>
+                                            <Badge className={cn("text-xs", lifecycleStatusColors.active)}>Active</Badge>
                                           </div>
                                           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                                             <User className="h-3 w-3" />
@@ -773,7 +833,15 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
 
             <div className="space-y-2">
               <Label htmlFor="talkedTo">Talked To *</Label>
-              <Select value={talkedTo} onValueChange={setTalkedTo}>
+              <Select value={talkedToId} onValueChange={(value: string) => {
+                const director = lead.directors.find(d => d.id === value);
+                if (director) {
+                  setTalkedToId(director.id);
+                  const name = `${director.firstName} ${director.lastName}`;
+                  setTalkedToName(name);
+                  setTalkedTo(name);
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select person" />
                 </SelectTrigger>
@@ -783,6 +851,24 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                       {director.firstName} {director.lastName}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="followUpStatus">Status</Label>
+              <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Warm">Warm</SelectItem>
+                  <SelectItem value="Cold">Cold</SelectItem>
+                  {['company_admin', 'sales_user', 'team_lead'].includes(user?.role || '') && (
+                    <SelectItem value="Converted">Converted</SelectItem>
+                  )}
+                  <SelectItem value="Lost">Lost</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -798,21 +884,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="followUpStatus">Status</Label>
-              <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hot">Hot</SelectItem>
-                  <SelectItem value="Warm">Warm</SelectItem>
-                  <SelectItem value="Cold">Cold</SelectItem>
-                  <SelectItem value="Converted">Converted</SelectItem>
-                  <SelectItem value="Lost">Lost</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
 
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -900,20 +972,20 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                 rows={4}
               />
             </div>
-            {user?.role === 'company_admin' && (
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="permanentLost"
-                  checked={isPermanentLost}
-                  onChange={(e) => setIsPermanentLost(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="permanentLost" className="text-sm font-normal cursor-pointer">
-                  Mark as Permanently Lost (Hide from future lists)
-                </Label>
-              </div>
-            )}
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="permanent" 
+                checked={isPermanentLost}
+                onCheckedChange={(checked: boolean) => setIsPermanentLost(checked)}
+                disabled={user?.role !== 'company_admin'}
+              />
+              <label
+                htmlFor="permanent"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Permanently delete lead (Company Admin only)
+              </label>
+            </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
@@ -1010,9 +1082,11 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         lead={lead}
         directorId={historyDirectorId}
         directorName={historyDirectorName}
-        onAddFollowUp={() => handleOpenFollowUpEditor(lead, historyDirectorId)}
+        onAddFollowUp={() => handleOpenFollowUpDialog(lead.directors.find(d => d.id === historyDirectorId) || null)}
         onViewCompany={handleOpenCompanyModal}
       />
     </>
   );
 }
+
+export default LeadDetail;

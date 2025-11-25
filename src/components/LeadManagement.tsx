@@ -34,6 +34,8 @@ import { LeadDetail } from './LeadDetail';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { hasPermission, canAssignToUser } from '../types/roles';
+import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
+import { cn } from './ui/utils';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
@@ -58,6 +60,11 @@ export function LeadManagement() {
                            d.email.toLowerCase().includes(searchTerm.toLowerCase())
                          ));
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+
+    // Exclude converted leads for Sales User and Team Lead
+    if (lead.status === 'Converted' && ['sales_user', 'team_lead'].includes(user?.role || '')) {
+      return false;
+    }
 
     // Role-based Lead Pool filtering
     let hasAccess = false;
@@ -167,16 +174,7 @@ export function LeadManagement() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Hot': return 'destructive';
-      case 'Warm': return 'default';
-      case 'Cold': return 'secondary';
-      case 'Converted': return 'outline';
-      case 'Lost': return 'secondary';
-      default: return 'secondary';
-    }
-  };
+
 
   const getAssignedUserName = (userId: string | null) => {
     if (!userId) return 'Not Assigned';
@@ -977,7 +975,7 @@ export function LeadManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusColor(lead.status)}>
+                      <Badge className={cn('text-xs', getFollowUpStatusClasses(lead.status))}>
                         {lead.status}
                       </Badge>
                     </TableCell>

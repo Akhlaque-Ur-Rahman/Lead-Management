@@ -1,12 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead, Director, FollowUp } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import {
   Select,
   SelectContent,
@@ -17,10 +15,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from './ui/dialog';
 import { 
   Calendar as CalendarIcon, 
@@ -35,9 +29,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
-import { HistoryModal } from './HistoryModal';
-import { Separator } from './ui/separator';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
+import { LeadDetail } from './LeadDetail';
 
 interface FollowUpEntry {
   lead: Lead;
@@ -48,43 +41,17 @@ interface FollowUpEntry {
 export function Calendar() {
   const { user } = useAuth();
   const { 
-    getDirectorFollowUpsForDate, 
-    addDirectorFollowUp,
-    updateLead,
-    markAsLost,
-    markAsConverted
+    getDirectorFollowUpsForDate,
+    leads
   } = useLeads();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedLead, setSelectedLead] = useState<{ lead: Lead; director: Director } | null>(null);
   const [filterHour, setFilterHour] = useState<string>('all');
   
-  // Follow-up form
-  const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
-  const [followUpDate, setFollowUpDate] = useState('');
-  const [followUpTime, setFollowUpTime] = useState('');
-  const [followUpRemark, setFollowUpRemark] = useState('');
-  const [followUpStatus, setFollowUpStatus] = useState<string>(''); // New state for follow-up status
-  const [talkedTo, setTalkedTo] = useState(''); // New state for talked to field
-
-  // Status Dialogs State
-  const [showLostDialog, setShowLostDialog] = useState(false);
-  const [showConvertedDialog, setShowConvertedDialog] = useState(false);
-  const [lostRemark, setLostRemark] = useState('');
-  const [isPermanentLost, setIsPermanentLost] = useState(false);
-  const [invoiceNo, setInvoiceNo] = useState('');
-  const [projectValue, setProjectValue] = useState('');
-  
-  // History modal
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyLead, setHistoryLead] = useState<Lead | null>(null);
-  const [historyDirectorId, setHistoryDirectorId] = useState<string | undefined>(undefined);
-  const [historyDirectorName, setHistoryDirectorName] = useState<string | undefined>(undefined);
-
-  // Company Details Modal state
-  const [showCompanyModal, setShowCompanyModal] = useState(false);
-  const [companyModalLead, setCompanyModalLead] = useState<Lead | null>(null);
+  // Lead Detail Modal state
+  const [showLeadDetail, setShowLeadDetail] = useState(false);
+  const [detailLead, setDetailLead] = useState<Lead | null>(null);
 
   if (!user) return null;
 
@@ -147,187 +114,75 @@ export function Calendar() {
     setFilterHour('all');
   };
 
-  const handleLeadClick = (lead: Lead, director: Director) => {
-    // Open history modal to show full follow-up timeline
-    setHistoryLead(lead);
-    setHistoryDirectorId(director.id);
-    setHistoryDirectorName(`${director.firstName} ${director.lastName}`);
-    setShowHistoryModal(true);
+  const handleLeadClick = (lead: Lead) => {
+    setDetailLead(lead);
+    setShowLeadDetail(true);
   };
 
-  const handleAddFollowUp = () => {
-    if (!selectedLead || !followUpDate || !followUpTime || !followUpRemark.trim() || !talkedTo) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // Find talked to name
-    const talkedToDirector = selectedLead.lead.directors.find(d => d.id === talkedTo);
-    const talkedToName = talkedToDirector 
-      ? `${talkedToDirector.firstName} ${talkedToDirector.lastName}` 
-      : 'Unknown';
-
-    addDirectorFollowUp(selectedLead.lead.id, selectedLead.director.id, {
-      date: followUpDate,
-      time: followUpTime,
-      remark: followUpRemark,
-      talkedTo: talkedToName,
-      talkedToId: talkedTo,
-      talkedToName: talkedToName,
-      directorId: selectedLead.director.id,
-      directorName: `${selectedLead.director.firstName} ${selectedLead.director.lastName}`,
-      followUpStatus: followUpStatus as any
-    });
-
-    // Update lead status if changed (except Converted/Lost)
-    if (followUpStatus && followUpStatus !== selectedLead.lead.status) {
-      if (followUpStatus !== 'Converted' && followUpStatus !== 'Lost') {
-        updateLead(selectedLead.lead.id, { status: followUpStatus as Lead['status'] });
-      }
-    }
-
-    // Trigger dialogs
-    if (followUpStatus === 'Converted') {
-        setShowConvertedDialog(true);
-    } else if (followUpStatus === 'Lost') {
-        setShowLostDialog(true);
-    }
-
-    toast.success('Follow-up scheduled');
-    setShowFollowUpDialog(false);
-    
-    // Only clear if not opening another dialog, or clear relevant fields
-    setFollowUpDate('');
-    setFollowUpTime('');
-    setFollowUpRemark('');
-    setFollowUpStatus('');
-    setTalkedTo('');
-    
-    if (followUpStatus !== 'Converted' && followUpStatus !== 'Lost') {
-      setSelectedLead(null);
-    }
-  };
-
-  const handleMarkAsLost = () => {
-    if (!selectedLead || !lostRemark.trim()) {
-      toast.error('Please provide a reason');
-      return;
-    }
-    const permanent = user?.role === 'company_admin' && isPermanentLost;
-    markAsLost(selectedLead.lead.id, lostRemark, user.id, permanent);
-    toast.success(permanent ? 'Lead permanently lost' : 'Lead marked as lost');
-    setShowLostDialog(false);
-    setLostRemark('');
-    setIsPermanentLost(false);
-    setSelectedLead(null);
-  };
-
-  const handleMarkAsConverted = () => {
-    if (!selectedLead || !invoiceNo.trim() || !projectValue.trim()) {
-      toast.error('Please provide details');
-      return;
-    }
-    markAsConverted(selectedLead.lead.id, invoiceNo, projectValue, user.name || user.id);
-    toast.success('Lead marked as converted');
-    setShowConvertedDialog(false);
-    setInvoiceNo('');
-    setProjectValue('');
-    setSelectedLead(null);
-  };
-
-  // Handlers for HistoryModal integration
-  const handleOpenFollowUpEditor = (lead: Lead, directorId?: string) => {
-    setShowHistoryModal(false);
-    
-    if (directorId) {
-       const director = lead.directors.find(d => d.id === directorId);
-       if (director) {
-         setSelectedLead({ lead, director });
-         setFollowUpStatus(lead.status); // Initialize with current status
-         setShowFollowUpDialog(true);
-       } else {
-         toast.error('Director not found');
-       }
-    } else {
-      // If no director ID provided, we can't open the specific director follow-up form easily
-      // in this specific implementation of CalendarView which expects a selectedLead with director.
-      // We could default to the first director or show an error.
-      // Given the context, directorId should usually be present.
-       toast.error('Please select a director to add a follow-up');
-    }
-  };
-
-  const handleOpenCompanyModal = (companyId: string) => {
-    setShowHistoryModal(false);
-    // We need the lead object to show company details. 
-    // Since we are in HistoryModal context, we have the lead.
-    // But we need to pass it to the state.
-    // The `onViewCompany` prop only passes `companyId`.
-    // However, in `HistoryModal`, we have access to `lead`.
-    // We can modify `HistoryModal` to pass `lead` or just use `historyLead` here since it's the same.
-    if (historyLead && historyLead.companyId === companyId) {
-        setCompanyModalLead(historyLead);
-        setShowCompanyModal(true);
-    }
+  const handleEditLead = () => {
+    setShowLeadDetail(false);
+    toast.info("Editing from calendar is not yet supported. Please use the Lead List view.");
   };
 
   const days = getDaysInMonth(currentDate);
   const monthName = currentDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   
-  // Get follow-ups for selected date
-  let selectedDateFollowUps = selectedDate ? getDirectorFollowUpsForDate(
-    selectedDate,
-    user.companyId || undefined
-  ) : [];
-  
-  // Filter for sales users
-  if (user.role === 'sales_user' && selectedDate) {
-    selectedDateFollowUps = selectedDateFollowUps.filter(item => item.lead.assignedTo === user.id);
-  }
+  // Get follow-ups for selected date - wrapped in useMemo to re-compute when leads change
+  const { latestActiveFollowUps, followUpsByHour, filteredFollowUps, availableHours } = useMemo(() => {
+    let selectedDateFollowUps = selectedDate ? getDirectorFollowUpsForDate(
+      selectedDate,
+      user.companyId || undefined
+    ) : [];
+    
+    // Filter for sales users
+    if (user.role === 'sales_user' && selectedDate) {
+      selectedDateFollowUps = selectedDateFollowUps.filter(item => item.lead.assignedTo === user.id);
+    }
 
-  // COMPANY-LEVEL SINGLETON: Filter to show only ONE active follow-up per company
-  // This enforces the global singleton rule - only the latest active follow-up for each company is shown
-  const latestActiveFollowUps: FollowUpEntry[] = [];
-  const seenCompanies = new Map<string, FollowUpEntry>();
-  
-  selectedDateFollowUps.forEach(entry => {
-    const companyKey = entry.lead.id; // Key by company (lead) only, not director
-    const existing = seenCompanies.get(companyKey);
+    // COMPANY-LEVEL SINGLETON: Filter to show only ONE active follow-up per company
+    const latestActive: FollowUpEntry[] = [];
+    const seenCompanies = new Map<string, FollowUpEntry>();
     
-    // Only keep the latest active follow-up for this company
-    // The singleton rule in LeadsContext ensures there is only one active follow-up per company globally.
-    // So if we filter by status="active", we should get at most one per company.
-    // But getDirectorFollowUpsForDate might return updated ones too if not filtered?
-    // Let's ensure we only show ACTIVE ones.
-    const isActive = !entry.followUp.status || entry.followUp.status === 'active';
-    
-    if (isActive) {
-      // If we somehow have multiple active (shouldn't happen), take the latest
-      if (!existing || 
-          new Date(entry.followUp.createdAt).getTime() > new Date(existing.followUp.createdAt).getTime()) {
-        seenCompanies.set(companyKey, entry);
+    selectedDateFollowUps.forEach(entry => {
+      const companyKey = entry.lead.id;
+      const existing = seenCompanies.get(companyKey);
+      
+      const isActive = !entry.followUp.status || entry.followUp.status === 'active';
+      
+      if (isActive) {
+        if (!existing || 
+            new Date(entry.followUp.createdAt).getTime() > new Date(existing.followUp.createdAt).getTime()) {
+          seenCompanies.set(companyKey, entry);
+        }
       }
-    }
-  });
-  
-  seenCompanies.forEach(entry => latestActiveFollowUps.push(entry));
+    });
+    
+    seenCompanies.forEach(entry => latestActive.push(entry));
 
-  // Group by hour (using latest active follow-ups only)
-  const followUpsByHour: Record<string, FollowUpEntry[]> = {};
-  latestActiveFollowUps.forEach(entry => {
-    const hour = entry.followUp.time.split(':')[0];
-    if (!followUpsByHour[hour]) {
-      followUpsByHour[hour] = [];
-    }
-    followUpsByHour[hour].push(entry);
-  });
+    // Group by hour
+    const byHour: Record<string, FollowUpEntry[]> = {};
+    latestActive.forEach(entry => {
+      const hour = entry.followUp.time.split(':')[0];
+      if (!byHour[hour]) {
+        byHour[hour] = [];
+      }
+      byHour[hour].push(entry);
+    });
 
-  // Filter by hour
-  const filteredFollowUps = filterHour === 'all'
-    ? latestActiveFollowUps
-    : (followUpsByHour[filterHour] || []);
+    // Filter by hour
+    const filtered = filterHour === 'all'
+      ? latestActive
+      : (byHour[filterHour] || []);
 
-  const availableHours = Object.keys(followUpsByHour).sort();
+    const hours = Object.keys(byHour).sort();
+
+    return {
+      latestActiveFollowUps: latestActive,
+      followUpsByHour: byHour,
+      filteredFollowUps: filtered,
+      availableHours: hours
+    };
+  }, [selectedDate, user.companyId, user.role, user.id, filterHour, getDirectorFollowUpsForDate, leads]);
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -500,7 +355,7 @@ export function Calendar() {
                     {filteredFollowUps.map((entry, index) => (
                       <button
                         key={`${entry.lead.id}-${entry.director.id}-${index}`}
-                        onClick={() => handleLeadClick(entry.lead, entry.director)}
+                        onClick={() => handleLeadClick(entry.lead)}
                         className="w-full text-left p-3 border rounded-lg hover:bg-accent transition-colors cursor-pointer"
                       >
                         <div className="space-y-2">
@@ -512,15 +367,10 @@ export function Calendar() {
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge
-                                className={cn('text-xs', getFollowUpStatusClasses(entry.lead.status))}
+                                className={cn('text-xs border-none shadow-none', getFollowUpStatusClasses(entry.lead.status))}
                               >
                                 {entry.lead.status}
                               </Badge>
-                              {entry.followUp.followUpStatus && (
-                                <Badge className={cn("px-2 py-0.5 text-xs font-medium border-none shadow-none", getFollowUpStatusClasses(entry.followUp.followUpStatus))}>
-                                  {entry.followUp.followUpStatus}
-                                </Badge>
-                              )}
                             </div>
                           </div>
 
@@ -582,307 +432,22 @@ export function Calendar() {
         </div>
       </div>
 
-      {/* Add Follow-up Dialog */}
-      <Dialog open={showFollowUpDialog} onOpenChange={setShowFollowUpDialog}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Schedule Follow-up</DialogTitle>
-            <DialogDescription>
-              {selectedLead && (
-                <>
-                  For {selectedLead.lead.companyName} - {selectedLead.director.firstName}{' '}
-                  {selectedLead.director.lastName}
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fu-date">Follow-up Date *</Label>
-                <Input
-                  id="fu-date"
-                  type="date"
-                  value={followUpDate}
-                  onChange={(e) => setFollowUpDate(e.target.value)}
-                  min={getLocalDateString(new Date())}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="fu-time">Time *</Label>
-                <Input
-                  id="fu-time"
-                  type="time"
-                  value={followUpTime}
-                  onChange={(e) => setFollowUpTime(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fu-talked-to">Talked To *</Label>
-              <Select value={talkedTo} onValueChange={setTalkedTo}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select person" />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedLead?.lead.directors.map(director => (
-                    <SelectItem key={director.id} value={director.id}>
-                      {director.firstName} {director.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="followUpStatus">Status</Label>
-              <Select value={followUpStatus} onValueChange={setFollowUpStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hot">Hot</SelectItem>
-                  <SelectItem value="Warm">Warm</SelectItem>
-                  <SelectItem value="Cold">Cold</SelectItem>
-                  <SelectItem value="Converted">Converted</SelectItem>
-                  <SelectItem value="Lost">Lost</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fu-remark">Remark *</Label>
-              <Textarea
-                id="fu-remark"
-                value={followUpRemark}
-                onChange={(e) => setFollowUpRemark(e.target.value)}
-                placeholder="Enter follow-up notes..."
-                rows={4}
-              />
-            </div>
-
-          </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowFollowUpDialog(false);
-                setSelectedLead(null);
-                setFollowUpDate('');
-                setFollowUpTime('');
-                setFollowUpRemark('');
-                setFollowUpStatus('');
-                setTalkedTo('');
+      {/* Lead Detail Dialog */}
+      <Dialog open={showLeadDetail} onOpenChange={setShowLeadDetail}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {detailLead && (
+            <LeadDetail
+              lead={detailLead}
+              onClose={() => {
+                setShowLeadDetail(false);
+                setDetailLead(null);
               }}
-              className="w-full sm:w-auto"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAddFollowUp} className="w-full sm:w-auto">
-              Schedule Follow-up
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-
-
-      {/* Converted Modal */}
-      <Dialog open={showConvertedDialog} onOpenChange={setShowConvertedDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Mark Lead as Converted</DialogTitle>
-            <DialogDescription>
-              Provide invoice and project details for this conversion
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoiceNo">Invoice Number *</Label>
-              <Input
-                id="invoiceNo"
-                value={invoiceNo}
-                onChange={(e) => setInvoiceNo(e.target.value)}
-                placeholder="Enter invoice number..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="projectValue">Total Project Value (₹) *</Label>
-              <Input
-                id="projectValue"
-                type="text"
-                value={projectValue}
-                onChange={(e) => setProjectValue(e.target.value)}
-                placeholder="Enter project value..."
-              />
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => {
-              setShowConvertedDialog(false);
-              setInvoiceNo('');
-              setProjectValue('');
-              setSelectedLead(null);
-            }} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button onClick={handleMarkAsConverted} className="w-full sm:w-auto">
-              Mark as Converted
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Mark as Lost Dialog */}
-      <Dialog open={showLostDialog} onOpenChange={setShowLostDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Mark Lead as Lost</DialogTitle>
-            <DialogDescription>
-              Provide a reason for marking this lead as lost
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="lostRemark">Reason *</Label>
-              <Textarea
-                id="lostRemark"
-                value={lostRemark}
-                onChange={(e) => setLostRemark(e.target.value)}
-                placeholder="Enter reason..."
-                rows={4}
-              />
-            </div>
-            {user?.role === 'company_admin' && (
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="permanentLost"
-                  checked={isPermanentLost}
-                  onChange={(e) => setIsPermanentLost(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="permanentLost" className="text-sm font-normal cursor-pointer">
-                  Mark as Permanently Lost (Hide from future lists)
-                </Label>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => {
-              setShowLostDialog(false);
-              setLostRemark('');
-              setIsPermanentLost(false);
-              setSelectedLead(null);
-            }} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button onClick={handleMarkAsLost} variant="destructive" className="w-full sm:w-auto">
-              Mark as Lost
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Company Details Modal */}
-      <Dialog open={showCompanyModal} onOpenChange={setShowCompanyModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              {companyModalLead?.companyName}
-            </DialogTitle>
-            <DialogDescription>
-              Full company details
-            </DialogDescription>
-          </DialogHeader>
-          
-          {companyModalLead && (
-            <div className="space-y-6 py-4">
-              {/* Basic Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">CIN</p>
-                  <p className="font-mono text-sm break-all">{companyModalLead.cin || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Incorporation Date</p>
-                  <p className="text-sm">
-                    {companyModalLead.dateOfIncorporation 
-                      ? new Date(companyModalLead.dateOfIncorporation).toLocaleDateString('en-IN', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })
-                      : 'N/A'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Email</p>
-                  <p className="text-sm break-all">{companyModalLead.companyEmail || 'N/A'}</p>
-                </div>
-
-              </div>
-
-              <Separator />
-
-              {/* Financials */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Authorised Capital</p>
-                  <p className="text-sm">₹ {companyModalLead.authorisedCapital || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Paid-up Capital</p>
-                  <p className="text-sm">₹ {companyModalLead.paidUpCapital || 'N/A'}</p>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Address */}
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Registered Address</p>
-                <p className="text-sm bg-muted p-3 rounded-md">{companyModalLead.registeredAddress || 'N/A'}</p>
-              </div>
-
-              {/* Directors Summary */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Directors ({companyModalLead.directors?.length || 0})</p>
-                <div className="grid grid-cols-1 gap-2">
-                  {companyModalLead.directors?.map((d, i) => (
-                    <div key={i} className="text-sm border p-2 rounded flex justify-between items-center">
-                      <span>{d.firstName} {d.lastName}</span>
-                      <span className="text-xs text-muted-foreground font-mono">{d.din}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+              onEdit={handleEditLead}
+            />
           )}
-
-          <DialogFooter>
-            <Button onClick={() => setShowCompanyModal(false)}>Close</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* History Modal */}
-      {historyLead && (
-        <HistoryModal
-          open={showHistoryModal}
-          onOpenChange={setShowHistoryModal}
-          lead={historyLead}
-          directorId={historyDirectorId}
-          directorName={historyDirectorName}
-          onAddFollowUp={() => handleOpenFollowUpEditor(historyLead, historyDirectorId)}
-          onViewCompany={handleOpenCompanyModal}
-        />
-      )}
     </div>
   );
 }

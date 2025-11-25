@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -6,6 +6,8 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { canAssignToUser } from '../types/roles';
+import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
+import { cn } from './ui/utils';
 import {
   Table,
   TableBody,
@@ -30,6 +32,7 @@ export function AssignedLeads() {
   const { getAssignedLeads, getLeadsAssignedToUser, assignLead } = useLeads();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   if (!user) return null;
@@ -57,14 +60,24 @@ export function AssignedLeads() {
     ? allAssignedLeads
     : allAssignedLeads.filter(lead => lead.assignedTo === selectedUser);
 
-  // Filter by search
-  const filteredLeads = leads.filter(lead => 
-    lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    lead.cin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    lead.directors.some(d => 
-      `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  );
+  // Filter by search and status, excluding converted leads
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      // Exclude converted leads
+      if (lead.status === 'Converted') return false;
+
+      const matchesSearch = 
+        lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        lead.directors.some(d => 
+          `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      
+      const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [leads, searchQuery, statusFilter]);
 
   const getUserName = (userId: string | null) => {
     if (!userId) return 'Unassigned';
@@ -99,15 +112,7 @@ export function AssignedLeads() {
     toast.success(`Lead reassigned to ${targetUser.name}`);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Hot': return 'destructive';
-      case 'Warm': return 'default';
-      case 'Cold': return 'secondary';
-      case 'Converted': return 'default';
-      default: return 'secondary';
-    }
-  };
+
 
   const getNextFollowUpDate = (lead: Lead) => {
     let earliestDate = lead.nextFollowUpDate || lead.followUpDate;
@@ -261,7 +266,7 @@ export function AssignedLeads() {
                       <p className="text-xs text-muted-foreground capitalize">{u.role.replace('_', ' ')}</p>
                     </div>
                   </div>
-                  <Badge variant="secondary">{count}</Badge>
+                  <Badge className="bg-slate-200 text-slate-800 border border-slate-300">{count}</Badge>
                 </div>
               ))}
             </div>
@@ -381,7 +386,7 @@ export function AssignedLeads() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getStatusColor(lead.status)}>
+                          <Badge className={cn('text-xs', getFollowUpStatusClasses(lead.status))}>
                             {lead.status}
                           </Badge>
                         </TableCell>
@@ -442,3 +447,4 @@ export function AssignedLeads() {
     </div>
   );
 }
+
