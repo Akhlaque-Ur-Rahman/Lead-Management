@@ -1,3 +1,11 @@
+import React, { useState, useRef } from 'react';
+import { useAuth } from './AuthContext';
+import { useLeads, type Lead } from './LeadsContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
 import { 
   Table, 
   TableBody, 
@@ -446,10 +454,6 @@ export function LeadManagement() {
               createdAt: new Date().toISOString().split('T')[0],
               assignedTo: null,
               // followUpHistory removed
-              directors: (lead.directors || []).map(d => ({
-                ...d,
-                followUps: d.followUps || []
-              })),
               directors: []
             };
 
