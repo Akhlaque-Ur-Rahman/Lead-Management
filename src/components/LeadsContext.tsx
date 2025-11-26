@@ -352,7 +352,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     filters?: any
   ) => {
     if (!user) return;
-    console.log(`[DEBUG] loadLeadsPaginated called: pageIndex=${pageIndex}, view=${view}, currentPage=${currentPage}`);
     setIsLoading(true);
 
     try {
@@ -363,22 +362,41 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       if (user.role !== 'super_admin') {
         constraints.push(where("companyId", "==", user.companyId));
       }
-
-      // View-specific constraints
-      if (view === 'pool') {
-        // Lead Pool: Shows unassigned leads OR assigned leads without follow-ups
-        // Server-side: Simple query without orderBy to avoid index requirements
-        // Client-side: Will sort and filter after fetching
-      } else if (view === 'assigned') {
-        // Assigned Leads: All assigned leads (regardless of follow-ups)
-        constraints.push(where("isAssigned", "==", true));
-        // Sort client-side to avoid index requirement
-        
-        if (user.role === 'sales_user') {
+      
+      // SALES USER GLOBAL RESTRICTION: Apply to all views
+      if (user.role === 'sales_user') {
+        if (view === 'pool') {
+          // Lead Pool: Only leads assigned to this sales user (client-side filters for no follow-ups)
+          constraints.push(where("assignedTo", "==", user.id));
+          constraints.push(where("status", "not-in", ["Lost", "Converted"]));
+        } else if (view === 'assigned') {
+          // Assigned Leads: Only leads assigned to this sales user
+          constraints.push(where("assignedTo", "==", user.id));
+          constraints.push(where("status", "not-in", ["Lost", "Converted"]));
+        } else {
+          // For other views, sales users should only see their own leads
           constraints.push(where("assignedTo", "==", user.id));
         }
-      } else if (view === 'converted') {
-        constraints.push(where("status", "==", "Converted"));
+      }
+
+      // View-specific constraints for non-sales users (Admin/Team Lead)
+      if (user.role !== 'sales_user') {
+        if (view === 'pool') {
+          // Lead Pool: All leads in company (client-side filters for unassigned or assigned-no-followups)
+          // Server-side: Basic company filtering only
+        } else if (view === 'assigned') {
+          // Assigned Leads: All assigned leads in company
+          constraints.push(where("isAssigned", "==", true));
+        } else if (view === 'converted') {
+          constraints.push(where("status", "==", "Converted"));
+        } else if (view === 'lost') {
+          constraints.push(where("status", "==", "Lost"));
+        }
+        
+        // Apply status filtering for pool view
+        if (view === 'pool') {
+          constraints.push(where("status", "not-in", ["Lost", "Converted"]));
+        }
       }
 
       // Skip aggregation count - use fetched results count instead
@@ -387,7 +405,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       // Get total count on first page for proper pagination
       if (pageIndex === 0) {
         try {
-          const countQuery = query(baseQuery, ...constraints);
+          const countQuery = query(baseQuery, ...constraints, orderBy("createdAt", "desc"));
           const countSnapshot = await getDocs(countQuery);
           setTotalLeadsCount(countSnapshot.docs.length);
           console.log(`[Lead Pool] Total leads: ${countSnapshot.docs.length}`);
@@ -396,11 +414,11 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      // Pagination Query
-      let q = query(baseQuery, ...constraints, limit(pageSize));
+      // Pagination Query with proper ordering
+      let q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), limit(pageSize));
 
       if (pageIndex > 0 && pages[pageIndex - 1]) {
-        q = query(baseQuery, ...constraints, startAfter(pages[pageIndex - 1]), limit(pageSize));
+        q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), startAfter(pages[pageIndex - 1]), limit(pageSize));
       }
 
       const snapshot = await getDocs(q);
@@ -417,21 +435,15 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
       const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
       
-      // Sort client-side by createdAt (newest first)
-      fetchedLeads.sort((a, b) => {
-        const dateA = new Date(a.createdAt || 0).getTime();
-        const dateB = new Date(b.createdAt || 0).getTime();
-        return dateB - dateA; // Descending order (newest first)
-      });
+      // No need for client-side sorting - already ordered by query
       
-      // DEBUG: Log fetched leads to verify query results
-      console.log(`[Lead Pool] Fetched ${fetchedLeads.length} leads from Firestore (page ${pageIndex}):`, fetchedLeads);
+      // Log fetched leads for monitoring
+      console.log(`[Lead Pool] Fetched ${fetchedLeads.length} leads from Firestore (page ${pageIndex})`);
       
       // Total count is set by the count query above for first page
       // No need to adjust for subsequent pages
       
       setPaginatedLeads([...fetchedLeads]); // Use spread operator to ensure React re-renders
-      console.log(`[DEBUG] Setting currentPage to: ${pageIndex} (was: ${currentPage})`);
       setCurrentPage(pageIndex);
 
     } catch (error) {

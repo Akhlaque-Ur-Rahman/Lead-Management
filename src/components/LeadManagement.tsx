@@ -82,21 +82,25 @@ export function LeadManagement() {
   }, [pageSize, setCurrentPage]); // Removed currentPage to avoid infinite loop
 
   const filteredLeads = paginatedLeads.filter(lead => {
-    // HYBRID FILTERING: Server fetches all leads, client filters by status and follow-up count
-    // Lead Pool shows: Unassigned OR (Assigned AND no follow-ups)
+    // SECURITY: Sales users should only see their assigned leads
+    if (user?.role === 'sales_user') {
+      // Server-side already filtered by assignedTo, now filter by follow-ups for Lead Pool
+      const followUps = lead.directors?.flatMap(d => d.followUps || []) || [];
+      const hasFollowUps = followUps.length > 0;
+      
+      // Sales user Lead Pool = assigned leads with NO follow-ups
+      return !hasFollowUps;
+    }
     
-    // Filter out Lost and Converted leads
-    if (lead.status === 'Lost' || lead.status === 'Converted') return false;
+    // ADMIN/TEAM LEAD: Lead Pool logic - unassigned OR assigned-but-no-follow-ups
+    // Server-side already filtered by status (not Lost/Converted)
+    const followUps = lead.directors?.flatMap(d => d.followUps || []) || [];
+    const hasFollowUps = followUps.length > 0;
     
-    const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
-    const hasFollowUps = allFollowUps.length > 0;
-
-    // CASE 1: Unassigned leads → always show
-    // CASE 2: Assigned but NO follow-ups → show
-    // CASE 3: Assigned WITH follow-ups → hide (belongs in Assigned Leads)
-    const shouldShowInPool = !lead.isAssigned || (lead.isAssigned && !hasFollowUps);
-    
-    if (!shouldShowInPool) return false;
+    // Lead Pool shows: unassigned OR (assigned AND no follow-ups)
+    if (!lead.isAssigned) return true;
+    if (lead.isAssigned && !hasFollowUps) return true;
+    return false;
 
     // Search Filter
     if (searchTerm) {
@@ -313,6 +317,7 @@ export function LeadManagement() {
                 isAssigned: false,
                 assignedTo: null,
                 createdAt: lead.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
                 directors: lead.directors || []
             })));
 
