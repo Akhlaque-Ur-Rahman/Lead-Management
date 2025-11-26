@@ -270,7 +270,7 @@ export function Reports() {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {statusDistribution.map((_, index) => (
+                    {statusDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>

@@ -26,7 +26,7 @@ import { Search, RotateCcw, Trash2, Info, AlertCircle, Eye } from 'lucide-react'
 import { LeadDetail } from './LeadDetail';
 import { PaginationControls } from './ui/pagination-controls';
 import { toast } from 'sonner';
-import { hasPermission } from '../types/roles';
+
 
 export function LostLeads() {
   const { user, users } = useAuth();

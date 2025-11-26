@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead, type Director } from './LeadsContext';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,6 +57,15 @@ interface LeadDetailProps {
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
   const { updateLead, addFollowUp } = useLeads();
+  
+  // SECURITY: Sales Users must not access leads not assigned to them
+  useEffect(() => {
+    if (user?.role === 'sales_user' && lead.assignedTo !== user.id) {
+      toast.error("Unauthorized: You can only view leads assigned to you");
+      onClose();
+      return;
+    }
+  }, [user, lead, onClose]);
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);

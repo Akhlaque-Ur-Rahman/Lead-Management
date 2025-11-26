@@ -18,7 +18,6 @@ import {
   orderBy,
   limit,
   startAfter,
-  getCountFromServer,
   getDocs,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
@@ -348,8 +347,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const loadLeadsPaginated = async (
     pageIndex: number,
-    view: 'pool' | 'assigned' | 'converted' | 'lost',
-    filters?: any
+    view: 'pool' | 'assigned' | 'converted' | 'lost'
   ) => {
     if (!user) return;
     setIsLoading(true);
@@ -358,63 +356,17 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       let baseQuery = collection(db, "leads");
       let constraints: any[] = [];
 
-      // Role-based constraints
-      if (user.role !== 'super_admin') {
+      // LEGAL FIRESTORE QUERY STRUCTURE - No multiple inequality filters
+      if (user.role === 'sales_user') {
+        // SALES USER: Only assigned leads
+        constraints.push(where("assignedTo", "==", user.id));
+      } else if (user.role !== 'super_admin') {
+        // TEAM LEAD / COMPANY ADMIN: Company-scoped
         constraints.push(where("companyId", "==", user.companyId));
       }
-      
-      // SALES USER GLOBAL RESTRICTION: Apply to all views
-      if (user.role === 'sales_user') {
-        if (view === 'pool') {
-          // Lead Pool: Only leads assigned to this sales user (client-side filters for no follow-ups)
-          constraints.push(where("assignedTo", "==", user.id));
-          constraints.push(where("status", "not-in", ["Lost", "Converted"]));
-        } else if (view === 'assigned') {
-          // Assigned Leads: Only leads assigned to this sales user
-          constraints.push(where("assignedTo", "==", user.id));
-          constraints.push(where("status", "not-in", ["Lost", "Converted"]));
-        } else {
-          // For other views, sales users should only see their own leads
-          constraints.push(where("assignedTo", "==", user.id));
-        }
-      }
+      // SUPER ADMIN: No constraints (sees all)
 
-      // View-specific constraints for non-sales users (Admin/Team Lead)
-      if (user.role !== 'sales_user') {
-        if (view === 'pool') {
-          // Lead Pool: All leads in company (client-side filters for unassigned or assigned-no-followups)
-          // Server-side: Basic company filtering only
-        } else if (view === 'assigned') {
-          // Assigned Leads: All assigned leads in company
-          constraints.push(where("isAssigned", "==", true));
-        } else if (view === 'converted') {
-          constraints.push(where("status", "==", "Converted"));
-        } else if (view === 'lost') {
-          constraints.push(where("status", "==", "Lost"));
-        }
-        
-        // Apply status filtering for pool view
-        if (view === 'pool') {
-          constraints.push(where("status", "not-in", ["Lost", "Converted"]));
-        }
-      }
-
-      // Skip aggregation count - use fetched results count instead
-      // (Aggregation requires composite index for companyId + createdAt)
-      
-      // Get total count on first page for proper pagination
-      if (pageIndex === 0) {
-        try {
-          const countQuery = query(baseQuery, ...constraints, orderBy("createdAt", "desc"));
-          const countSnapshot = await getDocs(countQuery);
-          setTotalLeadsCount(countSnapshot.docs.length);
-          console.log(`[Lead Pool] Total leads: ${countSnapshot.docs.length}`);
-        } catch (countError) {
-          console.warn('Count query failed:', countError);
-        }
-      }
-      
-      // Pagination Query with proper ordering
+      // LEGAL Pagination Query - Single orderBy only
       let q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), limit(pageSize));
 
       if (pageIndex > 0 && pages[pageIndex - 1]) {
@@ -435,25 +387,50 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
       const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
       
-      // No need for client-side sorting - already ordered by query
+      // CLIENT-SIDE STATUS FILTERING (No server-side status filters)
+      const filteredLeads = fetchedLeads.filter(lead => {
+        // Status filtering
+        if (view === 'converted' && lead.status !== 'Converted') return false;
+        if (view === 'lost' && lead.status !== 'Lost') return false;
+        if (view === 'pool' && (lead.status === 'Lost' || lead.status === 'Converted')) return false;
+        if (view === 'assigned' && (lead.status === 'Lost' || lead.status === 'Converted')) return false;
+        
+        // View-specific filtering
+        if (view === 'assigned' && !lead.isAssigned) return false;
+        
+        // Lead Pool business logic
+        if (view === 'pool') {
+          const hasFollowUps = lead.directors?.some(d => (d.followUps || []).length > 0) || false;
+          
+          if (user.role === 'sales_user') {
+            // Sales Users: Only assigned leads with no follow-ups
+            return lead.assignedTo === user.id && !hasFollowUps;
+          } else {
+            // Admin & Team Lead: Unassigned OR assigned-without-follow-ups
+            return (!lead.isAssigned || (lead.isAssigned && !hasFollowUps));
+          }
+        }
+        
+        return true;
+      });
       
-      // Log fetched leads for monitoring
-      console.log(`[Lead Pool] Fetched ${fetchedLeads.length} leads from Firestore (page ${pageIndex})`);
+      // Set total count from filtered results (no aggregation queries)
+      if (pageIndex === 0) {
+        setTotalLeadsCount(filteredLeads.length);
+      }
       
-      // Total count is set by the count query above for first page
-      // No need to adjust for subsequent pages
-      
-      setPaginatedLeads([...fetchedLeads]); // Use spread operator to ensure React re-renders
+      console.log(`[${view}] Fetched ${fetchedLeads.length}, Filtered ${filteredLeads.length} leads (page ${pageIndex});`);
+
+      setPaginatedLeads([...filteredLeads]); // Use spread operator to ensure React re-renders
       setCurrentPage(pageIndex);
 
     } catch (error) {
-      console.error("Error loading paginated leads:", error);
+      console.warn("Stopping retry due to query failure:", error);
+      return; // do not retry endlessly
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Reset pagination state (useful after import or filter changes)
+  };  // Reset pagination state (useful after import or filter changes)
   const resetPagination = () => {
     setPages([]);
     setCurrentPage(0);
@@ -493,7 +470,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       followUpDate: data.followUpDate ?? null,
       nextFollowUpDate: data.nextFollowUpDate ?? null,
       notes: data.notes ?? "",
-      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+      // CRITICAL: Ensure createdAt always exists for orderBy to work
+      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? data.createdAt ?? new Date().toISOString(),
       uploadedBy: data.uploadedBy ?? null,
 
       invoiceNo: data.invoiceNo ?? null,
@@ -1031,15 +1009,18 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         
         chunk.forEach(lead => {
           const docRef = doc(collection(db, "leads"));
+          // CRITICAL FIELDS MUST EXIST to prevent exclusion from orderBy("createdAt")
           batch.set(docRef, {
             ...lead,
-            companyId: lead.companyId ?? user?.companyId ?? null,
-            status: lead.status ?? "Cold",
-            isAssigned: !!lead.isAssigned,
-            assignedTo: lead.assignedTo ?? null,
-            uploadedBy: lead.uploadedBy ?? user?.id ?? null,
-            createdAt: serverTimestamp(),
-            id: docRef.id // Ensure ID is saved in document
+            status: "Cold",
+            isAssigned: lead.assignedTo ? true : false,
+            assignedTo: lead.assignedTo || null,
+            companyId: user?.companyId || '',
+            createdAt: new Date().toISOString(), // CRITICAL: Must exist for orderBy
+            updatedAt: new Date().toISOString(),
+            directors: lead.directors || [],
+            uploadedBy: user?.id || '',
+            id: docRef.id
           });
         });
         

@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 export default function FilterBadge({ count }: { count: number }) {
   if (!count || count <= 0) return null;

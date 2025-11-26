@@ -69,10 +69,9 @@ export function LeadManagement() {
   // Load paginated leads on mount and when filters change
   useEffect(() => {
     if (user) {
-      loadLeadsPaginated(currentPage, 'pool', { status: statusFilter, search: searchTerm });
+      loadLeadsPaginated(currentPage, 'pool');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize, statusFilter, user]);
+  }, [user, currentPage, statusFilter]); // DO NOT include functions in dependencies
 
   // Reset to first page when page size changes
   useEffect(() => {
@@ -81,38 +80,19 @@ export function LeadManagement() {
     }
   }, [pageSize, setCurrentPage]); // Removed currentPage to avoid infinite loop
 
+  // Client-side search and status filtering (Lead Pool filtering is handled in LeadsContext)
   const filteredLeads = paginatedLeads.filter(lead => {
-    // SECURITY: Sales users should only see their assigned leads
-    if (user?.role === 'sales_user') {
-      // Server-side already filtered by assignedTo, now filter by follow-ups for Lead Pool
-      const followUps = lead.directors?.flatMap(d => d.followUps || []) || [];
-      const hasFollowUps = followUps.length > 0;
-      
-      // Sales user Lead Pool = assigned leads with NO follow-ups
-      return !hasFollowUps;
-    }
-    
-    // ADMIN/TEAM LEAD: Lead Pool logic - unassigned OR assigned-but-no-follow-ups
-    // Server-side already filtered by status (not Lost/Converted)
-    const followUps = lead.directors?.flatMap(d => d.followUps || []) || [];
-    const hasFollowUps = followUps.length > 0;
-    
-    // Lead Pool shows: unassigned OR (assigned AND no follow-ups)
-    if (!lead.isAssigned) return true;
-    if (lead.isAssigned && !hasFollowUps) return true;
-    return false;
-
     // Search Filter
     if (searchTerm) {
-        const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (lead.directors && lead.directors.some(d => 
+      const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (lead.directors && lead.directors.some(d => 
                             d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             d.mobile.includes(searchTerm) ||
                             d.email.toLowerCase().includes(searchTerm.toLowerCase())
-                            ));
-        if (!matchesSearch) return false;
+                          ));
+      if (!matchesSearch) return false;
     }
     
     // Status Filter (if not 'all')
@@ -333,7 +313,7 @@ export function LeadManagement() {
             
             // Refresh the list after import
             resetPagination(); // Clear pagination cursors
-            await loadLeadsPaginated(0, 'pool', { status: statusFilter, search: searchTerm });
+            await loadLeadsPaginated(0, 'pool');
           } catch (error) {
             toast.dismiss(loadingToast);
             console.error('Import error:', error);

@@ -1,6 +1,6 @@
 {
       "name": "lead-management-system",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "description": "Comprehensive lead management system with role-based access control and multi-tenant architecture",
       "private": true,
       "dependencies": {
