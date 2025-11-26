@@ -199,10 +199,11 @@ interface LeadsContextValue {
   setCurrentPage: (page: number) => void;
   totalPages: number;
   loadLeadsPaginated: (
-    pageIndex: number, 
+    pageIndex: number,
     view: 'pool' | 'assigned' | 'converted' | 'lost',
     filters?: any
   ) => Promise<void>;
+  resetPagination: () => void;
 }
 
 /**
@@ -364,14 +365,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
       // View-specific constraints
       if (view === 'pool') {
-        // Lead Pool: Not Lost, Not Converted
-        // Note: We can't easily filter "unassigned OR (assigned AND no followups)" in Firestore
-        // So we fetch all active leads and might filter client-side if needed, 
-        // OR we rely on the prompt's suggestion: status not-in ['Lost', 'Converted']
+        // Lead Pool: Shows unassigned leads OR assigned leads without follow-ups
+        // Server-side: Filter by status only (cannot check follow-up count in Firestore)
+        // Client-side: Will filter out leads with follow-ups after fetching
         constraints.push(where("status", "not-in", ["Lost", "Converted"]));
         constraints.push(orderBy("status")); // Required for not-in
         constraints.push(orderBy("createdAt", "desc"));
       } else if (view === 'assigned') {
+        // Assigned Leads: All assigned leads (regardless of follow-ups)
         constraints.push(where("status", "not-in", ["Lost", "Converted"]));
         constraints.push(where("isAssigned", "==", true));
         constraints.push(orderBy("status"));
@@ -383,12 +384,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       } else if (view === 'converted') {
         constraints.push(where("status", "==", "Converted"));
         constraints.push(orderBy("convertedAt", "desc"));
-      } else if (view === 'lost') {
-        // Lost leads are in a separate collection 'lostLeads', but the prompt implies pagination on 'leads' collection?
-        // Actually, lost leads are in 'lostLeads' collection in the code (see setLostLeads).
-        // But the prompt says "Lead Pool shows... status != Lost".
-        // If view is 'lost', we might need to query 'lostLeads' collection.
-        // For now, let's assume we are paginating the 'leads' collection for 'pool' and 'assigned'.
       }
 
       // Apply filters (search, etc.) - simplified for now
@@ -420,7 +415,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
-      setPaginatedLeads(fetchedLeads);
+      setPaginatedLeads([...fetchedLeads]); // Use spread operator to ensure React re-renders
       setCurrentPage(pageIndex);
 
     } catch (error) {
@@ -428,6 +423,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Reset pagination state (useful after import or filter changes)
+  const resetPagination = () => {
+    setPages([]);
+    setCurrentPage(0);
+    setPaginatedLeads([]);
+    setTotalLeadsCount(0);
   };
 
   // Persist fieldConfigs to localStorage
@@ -1225,6 +1228,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     setCurrentPage,
     totalPages,
     loadLeadsPaginated,
+    resetPagination,
   };
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>;

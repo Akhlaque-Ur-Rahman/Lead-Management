@@ -763,6 +763,17 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
     - **Lead Pool**: Displays the dynamically calculated next follow-up date.
     - **Assigned Leads**: Uses the calculated date for sorting and display.
     - **Lead Form**: Removed legacy date fields from the creation/edit form.
+
+### 14. Pagination & Data Management (Nov 2025)
+- **Server-Side Pagination**:
+  - **Cursor-Based**: Implemented efficient cursor-based pagination using Firestore's `startAfter` and `limit`.
+  - **Performance**: Significantly reduced initial load times and Firestore read costs for large datasets.
+  - **UI Controls**: Added `PaginationControls` component with page size selection (10, 25, 50, 100) and next/previous navigation.
+  - **Integration**: Fully integrated into the **Lead Pool** view.
+- **Import/Export Enhancements**:
+  - **Auto-Refresh**: Importing leads now automatically refreshes the list and resets to the first page to show new data immediately.
+  - **Export Restrictions**: The "Export" button is now **restricted** to Company Admins and Super Admins. Team Leaders and Sales Users cannot export data.
+  - **Security**: Backend-like validation added to the export function to prevent unauthorized access.
 - Node.js 20.x or higher
 - npm or yarn package manager
 

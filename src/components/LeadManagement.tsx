@@ -50,6 +50,7 @@ export function LeadManagement() {
     setCurrentPage,
     totalPages,
     loadLeadsPaginated,
+    resetPagination,
     fieldConfigs, 
     addLead, 
     updateLead, 
@@ -67,15 +68,25 @@ export function LeadManagement() {
 
   // Load paginated leads on mount and when filters change
   useEffect(() => {
-    loadLeadsPaginated(currentPage, 'pool', { status: statusFilter, search: searchTerm });
+    if (user) {
+      loadLeadsPaginated(currentPage, 'pool', { status: statusFilter, search: searchTerm });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize, statusFilter, user]); 
 
   const filteredLeads = paginatedLeads.filter(lead => {
+    // HYBRID FILTERING: Server fetches all active leads, client filters by follow-up count
+    // Lead Pool shows: Unassigned OR (Assigned AND no follow-ups)
+    
     const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
     const hasFollowUps = allFollowUps.length > 0;
 
-    // If assigned AND has follow-ups, it belongs in Assigned Leads, not Lead Pool
-    if (lead.assignedTo && hasFollowUps) return false;
+    // CASE 1: Unassigned leads → always show
+    // CASE 2: Assigned but NO follow-ups → show
+    // CASE 3: Assigned WITH follow-ups → hide (belongs in Assigned Leads)
+    const shouldShowInPool = !lead.isAssigned || (lead.isAssigned && !hasFollowUps);
+    
+    if (!shouldShowInPool) return false;
 
     // Search Filter
     if (searchTerm) {
@@ -90,7 +101,7 @@ export function LeadManagement() {
         if (!matchesSearch) return false;
     }
     
-    // Status Filter
+    // Status Filter (if not 'all')
     if (statusFilter !== 'all' && lead.status !== statusFilter) return false;
 
     return true;
@@ -301,6 +312,10 @@ export function LeadManagement() {
             } else {
               toast.success(`Successfully imported ${successCount} leads to Firestore!`);
             }
+            
+            // Refresh the list after import
+            resetPagination(); // Clear pagination cursors
+            await loadLeadsPaginated(0, 'pool', { status: statusFilter, search: searchTerm });
           } catch (error) {
             toast.dismiss(loadingToast);
             console.error('Import error:', error);
@@ -622,6 +637,12 @@ export function LeadManagement() {
   };
 
   const handleExportExcel = () => {
+    // Permission check: Only Company Admin and Super Admin can export
+    if (!user?.role || !['company_admin', 'super_admin'].includes(user.role)) {
+      toast.error("You don't have permission to export leads.");
+      return;
+    }
+
     try {
       // Export with multiple directors - create separate rows for each director
       const exportData: any[] = [];
@@ -862,10 +883,12 @@ export function LeadManagement() {
               <span className="hidden sm:inline">Import</span>
             </Button>
           )}
-          <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleExportExcel}>
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
+          {['company_admin', 'super_admin'].includes(user?.role || '') && (
+            <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleExportExcel}>
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          )}
           <Button onClick={() => setShowLeadForm(true)} size="sm" className="gap-2 flex-1 sm:flex-none">
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Add Lead</span>
