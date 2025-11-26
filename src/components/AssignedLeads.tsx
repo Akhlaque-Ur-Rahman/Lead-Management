@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { useLeads, Lead } from './LeadsContext';
+import { useLeads, type Lead, calculateNextFollowUpDate } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -60,18 +60,15 @@ export function AssignedLeads() {
     ? allAssignedLeads
     : allAssignedLeads.filter(lead => lead.assignedTo === selectedUser);
 
-  // Filter by search and status, excluding converted and lost leads, and ensuring at least one follow-up
+  // Filter by search and status, excluding converted and lost leads
   const filteredLeads = useMemo(() => {
     return leads
       .filter(lead => {
         // Assigned Leads Definition:
-        // 1. Must have at least 1 follow-up
+        // 1. Must be Assigned (handled by initial fetch logic)
         // 2. Must NOT be Converted
         // 3. Must NOT be Lost
-        const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
-        const hasFollowUps = allFollowUps.length > 0;
         
-        if (!hasFollowUps) return false;
         if (lead.status === 'Converted') return false;
         if (lead.status === 'Lost') return false;
 
@@ -87,16 +84,33 @@ export function AssignedLeads() {
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => {
-        // Sort by latest follow-up (newest first)
-        const allFollowUpsA = a.directors?.flatMap(d => d.followUps || []) ?? [];
-        const allFollowUpsB = b.directors?.flatMap(d => d.followUps || []) ?? [];
-        
-        const lastFUA = allFollowUpsA.length > 0 ? allFollowUpsA[allFollowUpsA.length - 1] : null;
-        const lastFUB = allFollowUpsB.length > 0 ? allFollowUpsB[allFollowUpsB.length - 1] : null;
-        
-        const dateA = lastFUA ? new Date(lastFUA.createdAt).getTime() : 0;
-        const dateB = lastFUB ? new Date(lastFUB.createdAt).getTime() : 0;
-        return dateB - dateA;
+        // Sort Priority:
+        // 1. Latest Follow-up Date (Newest First)
+        // 2. Assigned Date (Newest First)
+        // 3. Created Date (Newest First)
+
+        const getLastFollowUpDate = (lead: Lead) => {
+           const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) || [];
+           if (allFollowUps.length === 0) return 0;
+           // Sort follow-ups by createdAt desc
+           allFollowUps.sort((f1, f2) => new Date(f2.createdAt).getTime() - new Date(f1.createdAt).getTime());
+           return new Date(allFollowUps[0].createdAt).getTime();
+        };
+
+        const dateA = getLastFollowUpDate(a);
+        const dateB = getLastFollowUpDate(b);
+
+        if (dateA !== dateB) return dateB - dateA;
+
+        const assignedA = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
+        const assignedB = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
+
+        if (assignedA !== assignedB) return assignedB - assignedA;
+
+        const createdA = new Date(a.createdAt).getTime();
+        const createdB = new Date(b.createdAt).getTime();
+
+        return createdB - createdA;
       });
   }, [leads, searchQuery, statusFilter]);
 
@@ -136,23 +150,8 @@ export function AssignedLeads() {
 
 
   const getNextFollowUpDate = (lead: Lead) => {
-    let earliestDate = lead.nextFollowUpDate || lead.followUpDate;
-    let earliestTime = '';
-
-    lead.directors.forEach(director => {
-      if (director.nextFollowUpDate) {
-        if (!earliestDate || director.nextFollowUpDate < earliestDate) {
-          earliestDate = director.nextFollowUpDate;
-          earliestTime = director.nextFollowUpTime || '';
-        } else if (director.nextFollowUpDate === earliestDate && director.nextFollowUpTime) {
-          if (!earliestTime || director.nextFollowUpTime < earliestTime) {
-            earliestTime = director.nextFollowUpTime;
-          }
-        }
-      }
-    });
-
-    return { date: earliestDate, time: earliestTime };
+    const nextDate = calculateNextFollowUpDate(lead);
+    return { date: nextDate, time: '' };
   };
 
   // Stats by user - filter based on role

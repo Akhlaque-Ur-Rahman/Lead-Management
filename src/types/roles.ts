@@ -78,31 +78,31 @@ export const getRoleKeyById = (id: RoleId): RoleKey | undefined => {
 export const hasHigherOrEqualRole = (userRole: RoleKey, requiredRole: RoleKey): boolean => {
   const userRoleConfig = getRoleByKey(userRole);
   const requiredRoleConfig = getRoleByKey(requiredRole);
-  
+
   if (!userRoleConfig || !requiredRoleConfig) return false;
-  
+
   return userRoleConfig.level >= requiredRoleConfig.level;
 };
 
 export const canManageRole = (userRole: RoleKey, targetRole: RoleKey): boolean => {
   // Super admin can manage all roles
   if (userRole === 'super_admin') return true;
-  
+
   // Platform admin can manage company admin, team lead and sales user
   if (userRole === 'platform_admin' && ['company_admin', 'team_lead', 'sales_user'].includes(targetRole)) {
     return true;
   }
-  
+
   // Company admin can manage team leads and sales users
   if (userRole === 'company_admin' && ['team_lead', 'sales_user'].includes(targetRole)) {
     return true;
   }
-  
+
   // Team lead can manage sales users
   if (userRole === 'team_lead' && targetRole === 'sales_user') {
     return true;
   }
-  
+
   return false;
 };
 
@@ -124,7 +124,7 @@ export const PERMISSIONS = {
   MANAGE_SUBSCRIPTION_PLANS: ['super_admin'] as RoleKey[],
   DELETE_LOST_LEADS: ['super_admin'] as RoleKey[],
   RESTORE_LOST_LEADS: ['super_admin', 'platform_admin', 'company_admin'] as RoleKey[],
-  ASSIGN_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
+  ASSIGN_LEADS: ['platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
   EDIT_ALL_LEADS: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] as RoleKey[],
   EDIT_ASSIGNED_LEADS: ['sales_user'] as RoleKey[],
   IMPORT_LEADS: ['company_admin', 'team_lead'] as RoleKey[],
@@ -136,24 +136,24 @@ export const hasPermission = (userRole: RoleKey, permission: keyof typeof PERMIS
 
 // Check if a user can assign a lead to a specific target user
 export const canAssignToUser = (assignerRole: RoleKey, targetUserRole: RoleKey): boolean => {
-  // Super Admin can assign to anyone
-  if (assignerRole === 'super_admin') return true;
-  
+  // Super Admin cannot assign leads (read-only)
+  if (assignerRole === 'super_admin') return false;
+
   // Platform Admin can assign to anyone (Platform Admin, Company Admin, Team Leader, Sales User)
   if (assignerRole === 'platform_admin') {
     return ['platform_admin', 'company_admin', 'team_lead', 'sales_user'].includes(targetUserRole);
   }
-  
+
   // Company Admin can assign to anyone (Company Admin, Team Leader, Sales User)
   if (assignerRole === 'company_admin') {
     return ['company_admin', 'team_lead', 'sales_user'].includes(targetUserRole);
   }
-  
+
   // Team Leader can only assign to Sales Users
   if (assignerRole === 'team_lead') {
     return targetUserRole === 'sales_user';
   }
-  
+
   // Sales User cannot assign leads
   return false;
 };
@@ -166,13 +166,13 @@ export const getAllRoles = (): RoleConfig[] => {
 // Get roles available for a user to assign
 export const getAssignableRoles = (userRole: RoleKey): RoleConfig[] => {
   if (userRole === 'super_admin') {
-    return getAllRoles();
+    return []; // Super Admin is read-only
   } else if (userRole === 'platform_admin') {
     return [ROLES.PLATFORM_ADMIN, ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'company_admin') {
     return [ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'team_lead') {
-    return [ROLES.TEAM_LEAD, ROLES.SALES_USER];
+    return [ROLES.SALES_USER]; // Team Lead can only assign to Sales User
   }
   return [];
 };

@@ -79,25 +79,31 @@
 - Account lockout after multiple failed attempts
 
 ### 2. Lead Pool Management
-- View unassigned leads by company with filtering
-- **Definition**: Leads with **0 follow-ups** (and not Converted/Lost)
-- Bulk import from Excel files with validation
-- Manual lead creation via forms with input sanitization
-- Customizable field configurations per company
-- Lead status tracking (Hot, Warm, Cold, Converted, Lost)
-- Assign leads to sales users with permission checks
-- Lead assignment history and audit trail
-- Duplicate lead detection and prevention
-- Converted lead visibility rules (hidden for Sales/Team Lead)
+- **Definition**: All leads that are **not Converted or Lost**.
+- **Visibility**:
+  - **Super Admin**: View all leads across all companies (Read-Only).
+  - **Company Admin/Team Lead**: View all leads in their company.
+  - **Sales User**: View only leads assigned to them.
+- **Features**:
+  - Bulk import from Excel files with validation.
+  - Manual lead creation via forms.
+  - Customizable field configurations.
+  - Status tracking (Hot, Warm, Cold, Converted, Lost).
+  - Assign leads to users with strict permission checks.
+  - Lead assignment history.
+  - Duplicate lead detection.
 
 ### 3. Assigned Leads
-- View leads assigned to specific users
-- **Definition**: Leads with **at least 1 follow-up** (and not Converted/Lost)
-- Sorted by latest follow-up (newest first)
-- Update lead information
-- Manage director-level follow-ups
-- Track assignment dates
-- Unassign leads when needed
+- **Definition**: A filtered view of the Lead Pool showing leads assigned to specific users.
+- **Visibility**:
+  - **Company Admin/Team Lead**: View all assigned leads in their company.
+  - **Sales User**: View only leads assigned to them.
+  - **Super Admin**: Not available (uses Lead Pool).
+- **Features**:
+  - Filter by "Assigned To" user.
+  - Sort by latest follow-up date.
+  - Quick access to lead details and follow-ups.
+  - Unassign leads (Admin/Team Lead only).
 
 ### 4. Follow-Up Calendar
 - Date-based follow-up view (active follow-ups only)
@@ -207,6 +213,10 @@ interface Company {
   - Create/manage all user roles
   - Delete lost leads permanently
   - View cross-company data
+  - View "Lead Pool" for global visibility
+- **Restrictions**:
+  - ❌ **Read-only access** to lead operations (cannot add follow-ups, edit leads, or change status)
+  - ❌ **Cannot assign leads**
 
 #### 2. Company Admin (Level 3)
 - **ID**: 2
@@ -215,7 +225,7 @@ interface Company {
 - **Permissions**:
   - Manage company users (Team Leads & Sales Users)
   - View all company leads
-  - Assign leads
+  - **Assign leads** to Sales Users, Team Leads, and themselves
   - Edit all company leads
   - Restore lost leads
   - Access reports and analytics
@@ -228,7 +238,7 @@ interface Company {
 - **Permissions**:
   - Create Sales Users
   - View team performance
-  - Assign leads to Sales Users only
+  - **Assign leads** to Sales Users ONLY
   - Edit team leads
   - Access reports (performance metrics only, no financial data)
   - Manage team follow-ups
@@ -252,6 +262,7 @@ interface Company {
   - View personal calendar
   - View lost leads (marked by them)
 - **Restrictions**:
+  - ❌ **Cannot assign leads**
   - ❌ Cannot delete lost leads
   - ❌ Cannot restore lost leads
   - ❌ Cannot view Converted Leads page
@@ -291,14 +302,18 @@ interface Lead {
   isAssigned: boolean;
   assignedTo: string | null;    // User ID
   assignedAt?: string;
-  followUpDate: string;
-  nextFollowUpDate?: string;
+  assignedAt?: string;
+  // DEPRECATED: Legacy fields, do not use.
+  // Replaced by directors[].followUps[] + calculateNextFollowUpDate()
+  followUpDate?: string | null;
+  nextFollowUpDate?: string | null;
   notes: string;
   createdAt: string;
   uploadedBy: string;           // User ID who created the lead
   
   // Follow-up History
-  followUpHistory?: FollowUp[];
+  // Follow-Up History
+  // REMOVED: followUpHistory (replaced by directors[].followUps)
   
   // Converted Lead Fields (Company Admin only)
   invoiceNo?: string;           // Invoice number for converted leads
@@ -607,7 +622,7 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
 ### 10. Active Leads Page & Workflow Updates (Nov 2025)
 - **New Active Leads Page**:
   - **Purpose**: Replaces "Assigned Leads" for managing leads with active engagement.
-  - **Definition**: Leads with > 0 follow-ups AND status NOT "Converted" or "Lost".
+  - **Definition**: Leads with **> 0 follow-ups** (stored in `lead.directors[].followUps`) AND status NOT "Converted" or "Lost".
   - **Visibility**:
     - **Sales User**: Sees only their assigned active leads.
     - **Team Lead/Admin**: Sees all active leads in their company.
@@ -716,7 +731,38 @@ A comprehensive QA diagnostic was performed to ensure system stability and data 
 
 - **UI Refinements**:
   - **Talked To Dropdown**: Standardized input using a dropdown of company directors.
+  - **Talked To Dropdown**: Standardized input using a dropdown of company directors.
   - **Status Consistency**: "Converted" status integrated into all follow-up workflows.
+
+### 12. Lead Management Refinement (Nov 2025)
+- **Strict Role-Based Assignment**:
+  - **Super Admin**: Cannot assign leads (Read-Only).
+  - **Company Admin**: Can assign to Sales Users, Team Leads, and themselves.
+  - **Team Lead**: Can ONLY assign to Sales Users.
+  - **Sales User**: Cannot assign leads.
+- **Lead Pool & Assigned Leads**:
+  - **Active Leads Page Removed**: Deleted `ActiveLeads.tsx` to simplify navigation.
+  - **Lead Pool**: Now serves as the main repository for all leads (filtered by role).
+  - **Assigned Leads**: Unified view for managing assigned leads (hidden for Super Admins).
+- **Follow-Up Logic**:
+  - **Company-Level Singleton**: Enforced stricter singleton rule. Adding a follow-up marks ALL other active follow-ups for that company (across all directors) as "updated".
+  - **Director Matching**: Added validation to ensure "Talked To" field matches an existing director.
+  - **Super Admin Restriction**: Explicitly prevented Super Admins from adding/updating follow-ups.
+- **Cleanup**:
+  - Removed all legacy references to `followUpHistory`.
+  - Removed `ActiveLeads` from routing and sidebar.
+
+### 13. Legacy Field Removal (Nov 2025)
+- **Data Model Updates**:
+  - `followUpDate` and `nextFollowUpDate` in the `Lead` interface are now **DEPRECATED**.
+  - The system now relies exclusively on `directors[].followUps[]` to determine follow-up status.
+- **Logic Changes**:
+  - **`calculateNextFollowUpDate`**: A new utility function that dynamically calculates the next follow-up date based on the earliest *active* follow-up across all directors.
+  - **Excel Import**: Stopped assigning default `followUpDate` to new leads. Imported leads now correctly show no follow-up until one is added.
+  - **UI Updates**:
+    - **Lead Pool**: Displays the dynamically calculated next follow-up date.
+    - **Assigned Leads**: Uses the calculated date for sorting and display.
+    - **Lead Form**: Removed legacy date fields from the creation/edit form.
 - Node.js 20.x or higher
 - npm or yarn package manager
 

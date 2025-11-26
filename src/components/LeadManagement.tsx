@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { useLeads, type Lead } from './LeadsContext';
+import { useLeads, type Lead, calculateNextFollowUpDate } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -31,6 +31,7 @@ import {
 import { Plus, Search, Filter, Download, Upload, Eye, Edit, FileDown, Info } from 'lucide-react';
 import { LeadForm } from './LeadForm';
 import { LeadDetail } from './LeadDetail';
+import { PaginationControls } from './ui/pagination-controls';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { hasPermission, canAssignToUser } from '../types/roles';
@@ -39,7 +40,22 @@ import { cn } from './ui/utils';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
-  const { leads, fieldConfigs, addLead, updateLead, assignLead, batchAddLeads } = useLeads();
+  const { 
+    leads, 
+    paginatedLeads,
+    totalLeadsCount,
+    pageSize,
+    setPageSize,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    loadLeadsPaginated,
+    fieldConfigs, 
+    addLead, 
+    updateLead, 
+    assignLead, 
+    batchAddLeads 
+  } = useLeads();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -49,50 +65,35 @@ export function LeadManagement() {
   const [editMode, setEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Lead Pool logic varies by role
-  const filteredLeads = leads.filter(lead => {
-    // Lead Pool Definition:
-    // 1. Must have 0 follow-ups
-    // 2. Must NOT be Converted
-    // 3. Must NOT be Lost
+  // Load paginated leads on mount and when filters change
+  useEffect(() => {
+    loadLeadsPaginated(currentPage, 'pool', { status: statusFilter, search: searchTerm });
+  }, [currentPage, pageSize, statusFilter, user]); 
+
+  const filteredLeads = paginatedLeads.filter(lead => {
     const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
     const hasFollowUps = allFollowUps.length > 0;
-    if (hasFollowUps) return false;
-    if (lead.status === 'Converted') return false;
-    if (lead.status === 'Lost') return false;
 
-    const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (lead.directors && lead.directors.some(d => 
-                           d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           d.mobile.includes(searchTerm) ||
-                           d.email.toLowerCase().includes(searchTerm.toLowerCase())
-                         ));
-    const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+    // If assigned AND has follow-ups, it belongs in Assigned Leads, not Lead Pool
+    if (lead.assignedTo && hasFollowUps) return false;
 
-    // Role-based Lead Pool filtering
-    let hasAccess = false;
-    
-    if (user?.role === 'super_admin') {
-      // Super Admin sees only leads assigned to them
-      if (lead.assignedTo === user.id) {
-        hasAccess = true;
-      }
-    } else if (user?.role === 'company_admin' || user?.role === 'team_lead') {
-      // Company Admin and Team Lead see UNASSIGNED leads in their company
-      if ((!lead.isAssigned && lead.assignedTo === null) && 
-          !!user.companyId && lead.companyId === user.companyId) {
-        hasAccess = true;
-      }
-    } else if (user?.role === 'sales_user') {
-      // Sales User sees only leads ASSIGNED TO THEM
-      if (lead.assignedTo === user.id) {
-        hasAccess = true;
-      }
+    // Search Filter
+    if (searchTerm) {
+        const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (lead.directors && lead.directors.some(d => 
+                            d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            d.mobile.includes(searchTerm) ||
+                            d.email.toLowerCase().includes(searchTerm.toLowerCase())
+                            ));
+        if (!matchesSearch) return false;
     }
     
-    return matchesSearch && matchesStatus && hasAccess;
+    // Status Filter
+    if (statusFilter !== 'all' && lead.status !== statusFilter) return false;
+
+    return true;
   });
 
   const handleAddLead = async (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
@@ -377,9 +378,7 @@ export function LeadManagement() {
         case 'status':
           variations.push('Status', 'status', 'Lead Status');
           break;
-        case 'followUpDate':
-          variations.push('Follow-up Date', 'Follow Up Date', 'followUpDate', 'Next Follow Up');
-          break;
+
         case 'notes':
           variations.push('Notes', 'notes', 'Remarks', 'Comments');
           break;
@@ -453,7 +452,7 @@ export function LeadManagement() {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
               createdAt: new Date().toISOString().split('T')[0],
               assignedTo: null,
-              // followUpHistory removed
+
               directors: []
             };
 
@@ -476,9 +475,6 @@ export function LeadManagement() {
             });
 
             // Set defaults
-            if (!leadData.followUpDate) {
-              leadData.followUpDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            }
             if (!leadData.status) {
               leadData.status = 'Cold';
             }
@@ -732,7 +728,7 @@ export function LeadManagement() {
         registeredAddress: 'Plot 123, Sector 18, Noida, UP 201301',
         companyEmail: 'info@samplecompany.com',
         status: 'Hot',
-        followUpDate: '2025-10-15',
+
         notes: 'First company with two directors'
       };
 
@@ -745,7 +741,7 @@ export function LeadManagement() {
         registeredAddress: 'Suite 456, Andheri, Mumbai, MH 400053',
         companyEmail: 'info@anothercompany.com',
         status: 'Warm',
-        followUpDate: '2025-10-20',
+
         notes: 'Second company with one director'
       };
 
@@ -1012,7 +1008,15 @@ export function LeadManagement() {
                         <span className="text-sm">{getAssignedUserName(lead.assignedTo)}</span>
                       )}
                     </TableCell>
-                    <TableCell>{lead.followUpDate}</TableCell>
+                    <TableCell>
+                      {calculateNextFollowUpDate(lead) ? (
+                        <span className="text-sm">
+                          {new Date(calculateNextFollowUpDate(lead)!).toLocaleDateString()}
+                        </span>
+                      ) : (
+                         <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
@@ -1040,6 +1044,15 @@ export function LeadManagement() {
           </div>
         </CardContent>
       </Card>
+
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalCount={totalLeadsCount}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+      />
 
       {/* Lead Form Dialog */}
       <Dialog open={showLeadForm} onOpenChange={setShowLeadForm}>

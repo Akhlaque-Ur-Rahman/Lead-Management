@@ -50,11 +50,10 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
     mobile: initialData?.mobile || '',
     directorEmail: initialData?.directorEmail || '',
     status: initialData?.status || 'Cold',
-    followUpDate: initialData?.followUpDate || '',
-    nextFollowUpDate: initialData?.nextFollowUpDate || '',
+
     notes: initialData?.notes || '',
     assignedTo: initialData?.assignedTo || user?.id || '',
-    // followUpHistory removed
+
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -260,7 +259,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
 
 
   const followUpFields = fieldConfigs.filter(c => 
-    ['status', 'followUpDate', 'notes'].includes(c.key)
+    ['status', 'notes'].includes(c.key)
   );
 
   return (
@@ -414,7 +413,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
             )}
           </div>
 
-          {followUpFields.find(c => c.key === 'followUpDate') && renderField(followUpFields.find(c => c.key === 'followUpDate')!)}
+
           
           {followUpFields.find(c => c.key === 'notes') && renderField(followUpFields.find(c => c.key === 'notes')!)}
         </TabsContent>

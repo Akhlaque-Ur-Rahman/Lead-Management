@@ -157,6 +157,16 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       toast.error('Please fill in all required fields');
       return;
     }
+    // Validate talkedTo matches a director
+    const matchedDirector = lead.directors.find(d => 
+      `${d.firstName} ${d.lastName}` === talkedTo || 
+      d.firstName === talkedTo
+    );
+
+    if (!matchedDirector) {
+      toast.error('Please choose a director in Talked To field');
+      return;
+    }
 
     // If status is Converted or Lost, we don't save here - the modals handle it
     if (followUpStatus === 'Converted') {
@@ -220,13 +230,19 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     }
 
     try {
+      // Default to first director if not selected
+      const firstDirector = lead.directors?.[0];
+      const defaultTalkedTo = firstDirector ? `${firstDirector.firstName} ${firstDirector.lastName}` : 'N/A';
+      const defaultTalkedToId = firstDirector?.id || '';
+      const defaultTalkedToName = defaultTalkedTo;
+
       const followUpData = {
         date: followUpDate || new Date().toISOString().split('T')[0],
         time: followUpTime || new Date().toTimeString().slice(0, 5),
         remark: followUpRemark || 'Lead Lost',
-        talkedTo: talkedTo || 'N/A',
-        talkedToId: talkedToId || '',
-        talkedToName: talkedToName || '',
+        talkedTo: talkedTo || defaultTalkedTo,
+        talkedToId: talkedToId || defaultTalkedToId,
+        talkedToName: talkedToName || defaultTalkedToName,
         followUpStatus: 'Lost' as const
       };
 
@@ -266,14 +282,20 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     }
 
     try {
+      // Default to first director if not selected
+      const firstDirector = lead.directors?.[0];
+      const defaultTalkedTo = firstDirector ? `${firstDirector.firstName} ${firstDirector.lastName}` : 'N/A';
+      const defaultTalkedToId = firstDirector?.id || '';
+      const defaultTalkedToName = defaultTalkedTo;
+
       // Create the follow-up AND update lead status atomically
       const followUpData = {
         date: followUpDate || new Date().toISOString().split('T')[0],
         time: followUpTime || new Date().toTimeString().slice(0, 5),
         remark: followUpRemark || 'Lead Converted',
-        talkedTo: talkedTo || 'N/A',
-        talkedToId: talkedToId || '',
-        talkedToName: talkedToName || '',
+        talkedTo: talkedTo || defaultTalkedTo,
+        talkedToId: talkedToId || defaultTalkedToId,
+        talkedToName: talkedToName || defaultTalkedToName,
         followUpStatus: 'Converted' as const
       };
 
@@ -318,29 +340,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     return futureFollowUps[0] || null;
   };
 
-  // Handlers for HistoryModal integration
-  const handleOpenFollowUpEditor = (lead: Lead, directorId?: string) => {
-    // Close history modal if open (optional, but good UX)
-    setShowHistoryModal(false);
-    
-    if (directorId) {
-      const director = lead.directors.find(d => d.id === directorId);
-      if (director) {
-        const name = `${director.firstName} ${director.lastName}`;
-        setTalkedTo(name);
-        setTalkedToId(director.id);
-        setTalkedToName(name);
-      }
-    } else {
-       setTalkedTo('');
-       setTalkedToId('');
-       setTalkedToName('');
-    }
-    setFollowUpStatus(lead.status); // Initialize with current status
-    setShowFollowUpDialog(true);
-  };
-
-  const handleOpenCompanyModal = (companyId: string) => {
+  const handleOpenCompanyModal = () => {
     // Close history modal if open
     setShowHistoryModal(false);
     setShowCompanyModal(true);
