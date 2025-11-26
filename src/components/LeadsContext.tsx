@@ -352,6 +352,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     filters?: any
   ) => {
     if (!user) return;
+    console.log(`[DEBUG] loadLeadsPaginated called: pageIndex=${pageIndex}, view=${view}, currentPage=${currentPage}`);
     setIsLoading(true);
 
     try {
@@ -366,35 +367,35 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       // View-specific constraints
       if (view === 'pool') {
         // Lead Pool: Shows unassigned leads OR assigned leads without follow-ups
-        // Server-side: Filter by status only (cannot check follow-up count in Firestore)
-        // Client-side: Will filter out leads with follow-ups after fetching
-        constraints.push(where("status", "not-in", ["Lost", "Converted"]));
-        constraints.push(orderBy("status")); // Required for not-in
-        constraints.push(orderBy("createdAt", "desc"));
+        // Server-side: Simple query without orderBy to avoid index requirements
+        // Client-side: Will sort and filter after fetching
       } else if (view === 'assigned') {
         // Assigned Leads: All assigned leads (regardless of follow-ups)
-        constraints.push(where("status", "not-in", ["Lost", "Converted"]));
         constraints.push(where("isAssigned", "==", true));
-        constraints.push(orderBy("status"));
-        constraints.push(orderBy("createdAt", "desc"));
+        // Sort client-side to avoid index requirement
         
         if (user.role === 'sales_user') {
           constraints.push(where("assignedTo", "==", user.id));
         }
       } else if (view === 'converted') {
         constraints.push(where("status", "==", "Converted"));
-        constraints.push(orderBy("convertedAt", "desc"));
       }
 
-      // Apply filters (search, etc.) - simplified for now
-      // Note: Firestore search is limited. We might need Algolia or similar for full text search.
-      // For now, we ignore search in server-side query and rely on client-side or exact match if implemented.
-
-      // Count Query
-      const countQuery = query(baseQuery, ...constraints);
-      const countSnapshot = await getCountFromServer(countQuery);
-      setTotalLeadsCount(countSnapshot.data().count);
-
+      // Skip aggregation count - use fetched results count instead
+      // (Aggregation requires composite index for companyId + createdAt)
+      
+      // Get total count on first page for proper pagination
+      if (pageIndex === 0) {
+        try {
+          const countQuery = query(baseQuery, ...constraints);
+          const countSnapshot = await getDocs(countQuery);
+          setTotalLeadsCount(countSnapshot.docs.length);
+          console.log(`[Lead Pool] Total leads: ${countSnapshot.docs.length}`);
+        } catch (countError) {
+          console.warn('Count query failed:', countError);
+        }
+      }
+      
       // Pagination Query
       let q = query(baseQuery, ...constraints, limit(pageSize));
 
@@ -415,7 +416,22 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
+      
+      // Sort client-side by createdAt (newest first)
+      fetchedLeads.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      // DEBUG: Log fetched leads to verify query results
+      console.log(`[Lead Pool] Fetched ${fetchedLeads.length} leads from Firestore (page ${pageIndex}):`, fetchedLeads);
+      
+      // Total count is set by the count query above for first page
+      // No need to adjust for subsequent pages
+      
       setPaginatedLeads([...fetchedLeads]); // Use spread operator to ensure React re-renders
+      console.log(`[DEBUG] Setting currentPage to: ${pageIndex} (was: ${currentPage})`);
       setCurrentPage(pageIndex);
 
     } catch (error) {

@@ -25,6 +25,7 @@ import {
 } from './ui/select';
 import { Building2, User, Search, Phone, Calendar, ArrowLeft } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
+import { PaginationControls } from './ui/pagination-controls';
 import { toast } from 'sonner';
 
 export function AssignedLeads() {
@@ -34,6 +35,8 @@ export function AssignedLeads() {
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
 
   if (!user) return null;
 
@@ -72,7 +75,8 @@ export function AssignedLeads() {
         if (lead.status === 'Converted') return false;
         if (lead.status === 'Lost') return false;
 
-        const matchesSearch = 
+        // Search Filter - if searchQuery is empty, pass all leads
+        const matchesSearch = !searchQuery || 
           lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
           lead.directors.some(d => 
@@ -113,6 +117,29 @@ export function AssignedLeads() {
         return createdB - createdA;
       });
   }, [leads, searchQuery, statusFilter]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredLeads.length / pageSize);
+  const paginatedLeads = filteredLeads.slice(
+    currentPage * pageSize,
+    (currentPage + 1) * pageSize
+  );
+
+  // Reset to page 0 when filters change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(0);
+  };
+
+  const handleUserFilterChange = (value: string) => {
+    setSelectedUser(value);
+    setCurrentPage(0);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(0);
+  };
 
   const getUserName = (userId: string | null) => {
     if (!userId) return 'Unassigned';
@@ -304,7 +331,7 @@ export function AssignedLeads() {
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {user.role !== 'sales_user' && (
-                <Select value={selectedUser} onValueChange={setSelectedUser}>
+                <Select value={selectedUser} onValueChange={handleUserFilterChange}>
                   <SelectTrigger className="w-full sm:w-[180px]">
                     <SelectValue placeholder="Filter by user" />
                   </SelectTrigger>
@@ -323,7 +350,7 @@ export function AssignedLeads() {
                 <Input
                   placeholder="Search leads..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10 w-full sm:w-[250px]"
                 />
               </div>
@@ -355,7 +382,7 @@ export function AssignedLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLeads.map((lead) => {
+                  {paginatedLeads.map((lead) => {
                     const nextFollowUp = getNextFollowUpDate(lead);
                     return (
                       <TableRow 
@@ -464,6 +491,15 @@ export function AssignedLeads() {
           )}
         </CardContent>
       </Card>
+
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalCount={filteredLeads.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
     </div>
   );
 }

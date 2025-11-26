@@ -36,7 +36,7 @@ export function PaginationControls({
         <span>Show</span>
         <Select
           value={pageSize.toString()}
-          onValueChange={(val) => onPageSizeChange(Number(val))}
+          onValueChange={(val: string) => onPageSizeChange(Number(val))}
           disabled={isLoading}
         >
           <SelectTrigger className="h-8 w-[70px]">
@@ -64,30 +64,91 @@ export function PaginationControls({
           Prev
         </Button>
         <div className="flex items-center gap-1">
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-            // Simple logic to show first 5 pages or sliding window could be added
-            // For now, let's just show current page context if needed, 
-            // but the prompt asked for "Prev 1 2 3 4 Next".
-            // Implementing a simple version:
-            let pageNum = i;
-            if (totalPages > 5 && currentPage > 2) {
-                pageNum = currentPage - 2 + i;
-            }
-            if (pageNum >= totalPages) return null;
+          {(() => {
+            const pages = [];
+            const maxVisiblePages = 5;
             
-            return (
-              <Button
-                key={pageNum}
-                variant={currentPage === pageNum ? "default" : "outline"}
-                size="sm"
-                className="w-8 h-8 p-0"
-                onClick={() => onPageChange(pageNum)}
-                disabled={isLoading}
-              >
-                {pageNum + 1}
-              </Button>
-            );
-          })}
+            if (totalPages <= maxVisiblePages) {
+              // Show all pages if total is less than max
+              for (let i = 0; i < totalPages; i++) {
+                pages.push(
+                  <Button
+                    key={i}
+                    variant={currentPage === i ? "default" : "outline"}
+                    size="sm"
+                    className="w-8 h-8 p-0"
+                    onClick={() => onPageChange(i)}
+                    disabled={isLoading}
+                  >
+                    {i + 1}
+                  </Button>
+                );
+              }
+            } else {
+              // Show first page
+              pages.push(
+                <Button
+                  key={0}
+                  variant={currentPage === 0 ? "default" : "outline"}
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                  onClick={() => onPageChange(0)}
+                  disabled={isLoading}
+                >
+                  1
+                </Button>
+              );
+
+              // Show ellipsis if current page is far from start
+              if (currentPage > 2) {
+                pages.push(
+                  <span key="ellipsis-start" className="px-2">...</span>
+                );
+              }
+
+              // Show pages around current page
+              const startPage = Math.max(1, currentPage - 1);
+              const endPage = Math.min(totalPages - 2, currentPage + 1);
+              
+              for (let i = startPage; i <= endPage; i++) {
+                pages.push(
+                  <Button
+                    key={i}
+                    variant={currentPage === i ? "default" : "outline"}
+                    size="sm"
+                    className="w-8 h-8 p-0"
+                    onClick={() => onPageChange(i)}
+                    disabled={isLoading}
+                  >
+                    {i + 1}
+                  </Button>
+                );
+              }
+
+              // Show ellipsis if current page is far from end
+              if (currentPage < totalPages - 3) {
+                pages.push(
+                  <span key="ellipsis-end" className="px-2">...</span>
+                );
+              }
+
+              // Show last page
+              pages.push(
+                <Button
+                  key={totalPages - 1}
+                  variant={currentPage === totalPages - 1 ? "default" : "outline"}
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                  onClick={() => onPageChange(totalPages - 1)}
+                  disabled={isLoading}
+                >
+                  {totalPages}
+                </Button>
+              );
+            }
+            
+            return pages;
+          })()}
         </div>
         <Button
           variant="outline"

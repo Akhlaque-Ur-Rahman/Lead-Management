@@ -24,6 +24,7 @@ import {
 } from './ui/dialog';
 import { Search, RotateCcw, Trash2, Info, AlertCircle, Eye } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
+import { PaginationControls } from './ui/pagination-controls';
 import { toast } from 'sonner';
 import { hasPermission } from '../types/roles';
 
@@ -35,10 +36,12 @@ export function LostLeads() {
   const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
 
   // Filter lost leads based on user role and search
   const filteredLostLeads = lostLeads.filter(lostLead => {
-    const matchesSearch = 
+    const matchesSearch = !searchTerm ||
       lostLead.lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lostLead.lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (lostLead.lead.directors && lostLead.lead.directors.some(d => 
@@ -57,6 +60,24 @@ export function LostLeads() {
     }
     return false;
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredLostLeads.length / pageSize);
+  const paginatedLostLeads = filteredLostLeads.slice(
+    currentPage * pageSize,
+    (currentPage + 1) * pageSize
+  );
+
+  // Reset to page 0 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(0);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(0);
+  };
 
   const handleRestore = async (leadId: string) => {
     // Sales users cannot restore
@@ -160,7 +181,7 @@ export function LostLeads() {
               <Input
                 placeholder="Search lost leads..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -187,7 +208,7 @@ export function LostLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLostLeads.map((lostLead) => (
+                  {paginatedLostLeads.map((lostLead) => (
                     <TableRow key={lostLead.lead.id}>
                       <TableCell className="font-medium">{lostLead.lead.companyName}</TableCell>
                       <TableCell>
@@ -256,6 +277,15 @@ export function LostLeads() {
           )}
         </CardContent>
       </Card>
+
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalCount={filteredLostLeads.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
 
       {/* Confirm Delete Dialog */}
       <Dialog open={showConfirmDelete} onOpenChange={setShowConfirmDelete}>

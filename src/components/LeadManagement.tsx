@@ -72,11 +72,21 @@ export function LeadManagement() {
       loadLeadsPaginated(currentPage, 'pool', { status: statusFilter, search: searchTerm });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize, statusFilter, user]); 
+  }, [currentPage, pageSize, statusFilter, user]);
+
+  // Reset to first page when page size changes
+  useEffect(() => {
+    if (currentPage > 0) {
+      setCurrentPage(0);
+    }
+  }, [pageSize, setCurrentPage]); // Removed currentPage to avoid infinite loop
 
   const filteredLeads = paginatedLeads.filter(lead => {
-    // HYBRID FILTERING: Server fetches all active leads, client filters by follow-up count
+    // HYBRID FILTERING: Server fetches all leads, client filters by status and follow-up count
     // Lead Pool shows: Unassigned OR (Assigned AND no follow-ups)
+    
+    // Filter out Lost and Converted leads
+    if (lead.status === 'Lost' || lead.status === 'Converted') return false;
     
     const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
     const hasFollowUps = allFollowUps.length > 0;
@@ -299,8 +309,11 @@ export function LeadManagement() {
                 ...lead,
                 companyId: lead.companyId || user?.companyId || '',
                 uploadedBy: user?.id || '',
+                status: lead.status || 'Cold',
                 isAssigned: false,
-                assignedTo: null
+                assignedTo: null,
+                createdAt: lead.createdAt || new Date().toISOString(),
+                directors: lead.directors || []
             })));
 
             // Dismiss loading toast
@@ -465,10 +478,12 @@ export function LeadManagement() {
 
             const leadData: any = {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
-              createdAt: new Date().toISOString().split('T')[0],
+              status: 'Cold',
+              isAssigned: false,
               assignedTo: null,
-
-              directors: []
+              createdAt: new Date().toISOString(),
+              directors: [],
+              companyId: user?.companyId || ''
             };
 
             // Map company fields from the first row with this CIN

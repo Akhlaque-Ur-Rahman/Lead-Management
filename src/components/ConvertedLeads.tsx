@@ -23,6 +23,7 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { Building2, Search, CheckCircle, IndianRupee, Calendar, User, Info, Download, ArrowUpDown } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
+import { PaginationControls } from './ui/pagination-controls';
 import { toast } from 'sonner';
 import { hasPermission } from '../types/roles';
 
@@ -33,6 +34,8 @@ export function ConvertedLeads() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
 
   // Loading guard - check this BEFORE permission check
   if (isLoading) {
@@ -68,7 +71,7 @@ export function ConvertedLeads() {
       // Ensure we only show converted leads
       if (lead.status !== 'Converted') return false;
 
-      const matchesSearch = 
+      const matchesSearch = !searchTerm ||
         lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.invoiceNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.convertedBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -137,6 +140,29 @@ export function ConvertedLeads() {
       setSortBy(field);
       setSortOrder('desc');
     }
+  };
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedLeads.length / pageSize);
+  const paginatedLeads = sortedLeads.slice(
+    currentPage * pageSize,
+    (currentPage + 1) * pageSize
+  );
+
+  // Reset to page 0 when filters change
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(0);
+  };
+
+  const handleSortChange = (value: 'date' | 'value') => {
+    setSortBy(value);
+    setCurrentPage(0);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(0);
   };
 
   if (selectedLead) {
@@ -254,7 +280,7 @@ export function ConvertedLeads() {
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Select value={sortBy} onValueChange={(value: 'date' | 'value') => setSortBy(value)}>
+              <Select value={sortBy} onValueChange={handleSortChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
@@ -268,7 +294,7 @@ export function ConvertedLeads() {
                 <Input
                   placeholder="Search leads..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10 w-full sm:w-[250px]"
                 />
               </div>
@@ -312,7 +338,7 @@ export function ConvertedLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedLeads.map((lead) => (
+                  {paginatedLeads.map((lead) => (
                     <TableRow 
                       key={lead.id}
                       className="cursor-pointer hover:bg-muted/50"
@@ -386,6 +412,15 @@ export function ConvertedLeads() {
           )}
         </CardContent>
       </Card>
+
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalCount={sortedLeads.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
     </div>
   );
 }
