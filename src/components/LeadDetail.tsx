@@ -120,6 +120,12 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   };
 
   const handleOpenFollowUpDialog = (director: Director | null = null) => {
+    // Super Admin check
+    if (user?.role === 'super_admin') {
+      toast.error("Super Admins cannot add follow-ups");
+      return;
+    }
+
     if (director) {
        // Pre-select talkedTo if a director is passed
        const name = `${director.firstName} ${director.lastName}`;

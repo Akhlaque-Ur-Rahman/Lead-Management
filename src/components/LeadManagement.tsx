@@ -1,11 +1,3 @@
-import { useState, useRef } from 'react';
-import { useAuth } from './AuthContext';
-import { useLeads, type Lead } from './LeadsContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
 import { 
   Table, 
   TableBody, 
@@ -55,7 +47,8 @@ export function LeadManagement() {
     // 1. Must have 0 follow-ups
     // 2. Must NOT be Converted
     // 3. Must NOT be Lost
-    const hasFollowUps = (lead.followUpHistory?.length || 0) > 0;
+    const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
+    const hasFollowUps = allFollowUps.length > 0;
     if (hasFollowUps) return false;
     if (lead.status === 'Converted') return false;
     if (lead.status === 'Lost') return false;
@@ -452,7 +445,11 @@ export function LeadManagement() {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
               createdAt: new Date().toISOString().split('T')[0],
               assignedTo: null,
-              followUpHistory: [],
+              // followUpHistory removed
+              directors: (lead.directors || []).map(d => ({
+                ...d,
+                followUps: d.followUps || []
+              })),
               directors: []
             };
 

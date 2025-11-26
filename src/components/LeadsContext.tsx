@@ -86,7 +86,7 @@ export interface Lead {
   uploadedBy?: string;
 
   // Follow-up History
-  followUpHistory?: FollowUp[];
+  // followUpHistory removed - use directors[].followUps instead
 
   // Converted Lead Fields
   invoiceNo?: string;
@@ -177,6 +177,8 @@ interface LeadsContextValue {
   // NEW: Follow-up helper functions
   getActiveFollowUps: (lead: Lead, directorId?: string) => FollowUp[];
   getAllFollowUps: (lead: Lead, directorId?: string) => FollowUp[];
+  hasFollowUps: (lead: Lead) => boolean;
+  getLastFollowUp: (lead: Lead) => FollowUp | null;
   calculateNextFollowUpDate: (lead: Lead) => string | null;
   getLatestActiveFollowUpForCompany: (lead: Lead) => FollowUp | null;
 }
@@ -262,7 +264,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       notes: data.notes ?? "",
       createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       uploadedBy: data.uploadedBy ?? null,
-      followUpHistory: data.followUpHistory ?? [],
+      // followUpHistory removed
       invoiceNo: data.invoiceNo ?? null,
       projectValue: data.projectValue ?? null,
       convertedBy: data.convertedBy ?? null,
@@ -446,6 +448,15 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return activeFollowUps[0];
   };
 
+  const hasFollowUps = (lead: Lead): boolean => {
+    return (getAllFollowUps(lead) || []).length > 0;
+  };
+
+  const getLastFollowUp = (lead: Lead): FollowUp | null => {
+    const all = getAllFollowUps(lead);
+    return all.length ? all[all.length - 1] : null;
+  };
+
   // -------------------- CRUD Methods --------------------
 
   const addLead = async (leadData: Partial<Lead>): Promise<string | null> => {
@@ -554,6 +565,12 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   ): Promise<boolean> => {
     if (!user) return false;
 
+    // Permission check: Super Admin cannot add follow-ups
+    if (user.role === 'super_admin') {
+      console.error("Super Admin cannot add follow-ups");
+      return false;
+    }
+
     try {
       const leadRef = doc(db, "leads", leadId);
       
@@ -605,7 +622,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           nextFollowUpDate: nextDate
         };
 
-        // Apply additional lead updates (e.g. status change, unassignment)
+        // Apply additional lead updates (e.g. status change)
+        // CRITICAL: DO NOT AUTO-ASSIGN HERE
         if (leadUpdates) {
           Object.assign(updates, leadUpdates);
           
@@ -639,6 +657,12 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     followUp: FollowUp,
     leadUpdates?: Partial<Lead>
   ): Promise<boolean> => {
+    // Permission check: Super Admin cannot update follow-ups
+    if (user?.role === 'super_admin') {
+      console.error("Super Admin cannot update follow-ups");
+      return false;
+    }
+
     try {
       // Validate date - prevent past dates
       const today = new Date();
@@ -966,6 +990,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     getAllFollowUps,
     calculateNextFollowUpDate,
     getLatestActiveFollowUpForCompany,
+    hasFollowUps,
+    getLastFollowUp,
   };
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>;

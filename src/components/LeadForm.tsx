@@ -54,7 +54,7 @@ export function LeadForm({ onSubmit, onCancel, initialData }: LeadFormProps) {
     nextFollowUpDate: initialData?.nextFollowUpDate || '',
     notes: initialData?.notes || '',
     assignedTo: initialData?.assignedTo || user?.id || '',
-    followUpHistory: initialData?.followUpHistory || []
+    // followUpHistory removed
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});

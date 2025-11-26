@@ -68,7 +68,9 @@ export function AssignedLeads() {
         // 1. Must have at least 1 follow-up
         // 2. Must NOT be Converted
         // 3. Must NOT be Lost
-        const hasFollowUps = (lead.followUpHistory?.length || 0) > 0;
+        const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) ?? [];
+        const hasFollowUps = allFollowUps.length > 0;
+        
         if (!hasFollowUps) return false;
         if (lead.status === 'Converted') return false;
         if (lead.status === 'Lost') return false;
@@ -86,8 +88,12 @@ export function AssignedLeads() {
       })
       .sort((a, b) => {
         // Sort by latest follow-up (newest first)
-        const lastFUA = a.followUpHistory?.at(-1);
-        const lastFUB = b.followUpHistory?.at(-1);
+        const allFollowUpsA = a.directors?.flatMap(d => d.followUps || []) ?? [];
+        const allFollowUpsB = b.directors?.flatMap(d => d.followUps || []) ?? [];
+        
+        const lastFUA = allFollowUpsA.length > 0 ? allFollowUpsA[allFollowUpsA.length - 1] : null;
+        const lastFUB = allFollowUpsB.length > 0 ? allFollowUpsB[allFollowUpsB.length - 1] : null;
+        
         const dateA = lastFUA ? new Date(lastFUA.createdAt).getTime() : 0;
         const dateB = lastFUB ? new Date(lastFUB.createdAt).getTime() : 0;
         return dateB - dateA;
