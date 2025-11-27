@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead, Director, FollowUp } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -42,8 +42,16 @@ export function Calendar() {
   const { user } = useAuth();
   const { 
     getDirectorFollowUpsForDate,
-    leads
+    leads,
+    loadLeadsAll,
+    refreshFlag
   } = useLeads();
+  
+  useEffect(() => {
+    if (user) {
+      loadLeadsAll('assigned');
+    }
+  }, [user, refreshFlag]);
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -92,8 +100,8 @@ export function Calendar() {
       user.companyId || undefined
     );
     
-    // Filter for sales users - only show their assigned leads' follow-ups
-    if (user.role === 'sales_user') {
+    // Filter for sales users AND team leads - only show their assigned leads' follow-ups
+    if (user.role === 'sales_user' || user.role === 'team_lead') {
       followUps = followUps.filter(item => item.lead.assignedTo === user.id);
     }
     
@@ -134,8 +142,8 @@ export function Calendar() {
       user.companyId || undefined
     ) : [];
     
-    // Filter for sales users
-    if (user.role === 'sales_user' && selectedDate) {
+    // Filter for sales users AND team leads
+    if ((user.role === 'sales_user' || user.role === 'team_lead') && selectedDate) {
       selectedDateFollowUps = selectedDateFollowUps.filter(item => item.lead.assignedTo === user.id);
     }
 

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { useLeads, type Lead, calculateNextFollowUpDate } from './LeadsContext';
+import { useLeads, type Lead } from './LeadsContext';
+import { calculateNextFollowUpDate } from '../utils/followups/calculations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -23,7 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Building2, User, Search, Phone, Calendar, ArrowLeft } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+} from './ui/dialog';
+import { Building2, User, Search, Phone, Calendar } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
 
 import { toast } from 'sonner';
@@ -35,32 +40,49 @@ export function AssignedLeads() {
     getLeadsAssignedToUser, 
     assignLead,
     leads,
-    loadLeadsAll
+    loadLeadsAll,
+    refreshFlag,
+    getLatestActiveFollowUpForCompany
   } = useLeads();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string>('all');
-  const [statusFilter] = useState<string>('all'); // Note: Status filter is now server-side
+  const [statusFilter] = useState<string>('all'); 
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   if (!user) return null;
 
   // 1. Load Leads (Server-Side)
   useEffect(() => {
-    loadLeadsAll('assigned', { status: statusFilter });
-  }, [statusFilter]);
+    if (user) {
+      loadLeadsAll('assigned', { status: statusFilter });
+    }
+  }, [user, statusFilter, refreshFlag]);
 
-  // 2. Client-Side Search
+  // 2. Client-Side Search & Sort
   const displayLeads = useMemo(() => {
-    if (!searchQuery) return leads;
-    return leads.filter(lead => 
-      lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      lead.directors.some(d => 
-        `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    );
-  }, [leads, searchQuery]);
+    let filtered = leads;
+
+    // Search
+    if (searchQuery) {
+      filtered = filtered.filter(lead => 
+        lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        lead.directors.some(d => 
+          `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      );
+    }
+
+    // Sort by Latest Follow-up (Desc)
+    return filtered.sort((a, b) => {
+        const lastA = getLatestActiveFollowUpForCompany(a);
+        const lastB = getLatestActiveFollowUpForCompany(b);
+        const timeA = lastA ? new Date(`${lastA.date}T${lastA.time}`).getTime() : 0;
+        const timeB = lastB ? new Date(`${lastB.date}T${lastB.time}`).getTime() : 0;
+        return timeB - timeA;
+    });
+  }, [leads, searchQuery, getLatestActiveFollowUpForCompany]);
 
   // 3. Stats Logic (Kept using full list for accurate counts)
   // Get leads based on user role for STATS ONLY
@@ -144,32 +166,7 @@ export function AssignedLeads() {
     }))
     .filter(stat => stat.count > 0); // Only show users with assigned leads
 
-  if (selectedLead) {
-    return (
-      <div className="p-4 sm:p-6">
-        <Button
-          variant="outline"
-          onClick={() => setSelectedLead(null)}
-          className="mb-4 gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Assigned Leads
-        </Button>
-        <Card>
-          <CardContent className="p-6">
-            <LeadDetail 
-              lead={selectedLead} 
-              onClose={() => setSelectedLead(null)}
-              onEdit={() => {
-                // Edit functionality can be added here
-                toast.success('Edit functionality - Coming soon');
-              }}
-            />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Inline view removed in favor of Dialog below
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -439,6 +436,20 @@ export function AssignedLeads() {
       </Card>
 
 
+      {/* Lead Detail Dialog */}
+      <Dialog open={!!selectedLead} onOpenChange={(open: boolean) => !open && setSelectedLead(null)}>
+        <DialogContent className="max-w-2xl">
+          {selectedLead && (
+            <LeadDetail 
+              lead={selectedLead} 
+              onClose={() => setSelectedLead(null)}
+              onEdit={() => {
+                 toast.success('Edit functionality - Coming soon');
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

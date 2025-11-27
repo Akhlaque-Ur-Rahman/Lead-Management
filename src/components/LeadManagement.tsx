@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { useLeads, type Lead, calculateNextFollowUpDate } from './LeadsContext';
+import { useLeads, type Lead } from './LeadsContext';
+import { calculateNextFollowUpDate } from '../utils/followups/calculations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -50,7 +51,8 @@ export function LeadManagement() {
     addLead, 
     updateLead, 
     assignLead, 
-    batchAddLeads 
+    batchAddLeads,
+    refreshFlag
   } = useLeads();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,7 +68,7 @@ export function LeadManagement() {
     if (user) {
       loadLeadsAll('pool', { status: statusFilter });
     }
-  }, [user, statusFilter]);
+  }, [user, statusFilter, refreshFlag]);
 
   // Client-side search and status filtering
   const filteredLeads = leads.filter(lead => {
@@ -267,7 +269,7 @@ export function LeadManagement() {
           const allCINs = leadsWithCIN.map(lead => lead.cin.toLowerCase());
           const uniqueCINs = Array.from(new Set(allCINs));
 
-          console.log(`[Import] Checking ${uniqueCINs.length} unique CINs against Firestore...`);
+
 
           // Step 3: Batch query Firestore using 'in' operator (max 10 per query)
           const existingCINs = new Set<string>();
@@ -297,7 +299,7 @@ export function LeadManagement() {
             }
           }
 
-          console.log(`[Import] Found ${existingCINs.size} existing CINs in Firestore`);
+
 
           // Step 4: Classify leads as valid or duplicate
           leadsWithCIN.forEach(lead => {
@@ -368,10 +370,8 @@ export function LeadManagement() {
   const processImportedData = (data: any[]): Lead[] => {
     const validStatuses = ['Hot', 'Warm', 'Cold', 'Converted', 'Lost'];
     const companiesMap = new Map<string, any>(); // Group by CIN or Company Name
-    let skippedCount = 0;
     let currentCIN = ''; // Track the current CIN for sequential grouping
     let currentCompanyKey = ''; // Track the current company key
-    const skipReasons: string[] = []; // Track why rows are skipped
 
     // Helper function to get field variations
     const getFieldVariations = (config: any) => {
@@ -429,10 +429,10 @@ export function LeadManagement() {
     // Sequential processing: Process rows in order and group directors by CIN
     data.forEach((row, index) => {
       try {
-        const rowNumber = index + 2; // +2 because index is 0-based and Excel has header row
+        // const rowNumber = index + 2; // +2 because index is 0-based and Excel has header row
         const hasAnyData = Object.values(row).some(val => val !== undefined && val !== null && val !== '');
         if (!hasAnyData) {
-          console.log(`Row ${rowNumber}: Skipped - Empty row`);
+
 
           return; // Don't count empty rows
         }
@@ -444,9 +444,9 @@ export function LeadManagement() {
         if (cinInRow && cinInRow.trim() !== '') {
           currentCIN = cinInRow.trim();
           currentCompanyKey = currentCIN;
-          console.log(`Row ${rowNumber}: New CIN found - ${currentCIN}`);
+
         } else {
-          console.log(`Row ${rowNumber}: No CIN, using previous CIN - ${currentCIN || 'NONE'}`);
+
         }
         // If no CIN in this row, use the current CIN from previous row
         // This handles the case where multiple directors share the same CIN
@@ -460,11 +460,10 @@ export function LeadManagement() {
           if (companyName && companyName.length >= 2) {
             currentCompanyKey = companyName;
             currentCIN = '';
-            console.log(`Row ${rowNumber}: Using Company Name as key - ${companyName}`);
+
           } else {
-            skippedCount++;
-            skipReasons.push(`Row ${rowNumber}: No CIN or Company Name found (first row of file must have CIN or Company Name)`);
-            console.log(`Row ${rowNumber}: SKIPPED - No CIN or Company Name`);
+            return;
+
             return;
           }
         }
@@ -476,16 +475,15 @@ export function LeadManagement() {
             // If this is a subsequent director row without company name, use the current company key
             if (currentCIN) {
               // This shouldn't happen in normal MCA data, but let's be lenient
-              console.log(`Row ${rowNumber}: WARNING - No company name but has CIN context, adding director to existing company`);
+              // console.log(`Row ${rowNumber}: WARNING - No company name but has CIN context, adding director to existing company`);
               // Try to add director to existing company (will happen below)
             } else {
-              skippedCount++;
-              skipReasons.push(`Row ${rowNumber}: Missing Company Name for new company`);
-              console.log(`Row ${rowNumber}: SKIPPED - Missing Company Name`);
+              return;
+
               return;
             }
           } else {
-            console.log(`Row ${rowNumber}: Creating new company - ${companyName}`);
+
 
             const leadData: any = {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
@@ -527,9 +525,8 @@ export function LeadManagement() {
         // Add director to the current company
         const company = companiesMap.get(currentCompanyKey);
         if (!company) {
-          console.log(`Row ${rowNumber}: ERROR - Company not found for key ${currentCompanyKey}`);
-          skippedCount++;
-          skipReasons.push(`Row ${rowNumber}: Internal error - company not found`);
+
+          return;
           return;
         }
 
@@ -550,15 +547,14 @@ export function LeadManagement() {
             mobile: mobile || '',
             email: email || ''
           });
-          console.log(`Row ${rowNumber}: Added director - ${firstName} ${lastName} to company ${company.companyName}`);
+
         } else {
-          console.log(`Row ${rowNumber}: No director info found, skipping director entry`);
+
         }
       } catch (error) {
         const rowNumber = index + 2;
         console.error(`Row ${rowNumber}: Error processing -`, error);
-        skippedCount++;
-        skipReasons.push(`Row ${rowNumber}: Error - ${error instanceof Error ? error.message : 'Unknown error'}`);
+
       }
     });
 
@@ -591,19 +587,9 @@ export function LeadManagement() {
       return lead as Lead;
     });
 
-    const successCount = importedLeads.length;
-    const totalDirectors = importedLeads.reduce((sum, lead) => sum + (lead.directors?.length || 0), 0);
+
     
-    console.log(`=== IMPORT SUMMARY ===`);
-    console.log(`Total rows in Excel: ${data.length}`);
-    console.log(`Companies imported: ${successCount}`);
-    console.log(`Total directors: ${totalDirectors}`);
-    console.log(`Rows skipped: ${skippedCount}`);
-    
-    if (skipReasons.length > 0) {
-      console.log(`\n=== SKIP REASONS ===`);
-      skipReasons.forEach(reason => console.log(reason));
-    }
+
     
     return importedLeads;
   };

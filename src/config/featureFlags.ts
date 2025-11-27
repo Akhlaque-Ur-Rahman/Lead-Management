@@ -16,6 +16,13 @@ export const FEATURE_FLAGS = {
     USE_LISTENERS: false,
 
     /**
+     * Enable/disable lightweight event listener for real-time updates
+     * 
+     * @default true
+     */
+    USE_EVENT_LISTENER: true,
+
+    /**
      * Enable/disable pagination UI and logic
      * 
      * When false: Loads all leads at once (up to MAX_LEADS_FETCH_LIMIT)

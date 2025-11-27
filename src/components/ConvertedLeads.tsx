@@ -29,11 +29,17 @@ import { hasPermission } from '../types/roles';
 
 export function ConvertedLeads() {
   const { user, users, isLoading } = useAuth();
-  const { getConvertedLeads, loadLeadsAll } = useLeads();
+  const { getConvertedLeads, loadLeadsAll, refreshFlag } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  useEffect(() => {
+    if (user) {
+      loadLeadsAll('converted');
+    }
+  }, [user, refreshFlag]);
 
 
   // Loading guard - check this BEFORE permission check
@@ -63,16 +69,8 @@ export function ConvertedLeads() {
 
   // Get converted leads for the company
   const convertedLeads = user.companyId ? getConvertedLeads(user.companyId) : [];
-
-  // Ensure leads are loaded
-  useEffect(() => {
-    loadLeadsAll('converted');
-  }, []);
-
-  // Filter by search
   const filteredLeads = useMemo(() => {
     return convertedLeads.filter(lead => {
-      // Ensure we only show converted leads
       if (lead.status !== 'Converted') return false;
 
       const matchesSearch = !searchTerm ||

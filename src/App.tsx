@@ -16,6 +16,7 @@ import { ConvertedLeads } from './components/ConvertedLeads';
 import { Settings } from './components/Settings';
 import { Toaster } from './components/ui/sonner';
 
+
 function DashboardLayout() {
   const { activeTab } = useParams();
   const navigate = useNavigate();
@@ -78,14 +79,14 @@ function DashboardLayout() {
       </div>
       
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto w-full">
+      <main className="flex-1 overflow-y-auto w-full relative">
         {renderContent()}
       </main>
       
       {/* Mobile menu button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed bottom-4 right-4 z-30 bg-primary text-primary-foreground p-4 rounded-full shadow-lg hover:bg-primary/90 transition-colors"
+        className="lg:hidden fixed top-4 right-4 z-50 bg-primary text-primary-foreground p-2 rounded-md shadow-lg hover:bg-primary/90 transition-colors"
         aria-label="Toggle menu"
       >
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

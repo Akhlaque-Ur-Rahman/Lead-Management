@@ -17,8 +17,9 @@ export function canSalesUserViewLeadInPool(user: User, lead: Lead): boolean {
 }
 
 export function canAdminOrTlViewLeadInPool(user: User, lead: Lead): boolean {
-    // unassigned OR assigned-but-no-follow-ups (company-scoped implied by query)
-    return (!lead.isAssigned) || (lead.isAssigned && !hasFollowUps(lead));
+    // Admins/TLs: Pool = Unassigned Only.
+    // Assigned leads should strictly go to Assigned Leads page.
+    return !lead.isAssigned;
 }
 
 export type Permission = 'MARK_AS_CONVERTED' | 'MARK_AS_LOST';

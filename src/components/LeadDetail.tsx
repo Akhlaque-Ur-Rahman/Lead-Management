@@ -57,7 +57,7 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { updateLead, addFollowUp } = useLeads();
+  const { updateLead, addFollowUp, updateFollowUp } = useLeads();
   const navigate = useNavigate();
   
   // Immediate access guard (permission-aware)
@@ -214,7 +214,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
         talkedTo,
         talkedToId,
         talkedToName,
-        followUpStatus: followUpStatus as any
+        followUpStatus: followUpStatus as "Hot" | "Warm" | "Cold" | "Converted" | "Lost"
       };
 
       await addFollowUp(lead.id, followUpData);
@@ -872,10 +872,6 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                   <SelectItem value="Hot">Hot</SelectItem>
                   <SelectItem value="Warm">Warm</SelectItem>
                   <SelectItem value="Cold">Cold</SelectItem>
-                  {user?.role && ['company_admin', 'sales_user', 'team_lead'].includes(user.role) && (
-                    <SelectItem value="Converted">Converted</SelectItem>
-                  )}
-                  <SelectItem value="Lost">Lost</SelectItem>
                 </SelectContent>
               </Select>
             </div>

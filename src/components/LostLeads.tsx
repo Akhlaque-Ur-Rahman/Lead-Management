@@ -26,21 +26,31 @@ import { Search, RotateCcw, Trash2, Info, AlertCircle, Eye } from 'lucide-react'
 import { LeadDetail } from './LeadDetail';
 
 import { toast } from 'sonner';
+import { hasPermission } from '../types/roles';
 
 
 export function LostLeads() {
   const { user, users } = useAuth();
-  const { leads, loadLeadsAll, restoreLostLead, permanentlyDeleteLost } = useLeads();
+  const { leads, loadLeadsAll, restoreLostLead, permanentlyDeleteLost, refreshFlag } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLostLead, setSelectedLostLead] = useState<any>(null);
   const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
-
-
   useEffect(() => {
-    loadLeadsAll('lost');
-  }, []);
+    if (user) {
+      loadLeadsAll('lost');
+    }
+  }, [user, refreshFlag]);
+
+  // Check permission (now allows sales_user)
+  if (!user?.role || !hasPermission(user.role, 'VIEW_LOST_LEADS')) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-muted-foreground">Access denied. You do not have permission to view lost leads.</p>
+      </div>
+    );
+  }
 
   // Filter lost leads based on user role and search
   const filteredLostLeads = leads.filter(lead => {
@@ -54,14 +64,12 @@ export function LostLeads() {
         d.email.toLowerCase().includes(searchTerm.toLowerCase())
       ));
 
-    // Super Admin, Company Admin, and Team Lead can see all lost leads
-    // Sales User can only see leads they marked as lost
-    if (['super_admin', 'company_admin', 'team_lead'].includes(user?.role || '')) {
-      return matchesSearch;
-    } else if (user?.role === 'sales_user') {
-      return matchesSearch && lead.lostBy === user?.id;
-    }
-    return false;
+    return matchesSearch;
+  }).sort((a, b) => {
+    // Sort by lostAt desc (newest first)
+    const dateA = a.lostAt ? new Date(a.lostAt).getTime() : 0;
+    const dateB = b.lostAt ? new Date(b.lostAt).getTime() : 0;
+    return dateB - dateA;
   });
 
 

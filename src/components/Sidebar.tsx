@@ -17,6 +17,7 @@ import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
 import { Badge } from './ui/badge';
 import { getRoleLabel, getRoleBadgeVariant } from '../types/roles';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 interface SidebarProps {
   activeTab: string;
@@ -75,15 +76,15 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     if (!user) return null;
     
     return (
-      <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+      <Badge variant={getRoleBadgeVariant(user.role)} className="px-2 py-0.5 text-xs font-semibold shadow-sm border-primary/20">
         {getRoleLabel(user.role)}
       </Badge>
     );
   };
 
   return (
-    <div className="w-64 bg-card border-r border-border flex flex-col h-screen">
-      <div className="p-6 border-b border-border">
+    <div className="w-64 bg-card border-r border-border flex flex-col h-full">
+      <div className="p-6 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
             <FileSpreadsheet className="h-6 w-6 text-primary-foreground" />
@@ -93,6 +94,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             <p className="text-xs text-muted-foreground">Multi-Tenant LMS</p>
           </div>
         </div>
+        <ThemeSwitcher />
       </div>
 
       <nav className="flex-1 p-4 overflow-y-auto">
@@ -124,7 +126,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         )}
       </nav>
 
-      <div className="p-4 border-t border-border space-y-3">
+      <div className="p-4 border-t border-border space-y-3 bg-muted/30">
         <div className="px-3 py-2 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium truncate pr-2">{user?.name}</p>
@@ -139,9 +141,9 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         </div>
         <button 
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-destructive hover:text-destructive-foreground text-muted-foreground transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all font-medium shadow-sm"
         >
-          <LogOut className="h-5 w-5" />
+          <LogOut className="h-4 w-4" />
           <span className="text-sm">Logout</span>
         </button>
       </div>
