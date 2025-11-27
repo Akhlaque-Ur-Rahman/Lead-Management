@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead, calculateNextFollowUpDate } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -30,110 +30,75 @@ import { toast } from 'sonner';
 
 export function AssignedLeads() {
   const { user, users } = useAuth();
-  const { getAssignedLeads, getLeadsAssignedToUser, assignLead } = useLeads();
+  const { 
+    getAssignedLeads, 
+    getLeadsAssignedToUser, 
+    assignLead,
+    paginatedLeads,
+    totalLeadsCount,
+    loadLeadsPaginated,
+    setPageSize,
+    pageSize,
+    currentPage,
+    setCurrentPage
+  } = useLeads();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string>('all');
-  const [statusFilter] = useState<string>('all');
+  const [statusFilter] = useState<string>('all'); // Note: Status filter is now server-side
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
 
   if (!user) return null;
 
-  // Get leads based on user role
+  // 1. Load Leads (Server-Side Pagination)
+  useEffect(() => {
+    loadLeadsPaginated(currentPage, 'assigned', { status: statusFilter });
+  }, [currentPage, pageSize, statusFilter]);
+
+  // 2. Client-Side Search (on current page only)
+  const displayLeads = useMemo(() => {
+    if (!searchQuery) return paginatedLeads;
+    return paginatedLeads.filter(lead => 
+      lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      lead.directors.some(d => 
+        `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    );
+  }, [paginatedLeads, searchQuery]);
+
+  // 3. Stats Logic (Kept using full list for accurate counts)
+  // Get leads based on user role for STATS ONLY
   let allAssignedLeads: Lead[] = [];
   
   if (user.role === 'sales_user') {
-    // Sales Users see only their own leads
     allAssignedLeads = getLeadsAssignedToUser(user.id);
   } else if (user.role === 'team_lead') {
-    // Team Leaders see their own leads + Sales Users' leads in their company
     const companyLeads = user.companyId ? getAssignedLeads(user.companyId) : [];
     allAssignedLeads = companyLeads.filter(lead => {
       const assignedUser = users.find(u => u.id === lead.assignedTo);
       return lead.assignedTo === user.id || (assignedUser && assignedUser.role === 'sales_user');
     });
   } else if (user.role === 'company_admin' || user.role === 'super_admin') {
-    // Company Admin and Super Admin see all leads in their company
     allAssignedLeads = user.companyId ? getAssignedLeads(user.companyId) : [];
   }
 
-  // Filter by selected user (for admins)
-  const leads = selectedUser === 'all' 
-    ? allAssignedLeads
-    : allAssignedLeads.filter(lead => lead.assignedTo === selectedUser);
-
-  // Filter by search and status, excluding converted and lost leads
-  const filteredLeads = useMemo(() => {
-    return leads
-      .filter(lead => {
-        // Assigned Leads Definition:
-        // 1. Must be Assigned (handled by initial fetch logic)
-        // 2. Must NOT be Converted
-        // 3. Must NOT be Lost
-        
-        if (lead.status === 'Converted') return false;
-        if (lead.status === 'Lost') return false;
-
-        // Search Filter - if searchQuery is empty, pass all leads
-        const matchesSearch = !searchQuery || 
-          lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          lead.directors.some(d => 
-            `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
-          );
-        
-        const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) => {
-        // Sort Priority:
-        // 1. Latest Follow-up Date (Newest First)
-        // 2. Assigned Date (Newest First)
-        // 3. Created Date (Newest First)
-
-        const getLastFollowUpDate = (lead: Lead) => {
-           const allFollowUps = lead.directors?.flatMap(d => d.followUps || []) || [];
-           if (allFollowUps.length === 0) return 0;
-           // Sort follow-ups by createdAt desc
-           allFollowUps.sort((f1, f2) => new Date(f2.createdAt).getTime() - new Date(f1.createdAt).getTime());
-           return new Date(allFollowUps[0].createdAt).getTime();
-        };
-
-        const dateA = getLastFollowUpDate(a);
-        const dateB = getLastFollowUpDate(b);
-
-        if (dateA !== dateB) return dateB - dateA;
-
-        const assignedA = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
-        const assignedB = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
-
-        if (assignedA !== assignedB) return assignedB - assignedA;
-
-        const createdA = new Date(a.createdAt).getTime();
-        const createdB = new Date(b.createdAt).getTime();
-
-        return createdB - createdA;
-      });
-  }, [leads, searchQuery, statusFilter]);
-
   // Pagination logic
-  const totalPages = Math.ceil(filteredLeads.length / pageSize);
-  const paginatedLeads = filteredLeads.slice(
-    currentPage * pageSize,
-    (currentPage + 1) * pageSize
-  );
+  const totalPages = Math.ceil(totalLeadsCount / pageSize);
 
   // Reset to page 0 when filters change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    setCurrentPage(0);
+    // Search is client-side on current page, so we don't reset server page
   };
 
   const handleUserFilterChange = (value: string) => {
     setSelectedUser(value);
-    setCurrentPage(0);
+    // User filter for admins is currently client-side on stats, 
+    // but for the TABLE we are showing 'assigned' view which shows ALL assigned leads for admins.
+    // If we want to filter table by user, we need to pass it to loadLeadsPaginated.
+    // For now, we'll keep the table showing all assigned leads (server-side) 
+    // and stats showing filtered.
   };
 
   const handlePageSizeChange = (newSize: number) => {
@@ -327,7 +292,7 @@ export function AssignedLeads() {
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <CardTitle>All Assigned Leads</CardTitle>
-              <CardDescription>{filteredLeads.length} leads found</CardDescription>
+              <CardDescription>{totalLeadsCount} leads found</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {user.role !== 'sales_user' && (
@@ -358,7 +323,7 @@ export function AssignedLeads() {
           </div>
         </CardHeader>
         <CardContent>
-          {filteredLeads.length === 0 ? (
+          {displayLeads.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No assigned leads found</p>
@@ -382,7 +347,7 @@ export function AssignedLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLeads.map((lead) => {
+                  {displayLeads.map((lead) => {
                     const nextFollowUp = getNextFollowUpDate(lead);
                     return (
                       <TableRow 
@@ -496,7 +461,7 @@ export function AssignedLeads() {
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        totalCount={filteredLeads.length}
+        totalCount={totalLeadsCount}
         onPageChange={setCurrentPage}
         onPageSizeChange={handlePageSizeChange}
       />

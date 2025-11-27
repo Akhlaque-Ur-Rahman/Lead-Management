@@ -37,11 +37,13 @@ import * as XLSX from 'xlsx';
 import { hasPermission, canAssignToUser } from '../types/roles';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { cn } from './ui/utils';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
   const { 
-    leads, 
+ 
     paginatedLeads,
     totalLeadsCount,
     pageSize,
@@ -69,7 +71,7 @@ export function LeadManagement() {
   // Load paginated leads on mount and when filters change
   useEffect(() => {
     if (user) {
-      loadLeadsPaginated(currentPage, 'pool');
+      loadLeadsPaginated(currentPage, 'pool', { status: statusFilter });
     }
   }, [user, currentPage, statusFilter]); // DO NOT include functions in dependencies
 
@@ -95,8 +97,7 @@ export function LeadManagement() {
       if (!matchesSearch) return false;
     }
     
-    // Status Filter (if not 'all')
-    if (statusFilter !== 'all' && lead.status !== statusFilter) return false;
+
 
     return true;
   });
@@ -254,25 +255,39 @@ export function LeadManagement() {
         const importedLeads = processImportedData(jsonData);
         
         if (importedLeads.length > 0) {
-          // DUPLICATE DETECTION (CIN BASED)
+          // FIX 7: FIRESTORE-LEVEL CIN DUPLICATE CHECK
           const validList: Lead[] = [];
           const duplicateList: Lead[] = [];
           
-          importedLeads.forEach(importedLead => {
-            // Check if CIN exists in current leads (for the same company)
-            const exists = leads.some(existingLead => 
-              existingLead.companyId === (importedLead.companyId || user?.companyId) && 
-              existingLead.cin && 
-              importedLead.cin && 
-              existingLead.cin.toLowerCase() === importedLead.cin.toLowerCase()
-            );
-            
-            if (exists) {
-              duplicateList.push(importedLead);
-            } else {
-              validList.push(importedLead);
+          // Show checking toast
+          const checkToast = toast.loading(`Checking ${importedLeads.length} leads for duplicates...`);
+
+          for (const lead of importedLeads) {
+            // FIX A: CIN Validation
+            if (!lead.cin || lead.cin.trim() === "") {
+              console.warn("Skipping lead without CIN", lead);
+              continue; // Skip invalid leads
             }
-          });
+
+            // Check Firestore for duplicates
+            const q = query(
+              collection(db, "leads"),
+              where("companyId", "==", user?.companyId),
+              where("cin", "==", lead.cin.toLowerCase()) // Ensure case-insensitive check if stored lowercase, or just match exact if standard
+            );
+
+            // Note: In a real app with large imports, we might want to batch these queries or use a cloud function.
+            // For now, sequential await is safer to prevent rate limits, though slower.
+            const snap = await getDocs(q);
+
+            if (snap.empty) {
+               validList.push(lead);
+            } else {
+               duplicateList.push(lead);
+            }
+          }
+
+          toast.dismiss(checkToast);
 
           if (validList.length === 0 && duplicateList.length > 0) {
             toast.warning(`All ${duplicateList.length} leads were skipped as duplicates (CIN already exists).`);
@@ -289,17 +304,8 @@ export function LeadManagement() {
           
           try {
             // Use batch import
-            const successCount = await batchAddLeads(validList.map(lead => ({
-                ...lead,
-                companyId: lead.companyId || user?.companyId || '',
-                uploadedBy: user?.id || '',
-                status: lead.status || 'Cold',
-                isAssigned: false,
-                assignedTo: null,
-                createdAt: lead.createdAt || new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                directors: lead.directors || []
-            })));
+            // FIX 6: REMOVE DOUBLE NORMALIZATION (already normalized in processImportedData)
+            const successCount = await batchAddLeads(validList);
 
             // Dismiss loading toast
             toast.dismiss(loadingToast);
@@ -865,7 +871,7 @@ export function LeadManagement() {
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1>Lead Pool</h1>
+          <h1>{user?.role === 'sales_user' ? 'My Pending Leads' : 'Leads Needing Follow-Up'}</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             {user?.role === 'sales_user' || user?.role === 'super_admin'
               ? `Showing: ${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`
@@ -914,7 +920,7 @@ export function LeadManagement() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lead Pool</CardTitle>
+          <CardTitle>{user?.role === 'sales_user' ? 'My Pending Leads' : 'Leads Needing Follow-Up'}</CardTitle>
           <CardDescription>
             {user?.role === 'sales_user' 
               ? 'Your assigned leads' 
@@ -1004,32 +1010,45 @@ export function LeadManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {(user?.role && hasPermission(user.role, 'ASSIGN_LEADS')) ? (
-                        <Select 
-                          value={lead.assignedTo || undefined} 
-                          onValueChange={(value: string) => handleAssignLead(lead.id, value)}
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Assign to..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {users
-                              .filter(u => u.isActive && user.role && canAssignToUser(user.role, u.role))
-                              .filter(u => {
-                                // For non-super admins, only show users from same company
-                                if (user.role === 'super_admin') return true;
-                                return u.companyId === user.companyId;
-                              })
-                              .map(targetUser => (
-                                <SelectItem key={targetUser.id} value={targetUser.id}>
-                                  {targetUser.name} ({targetUser.role})
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-sm">{getAssignedUserName(lead.assignedTo)}</span>
-                      )}
+                      <div className="flex flex-col gap-2">
+                        {/* FIX C: Assignment Status Icon */}
+                        {lead.isAssigned ? (
+                          <Badge variant="secondary" className="w-fit bg-blue-100 text-blue-800 hover:bg-blue-200">
+                            Assigned
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="w-fit text-gray-500">
+                            Unassigned
+                          </Badge>
+                        )}
+                        
+                        {(user?.role && hasPermission(user.role, 'ASSIGN_LEADS')) ? (
+                          <Select 
+                            value={lead.assignedTo || undefined} 
+                            onValueChange={(value: string) => handleAssignLead(lead.id, value)}
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue placeholder="Assign to..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {users
+                                .filter(u => u.isActive && user.role && canAssignToUser(user.role, u.role))
+                                .filter(u => {
+                                  // For non-super admins, only show users from same company
+                                  if (user.role === 'super_admin') return true;
+                                  return u.companyId === user.companyId;
+                                })
+                                .map(targetUser => (
+                                  <SelectItem key={targetUser.id} value={targetUser.id}>
+                                    {targetUser.name} ({targetUser.role})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-sm">{getAssignedUserName(lead.assignedTo)}</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {calculateNextFollowUpDate(lead) ? (

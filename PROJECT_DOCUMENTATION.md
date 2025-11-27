@@ -64,26 +64,6 @@ This release fixes critical Firestore query errors that were causing quota burn 
 #### 🔧 Query Structure Fixes
 - ❌ **Removed Illegal Queries**: Eliminated `where("status", "not-in", [])` + `orderBy()` combinations
 - ❌ **No More Aggregation**: Removed `getCountFromServer()` and aggregation queries causing quota burn
-- ❌ **Fixed Multiple Inequalities**: No more multiple range field violations  
-- ✅ **Legal Query Pattern**: Single equality filter + orderBy + limit + cursor only
-
-#### 🛡️ Security & Performance Improvements
-- ✅ **Sales User Queries**: `where("assignedTo", "==", user.id)` + `orderBy("createdAt", "desc")`
-- ✅ **Admin Queries**: `where("companyId", "==", companyId)` + `orderBy("createdAt", "desc")`
-- ✅ **Client-side Filtering**: All status filtering moved to client-side
-- ✅ **Lead Pool Logic**: Proper follow-up detection for visibility rules
-- ✅ **Excel Import Security**: Guaranteed `createdAt`, `updatedAt`, and all critical fields
-
-#### 🎯 Lead Pool Rules (CORRECTED)
-```typescript
-// Sales Users: Only assigned leads with no follow-ups
-if (user.role === 'sales_user') {
-  return lead.assignedTo === user.id && !hasFollowUps;
-}
-
-// Admin & Team Lead: Unassigned OR assigned-without-follow-ups  
-return (!lead.isAssigned || (lead.isAssigned && !hasFollowUps));
-```
 
 #### ⚡ Performance Impact
 - **70-90% Quota Reduction**: Eliminated repeated failed queries
@@ -136,6 +116,7 @@ lead-management/
 │   ├── types/
 │   │   └── roles.ts         # Role definitions & permissions
 │   ├── utils/              # Utility functions
+│   │   └── leadVisibility.ts # Centralized visibility logic
 │   ├── styles/             # Global styles
 │   ├── App.tsx             # Main app router & layout
 │   ├── main.tsx            # React app entry point
@@ -151,53 +132,32 @@ lead-management/
 
 ## 🔑 Core Features
 
-### 1. Multi-Tenant Architecture
-- **Company Isolation**: Each company's data is completely separate
-- **Role-Based Access**: 4-tier permission system
-- **Scalable Design**: Supports unlimited companies and users
+### Security Architecture (v1.4.0)
 
-## 🔒 Security Architecture (v1.3.0)
-
-### Multi-Layer Security Implementation
-
-Our Lead Management System implements a comprehensive multi-layer security approach with critical enhancements in v1.3.0:
-
-#### Layer 1: Server-side Query Constraints
-```typescript
-// Sales User Restrictions (UPDATED v1.3.0)
-if (user.role === 'sales_user') {
-  if (view === 'pool') {
-    // Only assigned leads with no follow-ups
-    constraints.push(where("assignedTo", "==", user.id));
-    constraints.push(where("status", "not-in", ["Lost", "Converted"]));
-  } else if (view === 'assigned') {
-    // Only leads assigned to this user
-    constraints.push(where("assignedTo", "==", user.id));
-    constraints.push(where("status", "not-in", ["Lost", "Converted"]));
-  } else {
-    // All other views: Only assigned leads
-    constraints.push(where("assignedTo", "==", user.id));
-  }
+#### Layer 1: Firestore Security Rules
+```javascript
+match /leads/{leadId} {
+  allow read: if request.auth != null && 
+    (resource.data.companyId == request.auth.token.companyId || request.auth.token.role == 'super_admin');
 }
-
-// Consistent Ordering (NEW v1.3.0)
-let q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), limit(pageSize));
 ```
 
-#### Layer 2: Client-side Validation
+#### Layer 2: Centralized Visibility Logic (NEW v1.4.0)
+We have centralized all lead visibility rules into a single helper file `src/utils/leadVisibility.ts` to prevent logic divergence between components.
+
 ```typescript
-// Lead Pool Filtering (UPDATED v1.3.0)
-const shouldShowInPool = (lead: Lead, hasFollowUps: boolean) => {
-  if (user?.role === 'sales_user') {
-    // Sales users: Only assigned leads with no follow-ups
-    return lead.assignedTo === user.id && !hasFollowUps;
-  } else {
-    // Admins: Unassigned OR assigned with no follow-ups
-    if (!lead.isAssigned) return true;
-    if (lead.isAssigned && !hasFollowUps) return true;
-    return false;
-  }
-};
+// src/utils/leadVisibility.ts
+
+// Sales Users: Can only see leads assigned to them
+export function canSalesUserViewLeadInPool(user: User, lead: Lead): boolean {
+    // Lead Pool for sales_user = only assigned-to-me & no follow-ups
+    return canSalesUserViewLeadInAssigned(user, lead) && !hasFollowUps(lead);
+}
+
+// Admins: Can see unassigned OR assigned-but-no-follow-ups
+export function canAdminOrTlViewLeadInPool(user: User, lead: Lead): boolean {
+    return (!lead.isAssigned) || (lead.isAssigned && !hasFollowUps(lead));
+}
 ```
 
 #### Layer 3: Universal Security Guards (NEW v1.3.0)
@@ -245,7 +205,7 @@ const importedLead = {
 - **Company Activation**: Companies can be activated/deactivated, affecting all users
 - **User Limits**: Subscription-based user count enforcement
 
-### 2. Lead Management Pipeline
+### 3. Lead Management Pipeline
 - **Lead Pool**: Unassigned leads OR assigned leads without active follow-ups
 - **Assigned Leads**: Leads with active assignments and follow-ups
 - **Follow-up System**: Multi-director support with active/completed status tracking
@@ -518,9 +478,10 @@ npm run build
 
 ### Sales User Security Enhancement (November 2025)
 - ✅ **Critical Security Fix**: Sales users can now only see appropriate leads
+- ✅ **Centralized Logic**: `leadVisibility.ts` as single source of truth
 - ✅ **Server-side Filtering**: Added comprehensive role-based query constraints
 - ✅ **Multi-layer Protection**: Server-side + client-side validation
-- ✅ **Lead Pool Access**: Sales users restricted to unassigned leads only
+- ✅ **Lead Pool Access**: Sales users restricted to assigned leads (without follow-ups) only
 - ✅ **Assigned Leads Access**: Sales users see only their own assigned leads
 - ✅ **Follow-up Logic Fix**: Corrected active vs completed follow-up detection
 
@@ -538,31 +499,29 @@ npm run build
 
 #### **Server-Side Protection (LeadsContext.tsx)**
 ```typescript
-// Role-based query constraints for sales users
+// Strict Role-Based Scoping (v1.4.0)
+// Sales Users can NEVER fetch leads not assigned to them
 if (user.role === 'sales_user') {
-  if (view === 'pool') {
-    // Lead Pool: Only unassigned leads
-    constraints.push(where("isAssigned", "==", false));
-  } else if (view === 'assigned') {
-    // Assigned Leads: Only own assigned leads
-    constraints.push(where("isAssigned", "==", true));
-    constraints.push(where("assignedTo", "==", user.id));
-  } else {
-    // Other views: Only own leads
-    constraints.push(where("assignedTo", "==", user.id));
-  }
+  // STRICT: Only assigned leads
+  constraints.push(where("assignedTo", "==", user.id));
+} else if (user.role === 'company_admin' || user.role === 'team_lead') {
+  // Company Scope
+  constraints.push(where("companyId", "==", user.companyId));
 }
+// Super Admin sees all
+
+// Note: Status filtering is now done client-side to prevent index explosion
 ```
 
 #### **Client-Side Validation (LeadManagement.tsx)**
 ```typescript
-// Backup security check for sales users
-if (user?.role === 'sales_user') {
-  if (lead.isAssigned) {
-    console.warn('[SECURITY] Unauthorized access attempt blocked');
-    return false;
+// UI Filtering using Centralized Helpers
+const visibleLeads = fetchedLeads.filter(lead => {
+  if (user.role === 'sales_user') {
+    return canSalesUserViewLeadInPool(user, lead);
   }
-}
+  return canAdminOrTlViewLeadInPool(user, lead);
+});
 ```
 
 #### **Permission System Integration**
@@ -592,7 +551,7 @@ const canExportData = hasPermission(user.role, 'IMPORT_LEADS');
 | **Platform Admin** | All companies | All companies | All | All | Limited |
 | **Company Admin** | Own company | Own company | Own company | Own company | Own company |
 | **Team Lead** | Own company | Own company | Own company | Own company | No access |
-| **Sales User** | **Unassigned only** | **Own assigned only** | No access | **Own only** | No access |
+| **Sales User** | **Own Assigned (No Follow-ups)** | **Own Assigned** | No access | **Own only** | No access |
 
 ### Active Follow-up Logic Enhancement
 
@@ -609,7 +568,7 @@ const shouldShowInPool = !lead.isAssigned || (lead.isAssigned && !hasActiveFollo
 1. **Unassigned Leads**: Always appear in Lead Pool (available for assignment)
 2. **Assigned + No Active Follow-ups**: Appear in Lead Pool (need attention)
 3. **Assigned + Active Follow-ups**: Move to Assigned Leads (being worked on)
-4. **Sales User Restriction**: Can only see unassigned leads in Lead Pool
+4. **Sales User Restriction**: Can only see assigned leads (Pool = assigned w/o follow-ups)
 
 ---
 
@@ -681,7 +640,7 @@ npm run build
 
 ### Documentation Updates
 - Last Updated: November 26, 2025
-- Version: 1.2.1 (Security Enhanced)
+- Version: 1.4.0 (Security Enhanced)
 - Status: Production Ready with Enhanced Security
 - Latest Changes: Sales user access control, follow-up logic fixes, comprehensive documentation
 
@@ -755,7 +714,7 @@ npm run build
 #### 1. Sales Users Seeing All Leads
 **Problem**: Sales users can see leads they shouldn't have access to.
 
-**Solution**: Verify v1.3.0 security implementation:
+**Solution**: Verify v1.4.0 security implementation:
 ```typescript
 // Check LeadsContext.tsx
 if (user.role === 'sales_user') {
@@ -763,129 +722,8 @@ if (user.role === 'sales_user') {
 }
 
 // Check LeadManagement.tsx  
-const shouldShowInPool = (lead: Lead, hasFollowUps: boolean) => {
-  if (user?.role === 'sales_user') {
-    return lead.assignedTo === user.id && !hasFollowUps;
-  }
-};
+// Ensure canSalesUserViewLeadInPool is used
 ```
-
-#### 2. Pagination Issues
-**Solution**: Ensure proper ordering:
-```typescript
-let q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), limit(pageSize));
-```
-
-#### 3. Excel Import Problems  
-**Solution**: Verify field initialization:
-```typescript
-const importedLead = {
-  ...leadData,
-  status: 'Cold',
-  isAssigned: false,
-  assignedTo: null,
-  updatedAt: new Date().toISOString()
-};
-```
-
-#### 4. Build Failures
-**Problem**: TypeScript compilation errors or syntax issues.
-
-**Solutions**:
-```bash
-# Check for TypeScript errors
-npx tsc --noEmit
-
-# Build for production
-npm run build
-
-# Start development server
-npm run dev
-```
-
-**Common Build Issues**:
-- **Unused Variables**: Remove unused imports and variables
-- **Syntax Errors**: Check for duplicate closing braces or missing semicolons
-- **Type Errors**: Ensure proper typing for function parameters
-- **Module Resolution**: Verify all imports are correctly specified
-
-#### 5. Performance Issues
-**Problem**: Slow page loads or high Firestore usage.
-
-**Solutions**:
-- Monitor Firestore quota usage in Firebase Console
-- Check for infinite loops in useEffect dependencies
-- Verify client-side filtering is working correctly
-- Ensure proper pagination cursor handling
-
----
-
-## 📊 Change Log
-
-### [1.4.0] - 2025-11-26 - Production Ready with Critical Fixes
-
-#### 🔧 Query Structure Fixes
-- **Fixed Illegal Queries**: Removed `where("status", "not-in", [])` + `orderBy()` combinations
-- **Eliminated Aggregation**: Removed `getCountFromServer()` causing quota burn
-- **Legal Query Pattern**: Single equality + orderBy + limit + cursor only
-- **Client-side Filtering**: All status filtering moved from server to client
-
-#### ⚡ Performance Optimizations  
-- **70-90% Quota Reduction**: Eliminated repeated failed query retries
-- **Stable Pagination**: Fixed infinite loops and cursor-based pagination
-- **Excel Import Fixes**: Guaranteed `createdAt` field prevents orderBy exclusions
-- **useEffect Dependencies**: Fixed to prevent unnecessary re-renders
-
-#### 🛡️ Security Enhancements
-- **Sales User Access Control**: Added LeadDetail unauthorized access prevention  
-- **Lead Pool Business Logic**: Corrected follow-up detection for visibility
-- **Query Security**: Sales users limited to `assignedTo` equality constraint only
-
-#### 🚀 Build & Production Fixes
-- **Fixed Syntax Errors**: Resolved duplicate closing braces in LeadManagement.tsx
-- **TypeScript Cleanup**: Removed unused variables and imports
-- **Function Signatures**: Updated all function calls to match new parameters
-- **Bundle Optimization**: 2370 modules successfully transformed
-- **Production Ready**: Complete build pipeline operational
-
-#### 📊 Metrics & Performance
-- **Build Time**: ~6.5 seconds for production build
-- **Dev Server**: Starts in ~261ms
-- **Bundle Size**: 1.84MB (529KB gzipped)
-- **Firestore Quota**: 70-90% reduction in failed queries
-
-### [1.3.0] - 2025-11-26 - Critical Security Overhaul
-
-#### 🛡️ 8-Task Security Enhancement
-- **TASK 1**: ✅ Sales user server constraints (`assignedTo`-based filtering)
-- **TASK 2**: ✅ Client-side filtering logic (proper sales user isolation)
-- **TASK 3**: ✅ Excel import security (field initialization + `updatedAt`)
-- **TASK 4**: ✅ Query constraint cleanup (removed incorrect `isAssigned == false`)
-- **TASK 5**: ✅ Follow-up assignment logic (preserve assignment state)
-- **TASK 6**: ✅ Pagination order fix (server-side sorting before filtering)
-- **TASK 7**: ✅ Consistent query ordering (`orderBy("createdAt", "desc")`)
-- **TASK 8**: ✅ Universal security guards (authentication on all views)
-
-#### 🚀 Performance & Security Impact
-- **Query Optimization**: Server-side ordering eliminates client-side sorting
-- **Multi-layer Protection**: Server constraints + client validation + auth guards
-- **Complete Sales User Isolation**: Only see assigned leads with proper filtering
-- **Data Integrity**: Secure imports with proper field initialization
-
-### [1.2.1] - 2025-11-25 - Security & Documentation
-- **Critical Fix**: Sales user access control implementation
-- **Multi-layer Security**: Server-side constraints + client-side filtering
-- **Comprehensive Documentation**: Complete technical specifications
-
-### Getting Help
-- Check this documentation first
-- Review console logs for debugging
-- Verify Firebase configuration and permissions
-- Test with demo users for role-specific issues
-
----
-
-## ✅ Production Deployment Checklist
 
 ### Pre-Deployment Verification
 - [ ] **Build Success**: `npm run build` completes without errors

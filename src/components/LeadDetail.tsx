@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead, type Director } from './LeadsContext';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,15 +58,32 @@ interface LeadDetailProps {
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
   const { updateLead, addFollowUp } = useLeads();
+  const navigate = useNavigate();
+  
+  // Immediate access guard (permission-aware)
+  if (user?.role === 'sales_user') {
+    const isAssignedToMe = lead.assignedTo === user.id;
+    const iMarkedLost = lead.status === 'Lost' && lead.lostBy === user.id;
+    const iConverted = lead.status === 'Converted' && (lead.convertedBy === user.id || hasPermission(user.role, 'VIEW_CONVERTED_LEADS'));
+
+    if (!isAssignedToMe && !iMarkedLost && !iConverted) {
+      return (
+        <div className="p-6 text-center text-red-500 font-semibold">
+          Unauthorized Access
+        </div>
+      );
+    }
+  }
   
   // SECURITY: Sales Users must not access leads not assigned to them
   useEffect(() => {
     if (user?.role === 'sales_user' && lead.assignedTo !== user.id) {
       toast.error("Unauthorized: You can only view leads assigned to you");
       onClose();
+      navigate('/assigned-leads');
       return;
     }
-  }, [user, lead, onClose]);
+  }, [user, lead, onClose, navigate]);
   
   const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
