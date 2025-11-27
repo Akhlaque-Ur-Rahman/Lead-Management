@@ -149,9 +149,9 @@ export const canAssignToUser = (assignerRole: RoleKey, targetUserRole: RoleKey):
     return ['company_admin', 'team_lead', 'sales_user'].includes(targetUserRole);
   }
 
-  // Team Leader can only assign to Sales Users
+  // Team Leader can assign to Sales Users AND themselves
   if (assignerRole === 'team_lead') {
-    return targetUserRole === 'sales_user';
+    return ['sales_user', 'team_lead'].includes(targetUserRole);
   }
 
   // Sales User cannot assign leads
@@ -172,7 +172,7 @@ export const getAssignableRoles = (userRole: RoleKey): RoleConfig[] => {
   } else if (userRole === 'company_admin') {
     return [ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'team_lead') {
-    return [ROLES.SALES_USER]; // Team Lead can only assign to Sales User
+    return [ROLES.SALES_USER, ROLES.TEAM_LEAD]; // Team Lead can assign to Sales User and Self
   }
   return [];
 };

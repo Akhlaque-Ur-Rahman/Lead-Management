@@ -31,7 +31,7 @@ import {
 import { Plus, Search, Filter, Download, Upload, Eye, Edit, FileDown, Info } from 'lucide-react';
 import { LeadForm } from './LeadForm';
 import { LeadDetail } from './LeadDetail';
-import { PaginationControls } from './ui/pagination-controls';
+
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { hasPermission, canAssignToUser } from '../types/roles';
@@ -44,15 +44,8 @@ export function LeadManagement() {
   const { user, users } = useAuth();
   const { 
  
-    paginatedLeads,
-    totalLeadsCount,
-    pageSize,
-    setPageSize,
-    currentPage,
-    setCurrentPage,
-    totalPages,
-    loadLeadsPaginated,
-    resetPagination,
+    leads,
+    loadLeadsAll,
     fieldConfigs, 
     addLead, 
     updateLead, 
@@ -68,22 +61,15 @@ export function LeadManagement() {
   const [editMode, setEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load paginated leads on mount and when filters change
+  // Load leads on mount and when filters change
   useEffect(() => {
     if (user) {
-      loadLeadsPaginated(currentPage, 'pool', { status: statusFilter });
+      loadLeadsAll('pool', { status: statusFilter });
     }
-  }, [user, currentPage, statusFilter]); // DO NOT include functions in dependencies
+  }, [user, statusFilter]);
 
-  // Reset to first page when page size changes
-  useEffect(() => {
-    if (currentPage > 0) {
-      setCurrentPage(0);
-    }
-  }, [pageSize, setCurrentPage]); // Removed currentPage to avoid infinite loop
-
-  // Client-side search and status filtering (Lead Pool filtering is handled in LeadsContext)
-  const filteredLeads = paginatedLeads.filter(lead => {
+  // Client-side search and status filtering
+  const filteredLeads = leads.filter(lead => {
     // Search Filter
     if (searchTerm) {
       const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -353,9 +339,7 @@ export function LeadManagement() {
               toast.success(`Successfully imported ${successCount} leads to Firestore!`);
             }
             
-            // Refresh the list after import
-            resetPagination(); // Clear pagination cursors
-            await loadLeadsPaginated(0, 'pool');
+
           } catch (error) {
             toast.dismiss(loadingToast);
             console.error('Import error:', error);
@@ -1123,14 +1107,7 @@ export function LeadManagement() {
         </CardContent>
       </Card>
 
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        totalCount={totalLeadsCount}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={setPageSize}
-      />
+
 
       {/* Lead Form Dialog */}
       <Dialog open={showLeadForm} onOpenChange={setShowLeadForm}>

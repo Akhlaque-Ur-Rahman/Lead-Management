@@ -17,7 +17,6 @@ import {
   writeBatch,
   orderBy,
   limit,
-  startAfter,
   getDocs,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
@@ -195,23 +194,6 @@ interface LeadsContextValue {
   calculateNextFollowUpDate: (lead: Lead) => string | null;
   getLatestActiveFollowUpForCompany: (lead: Lead) => FollowUp | null;
 
-  // Pagination
-  paginatedLeads: Lead[];
-  totalLeadsCount: number;
-  pageSize: number;
-  setPageSize: (size: number) => void;
-  currentPage: number;
-  setCurrentPage: (page: number) => void;
-  totalPages: number;
-  loadLeadsPaginated: (
-    pageIndex: number,
-    view: 'pool' | 'assigned' | 'converted' | 'lost',
-    filters?: any
-  ) => Promise<void>;
-  resetPagination: () => void;
-  pauseListeners: () => void;
-  resumeListeners: () => void;
-  
   // NEW: Load all leads (replaces pagination)
   loadLeadsAll: (
     view: 'pool' | 'assigned' | 'converted' | 'lost',
@@ -347,129 +329,11 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Pagination State
-  const [paginatedLeads, setPaginatedLeads] = useState<Lead[]>([]);
-  const [totalLeadsCount, setTotalLeadsCount] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pages, setPages] = useState<DocumentData[]>([]); // Store cursors
-
-  // Pause listeners state
-  const [isPaused, setIsPaused] = useState(false);
-
-  const pauseListeners = () => setIsPaused(true);
-  const resumeListeners = () => setIsPaused(false);
-
-  const totalPages = Math.ceil(totalLeadsCount / pageSize);
 
 
 
-  const loadLeadsPaginated = async (
-    pageIndex: number,
-    view: 'pool' | 'assigned' | 'converted' | 'lost',
-    filters?: any
-  ) => {
-    if (!user) return;
-    setIsLoading(true);
 
 
-    try {
-      let baseQuery = collection(db, "leads");
-      let constraints: any[] = [];
-
-      // 1. STRICT SERVER-SIDE ROLE SCOPING
-      if (user.role === 'sales_user') {
-        // Sales Users: ONLY their assigned leads
-        constraints.push(where("assignedTo", "==", user.id));
-      } else if (user.role === 'company_admin' || user.role === 'team_lead') {
-        // Company Admin / Team Lead: Company-scoped
-        constraints.push(where("companyId", "==", user.companyId));
-      }
-      // Super Admin: No constraints (sees all)
-
-      // 1.5 STATUS FILTER (Optional)
-      if (filters?.status && filters.status !== 'all') {
-        constraints.push(where("status", "==", filters.status));
-      }
-
-      // 2. ORDERING (Always createdAt desc)
-      // Do NOT add status filters here to prevent index explosions
-      let q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), limit(pageSize));
-
-      // 3. PAGINATION CURSOR
-      if (pageIndex > 0 && pages[pageIndex - 1]) {
-        q = query(baseQuery, ...constraints, orderBy("createdAt", "desc"), startAfter(pages[pageIndex - 1]), limit(pageSize));
-      }
-
-      const snapshot = await getDocs(q);
-      
-      // Store cursor for next page
-      if (snapshot.docs.length > 0) {
-        const lastVisible = snapshot.docs[snapshot.docs.length - 1];
-        setPages(prev => {
-          const newPages = [...prev];
-          newPages[pageIndex] = lastVisible;
-          return newPages;
-        });
-      }
-
-      const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
-      
-      // 4. CLIENT-SIDE VISIBILITY & BUSINESS LOGIC FILTERING
-      const visibleLeads = fetchedLeads.filter(lead => {
-        // Global View Filters
-        if (view === 'converted' && lead.status !== 'Converted') return false;
-        if (view === 'lost' && lead.status !== 'Lost') return false;
-        if ((view === 'pool' || view === 'assigned') && (lead.status === 'Lost' || lead.status === 'Converted')) return false;
-
-        // Role-Specific Logic
-        if (user.role === 'sales_user') {
-          if (view === 'pool') return canSalesUserViewLeadInPool(user, lead);
-          if (view === 'assigned') return canSalesUserViewLeadInAssigned(user, lead);
-        } else if (user.role === 'company_admin' || user.role === 'team_lead') {
-          if (view === 'pool') return canAdminOrTlViewLeadInPool(user, lead);
-          if (view === 'assigned') return lead.isAssigned; // Admin sees all assigned
-        }
-        
-        return true;
-      });
-      
-      // Set total count from filtered results (fallback)
-      if (pageIndex === 0) {
-        if (leads.length > 0) {
-          // If we have the full list, calculate accurate count based on view
-          const count = leads.filter(lead => {
-            // Global View Filters
-            if (view === 'converted' && lead.status !== 'Converted') return false;
-            if (view === 'lost' && lead.status !== 'Lost') return false;
-            if ((view === 'pool' || view === 'assigned') && (lead.status === 'Lost' || lead.status === 'Converted')) return false;
-
-            // Role-Specific Logic
-            if (user.role === 'sales_user') {
-              if (view === 'pool') return canSalesUserViewLeadInPool(user, lead);
-              if (view === 'assigned') return canSalesUserViewLeadInAssigned(user, lead);
-            } else if (user.role === 'company_admin' || user.role === 'team_lead') {
-              if (view === 'pool') return canAdminOrTlViewLeadInPool(user, lead);
-              if (view === 'assigned') return lead.isAssigned;
-            }
-            return true;
-          }).length;
-          setTotalLeadsCount(count);
-        } else {
-          setTotalLeadsCount(visibleLeads.length);
-        }
-      }
-      
-      setPaginatedLeads([...visibleLeads]);
-      setCurrentPage(pageIndex);
-
-    } catch (error) {
-      console.warn("loadLeadsPaginated failed:", error);
-      // Do not retry endlessly
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   /**
    * Load ALL leads for a given view (replaces pagination)
@@ -491,7 +355,11 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       const constraints: any[] = [];
       // 1. ROLE-BASED SCOPING
       if (user.role === 'sales_user') {
-        constraints.push(where("assignedTo", "==", user.id));
+        if (view === 'lost') {
+          constraints.push(where("lostBy", "==", user.id));
+        } else {
+          constraints.push(where("assignedTo", "==", user.id));
+        }
       } else if (user.role === 'company_admin' || user.role === 'team_lead') {
         constraints.push(where("companyId", "==", user.companyId));
       }
@@ -517,13 +385,32 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         if (view === 'lost') {
           return lead.status === 'Lost';
         }
-        if (view === 'pool' || view === 'assigned') {
-          // Exclude Lost and Converted
+        
+          // Lead Pool Logic
+        if (view === 'pool') {
+          // Remove Lost / Converted
+          if (lead.status === 'Lost' || lead.status === 'Converted') return false;
+
+          // Unassigned → always in pool
+          if (!lead.isAssigned) return true;
+
+          // Assigned → NEVER in pool (goes to Assigned Leads immediately)
+          return false;
         }
+
+        // Assigned Leads Logic
+        if (view === 'assigned') {
+          if (!lead.isAssigned) return false;
+          
+          // Assigned leads ALWAYS appear here, regardless of follow-ups
+          return true;
+        }
+
         // Status filter (if provided)
         if (filters?.status && filters.status !== 'all') {
           if (lead.status !== filters.status) return false;
         }
+        
         // Role-specific visibility rules
         if (user.role === 'sales_user') {
           if (view === 'pool') return canSalesUserViewLeadInPool(user, lead);
@@ -548,14 +435,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
       return [];
     }
-  };
-
-  // Reset pagination helper
-  const resetPagination = () => {
-    setPages([]);
-    setCurrentPage(0);
-    setPaginatedLeads([]);
-    setTotalLeadsCount(0);
   };
 
   // Persist fieldConfigs to localStorage
@@ -608,9 +487,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   // Subscribe to leads collection
   useEffect(() => {
-    if (authLoading || isPaused) {
-      if (isPaused) console.log("Leads listener paused...");
-      setIsLoading(authLoading); // Keep loading state if auth is loading
+    if (authLoading) {
+      setIsLoading(true); // Keep loading state if auth is loading
       return;
     }
 
@@ -657,7 +535,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       console.error("Leads subscription error:", err);
       setIsLoading(false);
     }
-  }, [user?.companyId, authLoading, isPaused]);
+  }, [user?.companyId, authLoading]);
 
   // Subscribe to lostLeads collection
   useEffect(() => {
@@ -1107,8 +985,10 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         }
         
         if (leadUpdates.status === 'Lost') {
-          if (!hasPermission(user.role, "MARK_AS_LOST")) {
-            throw new Error("You do not have permission to mark leads as Lost.");
+          // Permission check for Mark as Lost
+          // Sales users can mark as lost if assigned to them (checked in UI/LeadDetail)
+          if (!hasPermission(user.role, "MARK_AS_LOST") && user.role !== 'sales_user') {
+             throw new Error("You do not have permission to mark leads as Lost.");
           }
           updates.assignedTo = null;
           updates.isAssigned = false;
@@ -1152,6 +1032,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       });
       await updateDoc(leadRef, {
         status: "Lost",
+        assignedTo: null,
+        isAssigned: false,
+        assignedAt: null,
         lostRemark: remark,
         lostBy: userId,
         lostAt: serverTimestamp(),
@@ -1164,25 +1047,34 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const restoreLostLead = async (lostId: string): Promise<boolean> => {
+  const restoreLostLead = async (leadId: string): Promise<boolean> => {
     try {
-      const lostDocRef = doc(db, "lostLeads", lostId);
-      const lostSnap = await getDoc(lostDocRef);
-      if (!lostSnap.exists()) throw new Error("Lost lead entry not found");
-      const payload = lostSnap.data();
-      const leadId = payload.leadId;
+      // Find the lost lead document(s) associated with this lead
+      const q = query(collection(db, "lostLeads"), where("leadId", "==", leadId));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        console.warn("No lost lead record found for lead:", leadId);
+        // Still try to restore the lead document itself
+      }
+
       const leadRef = doc(db, "leads", leadId);
       await updateDoc(leadRef, {
         status: "Cold",
         lostRemark: null,
         lostBy: null,
         lostAt: null,
+        assignedTo: null, // Ensure it goes back to pool unassigned
+        isAssigned: false
       } as any);
-      try {
-        await deleteDoc(lostDocRef);
-      } catch (e) {
-        await updateDoc(lostDocRef, { isRestored: true, restoredAt: serverTimestamp() } as any);
-      }
+
+      // Delete or mark restored in lostLeads collection
+      const batch = writeBatch(db);
+      snapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
       return true;
     } catch (err) {
       console.error("restoreLostLead error:", err);
@@ -1190,10 +1082,22 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const permanentlyDeleteLost = async (lostId: string): Promise<boolean> => {
+  const permanentlyDeleteLost = async (leadId: string): Promise<boolean> => {
     try {
-      const lostRef = doc(db, "lostLeads", lostId);
-      await deleteDoc(lostRef);
+      // Delete from leads collection
+      const leadRef = doc(db, "leads", leadId);
+      await deleteDoc(leadRef);
+
+      // Delete from lostLeads collection
+      const q = query(collection(db, "lostLeads"), where("leadId", "==", leadId));
+      const snapshot = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      snapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
       return true;
     } catch (err) {
       console.error("permanentlyDeleteLost error:", err);
@@ -1265,11 +1169,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
       (lead.directors ?? []).forEach((director) => {
         (director.followUps ?? []).forEach((followUp) => {
-          // Only show active follow-ups in calendar (backward compatible: treat missing status as active)
-          // AND exclude converted leads
-          const isActive = (!followUp.status || followUp.status === "active") && lead.status !== 'Converted';
-          if (isActive && followUp.date === date) {
-            result.push({ lead, director, followUp });
+          // Only show active follow-ups in calendar
+          // AND exclude converted/lost leads
+          const isActive = (!followUp.status || followUp.status === "active");
+          
+          if (isActive && lead.status !== 'Converted' && lead.status !== 'Lost') {
+            if (followUp.date === date) {
+              result.push({ lead, director, followUp });
+            }
           }
         });
       });
@@ -1302,7 +1209,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const batchAddLeads = async (leadsData: Partial<Lead>[]): Promise<number> => {
     try {
       // Pause listeners to prevent snapshot thrashing
-      pauseListeners();
+
       
       // Process in chunks of 500 (Firestore batch limit)
       const chunkSize = 500;
@@ -1334,24 +1241,19 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Reset pagination to show new leads
-      resetPagination();
-      
-      // Resume listeners after import
-      resumeListeners();
+
       
       // Reload leads using new loadLeadsAll (safer)
       try {
         await loadLeadsAll('pool');
       } catch (e) {
-        console.warn("loadLeadsAll failed after import, attempting paginated load", e);
-        // Fallback to paginated (best-effort)
-        try { await loadLeadsPaginated(0, 'pool'); } catch (err) { /* swallow */ }
+        console.warn("loadLeadsAll failed after import", e);
       }
       
       return successCount;
     } catch (err) {
       console.error("batchAddLeads error:", err);
-      resumeListeners(); // Ensure listeners are resumed on error
+
       return 0;
     }
   };
@@ -1394,17 +1296,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     getLastFollowUp,
 
     // Pagination
-    paginatedLeads,
-    totalLeadsCount,
-    pageSize,
-    setPageSize,
-    currentPage,
-    setCurrentPage,
-    totalPages,
-    loadLeadsPaginated,
-    resetPagination,
-    pauseListeners,
-    resumeListeners,
     loadLeadsAll
   };
 

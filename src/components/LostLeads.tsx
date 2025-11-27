@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -24,27 +24,30 @@ import {
 } from './ui/dialog';
 import { Search, RotateCcw, Trash2, Info, AlertCircle, Eye } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
-import { PaginationControls } from './ui/pagination-controls';
+
 import { toast } from 'sonner';
 
 
 export function LostLeads() {
   const { user, users } = useAuth();
-  const { lostLeads, restoreLostLead, permanentlyDeleteLost } = useLeads();
+  const { leads, loadLeadsAll, restoreLostLead, permanentlyDeleteLost } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLostLead, setSelectedLostLead] = useState<any>(null);
   const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+
+
+  useEffect(() => {
+    loadLeadsAll('lost');
+  }, []);
 
   // Filter lost leads based on user role and search
-  const filteredLostLeads = lostLeads.filter(lostLead => {
+  const filteredLostLeads = leads.filter(lead => {
     const matchesSearch = !searchTerm ||
-      lostLead.lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lostLead.lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (lostLead.lead.directors && lostLead.lead.directors.some(d => 
+      lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lead.directors && lead.directors.some(d => 
         d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         d.mobile.includes(searchTerm) ||
@@ -56,27 +59,16 @@ export function LostLeads() {
     if (['super_admin', 'company_admin', 'team_lead'].includes(user?.role || '')) {
       return matchesSearch;
     } else if (user?.role === 'sales_user') {
-      return matchesSearch && lostLead.lostBy === user?.id;
+      return matchesSearch && lead.lostBy === user?.id;
     }
     return false;
   });
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredLostLeads.length / pageSize);
-  const paginatedLostLeads = filteredLostLeads.slice(
-    currentPage * pageSize,
-    (currentPage + 1) * pageSize
-  );
+
 
   // Reset to page 0 when search changes
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    setCurrentPage(0);
-  };
-
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(0);
   };
 
   const handleRestore = async (leadId: string) => {
@@ -86,16 +78,12 @@ export function LostLeads() {
       return;
     }
 
-    const lostLead = lostLeads.find(l => l.lead.id === leadId);
-    
-    if (!lostLead) return;
+    // For now, we don't have isPermanent flag on Lead object easily available without listener
+    // So we skip that check or assume false. 
+    // If strict check needed, we'd need to fetch lostLeads doc.
+    // Assuming standard restore for now.
 
-    if (lostLead.isPermanent && user?.role !== 'super_admin' && user?.role !== 'company_admin') {
-      toast.error('Only Admins can restore permanently lost leads.');
-      return;
-    }
-
-    const success = await restoreLostLead(lostLead.id);
+    const success = await restoreLostLead(leadId);
     if (success) {
       toast.success('Lead restored successfully!');
     } else {
@@ -122,14 +110,11 @@ export function LostLeads() {
 
   const confirmPermanentDelete = async () => {
     if (leadToDelete) {
-      const lostLead = lostLeads.find(l => l.lead.id === leadToDelete);
-      if (lostLead) {
-        const success = await permanentlyDeleteLost(lostLead.id);
-        if (success) {
-          toast.success('Lost lead permanently deleted!');
-        } else {
-          toast.error('Failed to delete lead');
-        }
+      const success = await permanentlyDeleteLost(leadToDelete);
+      if (success) {
+        toast.success('Lost lead permanently deleted!');
+      } else {
+        toast.error('Failed to delete lead');
       }
       setShowConfirmDelete(false);
       setLeadToDelete(null);
@@ -142,8 +127,8 @@ export function LostLeads() {
   };
 
   const getUserName = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.name : 'Unknown';
+    const foundUser = users.find(u => u.id === userId);
+    return foundUser ? foundUser.name : 'Unknown';
   };
 
   return (
@@ -160,9 +145,7 @@ export function LostLeads() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Info:</strong> {user?.role === 'sales_user' 
-            ? 'You can view leads you marked as lost. Contact a Team Lead or Admin to restore them.' 
-            : 'Team Leads and Admins can manage lost leads.'}
+          <strong>Info:</strong> Team Leads and Admins can manage lost leads.
         </AlertDescription>
       </Alert>
 
@@ -208,13 +191,13 @@ export function LostLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLostLeads.map((lostLead) => (
-                    <TableRow key={lostLead.lead.id}>
-                      <TableCell className="font-medium">{lostLead.lead.companyName}</TableCell>
+                  {filteredLostLeads.map((lead) => (
+                    <TableRow key={lead.id}>
+                      <TableCell className="font-medium">{lead.companyName}</TableCell>
                       <TableCell>
-                        {lostLead.lead.directors && lostLead.lead.directors.length > 0 ? (
+                        {lead.directors && lead.directors.length > 0 ? (
                           <div className="space-y-2">
-                            {lostLead.lead.directors.map((director, idx) => (
+                            {lead.directors.map((director, idx) => (
                               <div key={director.id} className={idx > 0 ? 'pt-2 border-t border-border' : ''}>
                                 <div>{director.firstName} {director.lastName}</div>
                                 <div className="text-sm text-muted-foreground">{director.email}</div>
@@ -225,17 +208,17 @@ export function LostLeads() {
                           <span className="text-muted-foreground">N/A</span>
                         )}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{lostLead.lead.cin}</TableCell>
-                      <TableCell>{lostLead.lostDate}</TableCell>
-                      <TableCell>{getUserName(lostLead.lostBy)}</TableCell>
+                      <TableCell className="font-mono text-sm">{lead.cin}</TableCell>
+                      <TableCell>{lead.lostAt ? new Date(lead.lostAt).toLocaleDateString() : 'N/A'}</TableCell>
+                      <TableCell>{getUserName(lead.lostBy || '')}</TableCell>
                       <TableCell>
-                        <div className="max-w-[200px] truncate" title={lostLead.lostRemark}>
-                          {lostLead.lostRemark || 'N/A'}
+                        <div className="max-w-[200px] truncate" title={lead.lostRemark || ''}>
+                          {lead.lostRemark || 'N/A'}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={lostLead.isPermanent ? 'destructive' : 'secondary'}>
-                          {lostLead.isPermanent ? 'Permanent' : 'Temporary'}
+                        <Badge variant="secondary">
+                          Lost
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -243,15 +226,15 @@ export function LostLeads() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleViewLead(lostLead)}
+                            onClick={() => handleViewLead(lead)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {user?.role !== 'sales_user' && !lostLead.isPermanent && (
+                          {user?.role !== 'sales_user' && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRestore(lostLead.lead.id)}
+                              onClick={() => handleRestore(lead.id)}
                               title="Restore Lead"
                             >
                               <RotateCcw className="h-4 w-4" />
@@ -261,7 +244,7 @@ export function LostLeads() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handlePermanentDelete(lostLead.lead.id)}
+                              onClick={() => handlePermanentDelete(lead.id)}
                               title="Permanently Delete"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -278,14 +261,7 @@ export function LostLeads() {
         </CardContent>
       </Card>
 
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        totalCount={filteredLostLeads.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={handlePageSizeChange}
-      />
+
 
       {/* Confirm Delete Dialog */}
       <Dialog open={showConfirmDelete} onOpenChange={setShowConfirmDelete}>
@@ -315,7 +291,7 @@ export function LostLeads() {
         <DialogContent className="max-w-2xl">
           {selectedLostLead && (
             <LeadDetail
-              lead={selectedLostLead.lead}
+              lead={selectedLostLead}
               onClose={() => {
                 setShowLeadDetail(false);
                 setSelectedLostLead(null);

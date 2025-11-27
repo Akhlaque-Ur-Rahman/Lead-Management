@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -23,19 +23,18 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { Building2, Search, CheckCircle, IndianRupee, Calendar, User, Info, Download, ArrowUpDown } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
-import { PaginationControls } from './ui/pagination-controls';
+
 import { toast } from 'sonner';
 import { hasPermission } from '../types/roles';
 
 export function ConvertedLeads() {
   const { user, users, isLoading } = useAuth();
-  const { getConvertedLeads } = useLeads();
+  const { getConvertedLeads, loadLeadsAll } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+
 
   // Loading guard - check this BEFORE permission check
   if (isLoading) {
@@ -64,6 +63,11 @@ export function ConvertedLeads() {
 
   // Get converted leads for the company
   const convertedLeads = user.companyId ? getConvertedLeads(user.companyId) : [];
+
+  // Ensure leads are loaded
+  useEffect(() => {
+    loadLeadsAll('converted');
+  }, []);
 
   // Filter by search
   const filteredLeads = useMemo(() => {
@@ -142,28 +146,18 @@ export function ConvertedLeads() {
     }
   };
 
-  // Pagination logic
-  const totalPages = Math.ceil(sortedLeads.length / pageSize);
-  const paginatedLeads = sortedLeads.slice(
-    currentPage * pageSize,
-    (currentPage + 1) * pageSize
-  );
+
 
   // Reset to page 0 when filters change
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    setCurrentPage(0);
   };
 
   const handleSortChange = (value: 'date' | 'value') => {
     setSortBy(value);
-    setCurrentPage(0);
   };
 
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(0);
-  };
+
 
   if (selectedLead) {
     return (
@@ -338,7 +332,7 @@ export function ConvertedLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLeads.map((lead) => (
+                  {sortedLeads.map((lead) => (
                     <TableRow 
                       key={lead.id}
                       className="cursor-pointer hover:bg-muted/50"
@@ -413,14 +407,7 @@ export function ConvertedLeads() {
         </CardContent>
       </Card>
 
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        totalCount={sortedLeads.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={handlePageSizeChange}
-      />
+
     </div>
   );
 }

@@ -25,7 +25,7 @@ import {
 } from './ui/select';
 import { Building2, User, Search, Phone, Calendar, ArrowLeft } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
-import { PaginationControls } from './ui/pagination-controls';
+
 import { toast } from 'sonner';
 
 export function AssignedLeads() {
@@ -34,13 +34,8 @@ export function AssignedLeads() {
     getAssignedLeads, 
     getLeadsAssignedToUser, 
     assignLead,
-    paginatedLeads,
-    totalLeadsCount,
-    loadLeadsPaginated,
-    setPageSize,
-    pageSize,
-    currentPage,
-    setCurrentPage
+    leads,
+    loadLeadsAll
   } = useLeads();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,22 +45,22 @@ export function AssignedLeads() {
 
   if (!user) return null;
 
-  // 1. Load Leads (Server-Side Pagination)
+  // 1. Load Leads (Server-Side)
   useEffect(() => {
-    loadLeadsPaginated(currentPage, 'assigned', { status: statusFilter });
-  }, [currentPage, pageSize, statusFilter]);
+    loadLeadsAll('assigned', { status: statusFilter });
+  }, [statusFilter]);
 
-  // 2. Client-Side Search (on current page only)
+  // 2. Client-Side Search
   const displayLeads = useMemo(() => {
-    if (!searchQuery) return paginatedLeads;
-    return paginatedLeads.filter(lead => 
+    if (!searchQuery) return leads;
+    return leads.filter(lead => 
       lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (lead.cin && lead.cin.toLowerCase().includes(searchQuery.toLowerCase())) ||
       lead.directors.some(d => 
         `${d.firstName} ${d.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
       )
     );
-  }, [paginatedLeads, searchQuery]);
+  }, [leads, searchQuery]);
 
   // 3. Stats Logic (Kept using full list for accurate counts)
   // Get leads based on user role for STATS ONLY
@@ -83,27 +78,13 @@ export function AssignedLeads() {
     allAssignedLeads = user.companyId ? getAssignedLeads(user.companyId) : [];
   }
 
-  // Pagination logic
-  const totalPages = Math.ceil(totalLeadsCount / pageSize);
-
   // Reset to page 0 when filters change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    // Search is client-side on current page, so we don't reset server page
   };
 
   const handleUserFilterChange = (value: string) => {
     setSelectedUser(value);
-    // User filter for admins is currently client-side on stats, 
-    // but for the TABLE we are showing 'assigned' view which shows ALL assigned leads for admins.
-    // If we want to filter table by user, we need to pass it to loadLeadsPaginated.
-    // For now, we'll keep the table showing all assigned leads (server-side) 
-    // and stats showing filtered.
-  };
-
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(0);
   };
 
   const getUserName = (userId: string | null) => {
@@ -292,7 +273,7 @@ export function AssignedLeads() {
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <CardTitle>All Assigned Leads</CardTitle>
-              <CardDescription>{totalLeadsCount} leads found</CardDescription>
+              <CardDescription>{leads.length} leads found</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {user.role !== 'sales_user' && (
@@ -457,14 +438,7 @@ export function AssignedLeads() {
         </CardContent>
       </Card>
 
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        totalCount={totalLeadsCount}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={handlePageSizeChange}
-      />
+
     </div>
   );
 }
