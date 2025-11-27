@@ -22,8 +22,15 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useAuth } from "./AuthContext";
-import { canSalesUserViewLeadInPool, canAdminOrTlViewLeadInPool, canSalesUserViewLeadInAssigned, hasFollowUps, hasPermission } from '../utils/leadVisibility';
+import {
+  canSalesUserViewLeadInPool,
+  canAdminOrTlViewLeadInPool,
+  canSalesUserViewLeadInAssigned,
+  hasFollowUps,
+  hasPermission,
+} from '../utils/leadVisibility';
 import { canAssignToUser } from '../types/roles';
+import { FEATURE_FLAGS } from '../config/featureFlags';
 
 // -------------------- Types --------------------
 
@@ -94,9 +101,6 @@ export interface Lead {
   notes?: string;
   createdAt?: any;
   uploadedBy?: string;
-
-  // Follow-up History
-
 
   // Converted Lead Fields
   invoiceNo?: string;
@@ -207,8 +211,14 @@ interface LeadsContextValue {
   resetPagination: () => void;
   pauseListeners: () => void;
   resumeListeners: () => void;
+  
+  // NEW: Load all leads (replaces pagination)
+  loadLeadsAll: (
+    view: 'pool' | 'assigned' | 'converted' | 'lost',
+    filters?: any,
+    limitOverride?: number
+  ) => Promise<Lead[]>;
 }
-
 /**
  * Get only active follow-ups for a lead (optionally filtered by director)
  * Backward compatible: treats missing status as "active"
@@ -250,11 +260,12 @@ export const getAllFollowUps = (lead: Lead, directorId?: string): FollowUp[] => 
   
   // Sort by createdAt (chronological order)
   return allFollowUps.sort((a, b) => {
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    // guard for missing createdAt
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return ta - tb;
   });
 };
-
-
 
 export const getLastFollowUp = (lead: Lead): FollowUp | null => {
   const all = getAllFollowUps(lead);
@@ -315,8 +326,17 @@ const defaultFieldConfigs: FieldConfig[] = [
   { id: '11', label: 'Mobile', key: 'mobile', type: 'tel', required: false, showInForm: true, showInExcel: true, excelHeader: 'Mobile' },
   { id: '12', label: 'Director Email', key: 'directorEmail', type: 'email', required: false, showInForm: true, showInExcel: true, excelHeader: 'Director E-mail id' },
   { id: '13', label: 'Status', key: 'status', type: 'select', required: true, showInForm: true, showInExcel: true, excelHeader: 'Status', options: ['Hot', 'Warm', 'Cold', 'Converted', 'Lost'] },
-
   { id: '15', label: 'Notes', key: 'notes', type: 'textarea', required: false, showInForm: true, showInExcel: true, excelHeader: 'Notes' },
+];
+
+export const LeadsProvider = ({ children }: { children: ReactNode }) => {
+  const { user, users, isLoading: authLoading } = useAuth();
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [lostLeads, setLostLeads] = useState<LostLead[]>([]);
+  const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>(() => {
+    const saved = localStorage.getItem('lms_fieldConfigs');
+    if (saved) {
       try {
         return JSON.parse(saved);
       } catch (e) {
@@ -451,68 +471,86 @@ const defaultFieldConfigs: FieldConfig[] = [
     }
   };
 
-  // ... resetPagination ...
-
-  // ... useEffects ...
-
-  // ... normalizeDoc ...
-
-  // ... CRUD methods ...
-
-  const batchAddLeads = async (leadsData: Partial<Lead>[]): Promise<number> => {
+  /**
+   * Load ALL leads for a given view (replaces pagination)
+   * Uses role-based scoping and applies safety limits
+   */
+  const loadLeadsAll = async (
+    view: 'pool' | 'assigned' | 'converted' | 'lost',
+    filters?: any,
+    limitOverride?: number
+  ): Promise<Lead[]> => {
+    if (!user) {
+      console.warn('[loadLeadsAll] No user, returning empty array');
+      return [];
+    }
+    setIsLoading(true);
     try {
-      // Pause listeners to prevent snapshot thrashing
-      pauseListeners();
-      
-      // Process in chunks of 500 (Firestore batch limit)
-      const chunkSize = 500;
-      let successCount = 0;
-      
-      for (let i = 0; i < leadsData.length; i += chunkSize) {
-        const chunk = leadsData.slice(i, i + chunkSize);
-        const batch = writeBatch(db);
-        
-        chunk.forEach(lead => {
-          const docRef = doc(collection(db, "leads"));
-          // CRITICAL: Enforce required fields for sorting/filtering
-          batch.set(docRef, {
-            ...lead,
-            status: lead.status || "Cold",
-            isAssigned: !!lead.assignedTo,
-            assignedTo: lead.assignedTo || null,
-            companyId: lead.companyId || user?.companyId || '',
-            createdAt: lead.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            directors: lead.directors || [],
-            uploadedBy: user?.id || '',
-            id: docRef.id
-          });
-        });
-        
-        await batch.commit();
-        successCount += chunk.length;
+      const maxLimit = limitOverride || FEATURE_FLAGS.MAX_LEADS_FETCH_LIMIT;
+      const leadsRef = collection(db, "leads");
+      const constraints: any[] = [];
+      // 1. ROLE-BASED SCOPING
+      if (user.role === 'sales_user') {
+        constraints.push(where("assignedTo", "==", user.id));
+      } else if (user.role === 'company_admin' || user.role === 'team_lead') {
+        constraints.push(where("companyId", "==", user.companyId));
       }
-      
-      // Reset pagination to show new leads
-      resetPagination();
-      
-      // Resume listeners after import
-      resumeListeners();
-      
-      // Reload leads
-      loadLeadsPaginated(0, 'pool'); 
-      
-      return successCount;
-    } catch (err) {
-      console.error("batchAddLeads error:", err);
-      resumeListeners(); // Ensure listeners are resumed on error
-      return 0;
+      // Super Admin: No constraints
+      // 2. BUILD QUERY
+      const q = query(
+        leadsRef,
+        ...constraints,
+        orderBy("createdAt", "desc"),
+        limit(maxLimit)
+      );
+      console.log(`[loadLeadsAll] Fetching leads for view: ${view}, role: ${user.role}, limit: ${maxLimit}`);
+      // 3. FETCH DATA
+      const snapshot = await getDocs(q);
+      const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
+      console.log(`[loadLeadsAll] Fetched ${fetchedLeads.length} leads from Firestore`);
+      // 4. CLIENT-SIDE FILTERING
+      const filteredLeads = fetchedLeads.filter(lead => {
+        // View-specific filters
+        if (view === 'converted') {
+          return lead.status === 'Converted';
+        }
+        if (view === 'lost') {
+          return lead.status === 'Lost';
+        }
+        if (view === 'pool' || view === 'assigned') {
+          // Exclude Lost and Converted
+        }
+        // Status filter (if provided)
+        if (filters?.status && filters.status !== 'all') {
+          if (lead.status !== filters.status) return false;
+        }
+        // Role-specific visibility rules
+        if (user.role === 'sales_user') {
+          if (view === 'pool') return canSalesUserViewLeadInPool(user, lead);
+          if (view === 'assigned') return canSalesUserViewLeadInAssigned(user, lead);
+        } else if (user.role === 'company_admin' || user.role === 'team_lead') {
+          if (view === 'pool') return canAdminOrTlViewLeadInPool(user, lead);
+          if (view === 'assigned') return lead.isAssigned;
+        }
+        return true;
+      });
+      console.log(`[loadLeadsAll] After filtering: ${filteredLeads.length} leads for view: ${view}`);
+      // 5. WARN IF LIMIT REACHED
+      if (fetchedLeads.length >= maxLimit) {
+        console.warn(`[loadLeadsAll] Hit safety limit of ${maxLimit} leads. Some leads may not be loaded.`);
+      }
+      // 6. UPDATE STATE
+      setLeads(filteredLeads);
+      setIsLoading(false);
+      return filteredLeads;
+    } catch (error) {
+      console.error('[loadLeadsAll] Error:', error);
+      setIsLoading(false);
+      return [];
     }
   };
 
-  // ... rest of the file ...
-
-
+  // Reset pagination helper
   const resetPagination = () => {
     setPages([]);
     setCurrentPage(0);
@@ -566,11 +604,20 @@ const defaultFieldConfigs: FieldConfig[] = [
     } as Lead;
   };
 
+  // -------------------- Listeners (wrapped with feature flag & pause) --------------------
+
   // Subscribe to leads collection
   useEffect(() => {
     if (authLoading || isPaused) {
       if (isPaused) console.log("Leads listener paused...");
       setIsLoading(authLoading); // Keep loading state if auth is loading
+      return;
+    }
+
+    // Feature flag: disable listeners if set
+    if (!FEATURE_FLAGS.USE_LISTENERS) {
+      console.log('[LeadsContext] Listeners disabled by feature flag');
+      setIsLoading(false);
       return;
     }
 
@@ -610,11 +657,17 @@ const defaultFieldConfigs: FieldConfig[] = [
       console.error("Leads subscription error:", err);
       setIsLoading(false);
     }
-  }, [user?.companyId, authLoading]);
+  }, [user?.companyId, authLoading, isPaused]);
 
   // Subscribe to lostLeads collection
   useEffect(() => {
     if (authLoading) return;
+
+    // Feature flag: disable listeners if set
+    if (!FEATURE_FLAGS.USE_LISTENERS) {
+      console.log('[LeadsContext] LostLeads listener disabled by feature flag');
+      return;
+    }
 
     try {
       const q = query(collection(db, "lostLeads"));
@@ -671,6 +724,7 @@ const defaultFieldConfigs: FieldConfig[] = [
   };
 
   const updateLead = async (leadId: string, updates: Partial<Lead>): Promise<boolean> => {
+    if (!user) return false;
     try {
       const leadDocRef = doc(db, "leads", leadId);
 
@@ -732,31 +786,31 @@ const defaultFieldConfigs: FieldConfig[] = [
       throw new Error("Unauthorized: Super admin is read-only.");
     }
 
-    const targetUser = users.find(u => u.id === userId);
-    if (!targetUser) throw new Error("Target user not found.");
+  const targetUser = users.find(u => u.id === userId);
+  if (!targetUser) throw new Error("Target user not found.");
 
-    // Enforce role hierarchy
-    if (!canAssignToUser(user.role, targetUser.role)) {
-      throw new Error("Unauthorized: Cannot assign to this role.");
-    }
+  // Enforce role hierarchy
+  if (!canAssignToUser(user.role, targetUser.role)) {
+    throw new Error("Unauthorized: Cannot assign to this role.");
+  }
 
-    try {
-      const leadRef = doc(db, "leads", leadId);
-      await runTransaction(db, async (t) => {
-        const snap = await t.get(leadRef);
-        if (!snap.exists()) throw new Error("Lead not found");
-        t.update(leadRef, {
-          assignedTo: userId,
-          assignedAt: serverTimestamp(),
-          isAssigned: true,
-        });
+  try {
+    const leadRef = doc(db, "leads", leadId);
+    await runTransaction(db, async (t) => {
+      const snap = await t.get(leadRef);
+      if (!snap.exists()) throw new Error("Lead not found");
+      t.update(leadRef, {
+        assignedTo: userId,
+        assignedAt: serverTimestamp(),
+        isAssigned: true,
       });
-      return true;
-    } catch (err) {
-      console.error("assignLead error:", err);
-      return false;
-    }
-  };
+    });
+    return true;
+  } catch (err) {
+    console.error("assignLead error:", err);
+    return false;
+  }
+};
 
   const unassignLead = async (leadId: string): Promise<boolean> => {
     if (!user) throw new Error("Unauthorized");
@@ -797,145 +851,145 @@ const defaultFieldConfigs: FieldConfig[] = [
   ): Promise<boolean> => {
     if (!user) return false;
 
-    // Permission check: Super Admin cannot add follow-ups
-    if (user.role === 'super_admin') {
-      console.error("Super Admin cannot add follow-ups");
-      return false;
-    }
+  // Permission check: Super Admin cannot add follow-ups
+  if (user.role === 'super_admin') {
+    console.error("Super Admin cannot add follow-ups");
+    return false;
+  }
 
-    // FIX 3: Past Date Validation
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const followUpDate = new Date(followUpData.date);
-    if (followUpDate < today) {
-      throw new Error("Cannot schedule follow-ups in the past");
-    }
+  // FIX 3: Past Date Validation
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const followUpDate = new Date(followUpData.date);
+  if (followUpDate < today) {
+    throw new Error("Cannot schedule follow-ups in the past");
+  }
 
-    try {
-      const leadRef = doc(db, "leads", leadId);
+  try {
+    const leadRef = doc(db, "leads", leadId);
+    
+    await runTransaction(db, async (transaction) => {
+      const leadDoc = await transaction.get(leadRef);
+      if (!leadDoc.exists()) throw new Error("Lead not found");
+
+      const leadData = leadDoc.data() as Lead;
+      const directors = leadData.directors || [];
       
-      await runTransaction(db, async (transaction) => {
-        const leadDoc = await transaction.get(leadRef);
-        if (!leadDoc.exists()) throw new Error("Lead not found");
+      // FIX 5: Strict Director Matching
+      // Must match exact talkedToId
+      const directorIndex = directors.findIndex(
+        d => d.id === followUpData.talkedToId
+      );
 
-        const leadData = leadDoc.data() as Lead;
-        const directors = leadData.directors || [];
-        
-        // FIX 5: Strict Director Matching
-        // Must match exact talkedToId
-        const directorIndex = directors.findIndex(
-          d => d.id === followUpData.talkedToId
-        );
+      if (directorIndex === -1) {
+        throw new Error("Director not found. Please select an existing director.");
+      }
 
-        if (directorIndex === -1) {
-          throw new Error("Director not found. Please select an existing director.");
-        }
+      // FIX 4: Prevent Duplicate Follow-ups
+      const director = directors[directorIndex];
+      const duplicateFU = director.followUps?.find(f =>
+        f.date === followUpData.date &&
+        f.time === followUpData.time &&
+        f.status === "active"
+      );
 
-        // FIX 4: Prevent Duplicate Follow-ups
-        const director = directors[directorIndex];
-        const duplicateFU = director.followUps?.find(f =>
-          f.date === followUpData.date &&
-          f.time === followUpData.time &&
-          f.status === "active"
-        );
+      if (duplicateFU) {
+        throw new Error("A follow-up already exists for this date and time");
+      }
 
-        if (duplicateFU) {
-          throw new Error("A follow-up already exists for this date and time");
-        }
-
-        // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
-        directors.forEach((director, idx) => {
-          const updatedFollowUps = (director.followUps || []).map(f => {
-            if (!f.status || f.status === "active") {
-              return { ...f, status: "updated" as const };
-            }
-            return f;
-          });
-          directors[idx].followUps = updatedFollowUps;
+      // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
+      directors.forEach((director, idx) => {
+        const updatedFollowUps = (director.followUps || []).map(f => {
+          if (!f.status || f.status === "active") {
+            return { ...f, status: "updated" as const };
+          }
+          return f;
         });
-
-        const newFollowUp: FollowUp = {
-          ...followUpData,
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: new Date().toISOString(),
-          createdBy: user.id,
-          status: "active", // Always active when created
-        };
-
-        // Add new follow-up to the director
-        directors[directorIndex].followUps = directors[directorIndex].followUps || [];
-        directors[directorIndex].followUps.push(newFollowUp);
-
-        // Calculate next follow-up date (based on active follow-ups only)
-        const nextDate = calculateNextFollowUpDate({ ...leadData, directors });
-
-        // Prepare updates
-        const updates: any = {
-          directors,
-          nextFollowUpDate: nextDate
-        };
-
-        // CRITICAL: DO NOT AUTO-ASSIGN HERE
-        if (leadUpdates) {
-          Object.assign(updates, leadUpdates);
-          
-          // FIX D: Permission Checks & Special Handling
-          if (leadUpdates.status === 'Converted') {
-            if (!hasPermission(user.role, "MARK_AS_CONVERTED")) {
-               throw new Error("You do not have permission to mark leads as Converted.");
-            }
-            updates.assignedTo = null;
-            updates.isAssigned = false;
-            updates.assignedAt = null;
-            updates.convertedAt = new Date().toISOString();
-            updates.convertedBy = user.id;
-
-            // Create convertedLeads document
-            const convertedRef = doc(collection(db, "convertedLeads"));
-            transaction.set(convertedRef, {
-              leadId,
-              convertedBy: user.id,
-              convertedAt: serverTimestamp(),
-              invoiceNo: (leadUpdates as any).invoiceNo,
-              projectValue: (leadUpdates as any).projectValue,
-              id: convertedRef.id
-            });
-          }
-          
-          // FIX 1: Lost Leads Unassigned
-          if (leadUpdates.status === 'Lost') {
-             if (!hasPermission(user.role, "MARK_AS_LOST")) {
-                throw new Error("You do not have permission to mark leads as Lost.");
-             }
-             updates.assignedTo = null;
-             updates.isAssigned = false;
-             updates.assignedAt = null;
-
-             updates.lostAt = new Date().toISOString();
-             updates.lostBy = user.id;
-             updates.lostRemark = (leadUpdates as any).lostRemark;
-
-             // Create lostLeads document
-             const lostRef = doc(collection(db, "lostLeads"));
-             transaction.set(lostRef, {
-               leadId,
-               lostBy: user.id,
-               lostDate: new Date().toISOString(),
-               lostRemark: (leadUpdates as any).lostRemark,
-               isPermanent: false,
-               id: lostRef.id
-             });
-          }
-        }
-
-        transaction.update(leadRef, updates);
+        directors[idx].followUps = updatedFollowUps;
       });
-      return true;
-    } catch (error) {
-      console.error("Error adding follow-up:", error);
-      throw error;
-    }
-  };
+
+      const newFollowUp: FollowUp = {
+        ...followUpData,
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: new Date().toISOString(),
+        createdBy: user.id,
+        status: "active", // Always active when created
+      };
+
+      // Add new follow-up to the director
+      directors[directorIndex].followUps = directors[directorIndex].followUps || [];
+      directors[directorIndex].followUps.push(newFollowUp);
+
+      // Calculate next follow-up date (based on active follow-ups only)
+      const nextDate = calculateNextFollowUpDate({ ...leadData, directors });
+
+      // Prepare updates
+      const updates: any = {
+        directors,
+        nextFollowUpDate: nextDate
+      };
+
+      // CRITICAL: DO NOT AUTO-ASSIGN HERE
+      if (leadUpdates) {
+        Object.assign(updates, leadUpdates);
+        
+        // FIX D: Permission Checks & Special Handling
+        if (leadUpdates.status === 'Converted') {
+          if (!hasPermission(user.role, "MARK_AS_CONVERTED")) {
+             throw new Error("You do not have permission to mark leads as Converted.");
+          }
+          updates.assignedTo = null;
+          updates.isAssigned = false;
+          updates.assignedAt = null;
+          updates.convertedAt = new Date().toISOString();
+          updates.convertedBy = user.id;
+
+          // Create convertedLeads document
+          const convertedRef = doc(collection(db, "convertedLeads"));
+          transaction.set(convertedRef, {
+            leadId,
+            convertedBy: user.id,
+            convertedAt: serverTimestamp(),
+            invoiceNo: (leadUpdates as any).invoiceNo,
+            projectValue: (leadUpdates as any).projectValue,
+            id: convertedRef.id
+          });
+        }
+        
+        // FIX 1: Lost Leads Unassigned
+        if (leadUpdates.status === 'Lost') {
+          if (!hasPermission(user.role, "MARK_AS_LOST")) {
+            throw new Error("You do not have permission to mark leads as Lost.");
+          }
+          updates.assignedTo = null;
+          updates.isAssigned = false;
+          updates.assignedAt = null;
+
+          updates.lostAt = new Date().toISOString();
+          updates.lostBy = user.id;
+          updates.lostRemark = (leadUpdates as any).lostRemark;
+
+          // Create lostLeads document
+          const lostRef = doc(collection(db, "lostLeads"));
+          transaction.set(lostRef, {
+            leadId,
+            lostBy: user.id,
+            lostDate: new Date().toISOString(),
+            lostRemark: (leadUpdates as any).lostRemark,
+            isPermanent: false,
+            id: lostRef.id
+          });
+        }
+      }
+
+      transaction.update(leadRef, updates);
+    });
+    return true;
+  } catch (error) {
+    console.error("Error adding follow-up:", error);
+    throw error;
+  }
+};
 
   const updateFollowUp = async (
     leadId: string,
@@ -944,149 +998,147 @@ const defaultFieldConfigs: FieldConfig[] = [
   ): Promise<boolean> => {
     if (!user) return false;
 
-    // Permission check: Super Admin cannot update follow-ups
-    if (user.role === 'super_admin') {
-      console.error("Super Admin cannot update follow-ups");
-      return false;
+  // Permission check: Super Admin cannot update follow-ups
+  if (user.role === 'super_admin') {
+    console.error("Super Admin cannot update follow-ups");
+    return false;
+  }
+
+  try {
+    // Validate date - prevent past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const followUpDate = new Date(followUp.date);
+    if (followUpDate < today) {
+      throw new Error("Cannot schedule follow-ups in the past");
     }
 
-    try {
-      // Validate date - prevent past dates
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const followUpDate = new Date(followUp.date);
-      if (followUpDate < today) {
-        throw new Error("Cannot schedule follow-ups in the past");
+    const leadRef = doc(db, "leads", leadId);
+    
+    await runTransaction(db, async (transaction) => {
+      const leadDoc = await transaction.get(leadRef);
+      if (!leadDoc.exists()) throw new Error("Lead not found");
+
+      const leadData = leadDoc.data() as Lead;
+      const directors = leadData.directors || [];
+      
+      // Find which director currently has this follow-up
+      let currentDirectorIndex = -1;
+      let followUpIndex = -1;
+      
+      directors.forEach((d, dIdx) => {
+        const fIdx = (d.followUps || []).findIndex(f => f.id === followUp.id);
+        if (fIdx !== -1) {
+          currentDirectorIndex = dIdx;
+          followUpIndex = fIdx;
+        }
+      });
+
+      if (currentDirectorIndex === -1) throw new Error("Follow-up not found");
+
+      // FIX 5: Strict Director Matching
+      // Must match exact talkedToId
+      const newDirectorIndex = directors.findIndex(
+        d => d.id === followUp.talkedToId
+      );
+
+      if (newDirectorIndex === -1) {
+        throw new Error("Director not found. Please select an existing director.");
       }
 
-      const leadRef = doc(db, "leads", leadId);
-      
-      await runTransaction(db, async (transaction) => {
-        const leadDoc = await transaction.get(leadRef);
-        if (!leadDoc.exists()) throw new Error("Lead not found");
-
-        const leadData = leadDoc.data() as Lead;
-        const directors = leadData.directors || [];
-        
-        // Find which director currently has this follow-up
-        let currentDirectorIndex = -1;
-        let followUpIndex = -1;
-        
-        directors.forEach((d, dIdx) => {
-          const fIdx = (d.followUps || []).findIndex(f => f.id === followUp.id);
-          if (fIdx !== -1) {
-            currentDirectorIndex = dIdx;
-            followUpIndex = fIdx;
+      // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
+      // (Except the one we are updating, which will become the new active one)
+      directors.forEach((director, idx) => {
+        const updatedFollowUps = (director.followUps || []).map(f => {
+          if (f.id !== followUp.id && (!f.status || f.status === "active")) {
+            return { ...f, status: "updated" as const };
           }
+          return f;
         });
-
-        if (currentDirectorIndex === -1) throw new Error("Follow-up not found");
-
-        // FIX 5: Strict Director Matching
-        // Must match exact talkedToId
-        const newDirectorIndex = directors.findIndex(
-          d => d.id === followUp.talkedToId
-        );
-
-        if (newDirectorIndex === -1) {
-          throw new Error("Director not found. Please select an existing director.");
-        }
-
-        // 1) COMPANY-LEVEL SINGLETON: Mark ALL follow-ups across ALL directors as 'updated'
-        // (Except the one we are updating, which will become the new active one)
-        directors.forEach((director, idx) => {
-          const updatedFollowUps = (director.followUps || []).map(f => {
-            if (f.id !== followUp.id && (!f.status || f.status === "active")) {
-              return { ...f, status: "updated" as const };
-            }
-            return f;
-          });
-          directors[idx].followUps = updatedFollowUps;
-        });
-
-        // Remove from old director
-        const [existingFollowUp] = directors[currentDirectorIndex].followUps!.splice(followUpIndex, 1);
-
-        // Update follow-up data
-        const updatedFollowUp: FollowUp = {
-          ...existingFollowUp,
-          ...followUp,
-          status: "active", // Ensure it's active
-        };
-
-        // Add to new director (or same if didn't change)
-        directors[newDirectorIndex].followUps = directors[newDirectorIndex].followUps || [];
-        directors[newDirectorIndex].followUps.push(updatedFollowUp);
-
-        // Calculate next follow-up date
-        const nextDate = calculateNextFollowUpDate({ ...leadData, directors });
-
-        // Prepare updates
-        const updates: any = {
-          directors,
-          nextFollowUpDate: nextDate
-        };
-
-        if (leadUpdates) {
-          Object.assign(updates, leadUpdates);
-          
-          if (leadUpdates.status === 'Converted') {
-            if (!hasPermission(user.role, "MARK_AS_CONVERTED")) {
-               throw new Error("You do not have permission to mark leads as Converted.");
-            }
-            updates.assignedTo = null;
-            updates.isAssigned = false;
-            updates.assignedAt = null;
-            updates.convertedAt = new Date().toISOString();
-            updates.convertedBy = user?.id;
-
-            // Create convertedLeads document
-            const convertedRef = doc(collection(db, "convertedLeads"));
-            transaction.set(convertedRef, {
-              leadId,
-              convertedBy: user.id,
-              convertedAt: serverTimestamp(),
-              invoiceNo: (leadUpdates as any).invoiceNo,
-              projectValue: (leadUpdates as any).projectValue,
-              id: convertedRef.id
-            });
-          }
-          
-          if (leadUpdates.status === 'Lost') {
-             if (!hasPermission(user.role, "MARK_AS_LOST")) {
-                throw new Error("You do not have permission to mark leads as Lost.");
-             }
-             updates.assignedTo = null;
-             updates.isAssigned = false;
-             updates.assignedAt = null;
-
-             updates.lostAt = new Date().toISOString();
-             updates.lostBy = user?.id;
-             updates.lostRemark = (leadUpdates as any).lostRemark;
-
-             // Create lostLeads document
-             const lostRef = doc(collection(db, "lostLeads"));
-             transaction.set(lostRef, {
-               leadId,
-               lostBy: user.id,
-               lostDate: new Date().toISOString(),
-               lostRemark: (leadUpdates as any).lostRemark,
-               isPermanent: false,
-               id: lostRef.id
-             });
-          }
-        }
-
-        transaction.update(leadRef, updates);
+        directors[idx].followUps = updatedFollowUps;
       });
-      return true;
-    } catch (error) {
-      console.error("Error updating follow-up:", error);
-      throw error;
-    }
-  };
 
+      // Remove from old director
+      const [existingFollowUp] = directors[currentDirectorIndex].followUps!.splice(followUpIndex, 1);
 
+      // Update follow-up data
+      const updatedFollowUp: FollowUp = {
+        ...existingFollowUp,
+        ...followUp,
+        status: "active", // Ensure it's active
+      };
+
+      // Add to new director (or same if didn't change)
+      directors[newDirectorIndex].followUps = directors[newDirectorIndex].followUps || [];
+      directors[newDirectorIndex].followUps.push(updatedFollowUp);
+
+      // Calculate next follow-up date
+      const nextDate = calculateNextFollowUpDate({ ...leadData, directors });
+
+      // Prepare updates
+      const updates: any = {
+        directors,
+        nextFollowUpDate: nextDate
+      };
+
+      if (leadUpdates) {
+        Object.assign(updates, leadUpdates);
+        
+        if (leadUpdates.status === 'Converted') {
+          if (!hasPermission(user.role, "MARK_AS_CONVERTED")) {
+            throw new Error("You do not have permission to mark leads as Converted.");
+          }
+          updates.assignedTo = null;
+          updates.isAssigned = false;
+          updates.assignedAt = null;
+          updates.convertedAt = new Date().toISOString();
+          updates.convertedBy = user?.id;
+
+          // Create convertedLeads document
+          const convertedRef = doc(collection(db, "convertedLeads"));
+          transaction.set(convertedRef, {
+            leadId,
+            convertedBy: user.id,
+            convertedAt: serverTimestamp(),
+            invoiceNo: (leadUpdates as any).invoiceNo,
+            projectValue: (leadUpdates as any).projectValue,
+            id: convertedRef.id
+          });
+        }
+        
+        if (leadUpdates.status === 'Lost') {
+          if (!hasPermission(user.role, "MARK_AS_LOST")) {
+            throw new Error("You do not have permission to mark leads as Lost.");
+          }
+          updates.assignedTo = null;
+          updates.isAssigned = false;
+          updates.assignedAt = null;
+
+          updates.lostAt = new Date().toISOString();
+          updates.lostBy = user?.id;
+          updates.lostRemark = (leadUpdates as any).lostRemark;
+
+          // Create lostLeads document
+          const lostRef = doc(collection(db, "lostLeads"));
+          transaction.set(lostRef, {
+            leadId,
+            lostBy: user.id,
+            lostDate: new Date().toISOString(),
+            lostRemark: (leadUpdates as any).lostRemark,
+            isPermanent: false,
+            id: lostRef.id
+          });
+        }
+      }
+
+      transaction.update(leadRef, updates);
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating follow-up:", error);
+    throw error;
+  }
+};
 
   const markAsLost = async (leadId: string, remark: string, userId: string, isPermanent = false): Promise<boolean> => {
     try {
@@ -1245,6 +1297,65 @@ const defaultFieldConfigs: FieldConfig[] = [
     return { totalCompanies, totalLeads, convertedLeads, conversionRate, activeUsers };
   };
 
+  // -------------------- batchAddLeads (imports) --------------------
+
+  const batchAddLeads = async (leadsData: Partial<Lead>[]): Promise<number> => {
+    try {
+      // Pause listeners to prevent snapshot thrashing
+      pauseListeners();
+      
+      // Process in chunks of 500 (Firestore batch limit)
+      const chunkSize = 500;
+      let successCount = 0;
+      
+      for (let i = 0; i < leadsData.length; i += chunkSize) {
+        const chunk = leadsData.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        
+        chunk.forEach(lead => {
+          const docRef = doc(collection(db, "leads"));
+          // CRITICAL: Enforce required fields for sorting/filtering
+          batch.set(docRef, {
+            ...lead,
+            status: lead.status || "Cold",
+            isAssigned: !!lead.assignedTo,
+            assignedTo: lead.assignedTo || null,
+            companyId: lead.companyId || user?.companyId || '',
+            createdAt: lead.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            directors: lead.directors || [],
+            uploadedBy: user?.id || '',
+            id: docRef.id
+          });
+        });
+        
+        await batch.commit();
+        successCount += chunk.length;
+      }
+      
+      // Reset pagination to show new leads
+      resetPagination();
+      
+      // Resume listeners after import
+      resumeListeners();
+      
+      // Reload leads using new loadLeadsAll (safer)
+      try {
+        await loadLeadsAll('pool');
+      } catch (e) {
+        console.warn("loadLeadsAll failed after import, attempting paginated load", e);
+        // Fallback to paginated (best-effort)
+        try { await loadLeadsPaginated(0, 'pool'); } catch (err) { /* swallow */ }
+      }
+      
+      return successCount;
+    } catch (err) {
+      console.error("batchAddLeads error:", err);
+      resumeListeners(); // Ensure listeners are resumed on error
+      return 0;
+    }
+  };
+
   // -------------------- Context Value --------------------
 
   const value: LeadsContextValue = {
@@ -1278,6 +1389,7 @@ const defaultFieldConfigs: FieldConfig[] = [
     getAllFollowUps,
     calculateNextFollowUpDate,
     getLatestActiveFollowUpForCompany,
+    // imported helper
     hasFollowUps,
     getLastFollowUp,
 
@@ -1292,7 +1404,8 @@ const defaultFieldConfigs: FieldConfig[] = [
     loadLeadsPaginated,
     resetPagination,
     pauseListeners,
-    resumeListeners
+    resumeListeners,
+    loadLeadsAll
   };
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>;

@@ -255,37 +255,73 @@ export function LeadManagement() {
         const importedLeads = processImportedData(jsonData);
         
         if (importedLeads.length > 0) {
-          // FIX 7: FIRESTORE-LEVEL CIN DUPLICATE CHECK
+          // OPTIMIZED: BATCH CIN DUPLICATE CHECK
           const validList: Lead[] = [];
           const duplicateList: Lead[] = [];
           
           // Show checking toast
           const checkToast = toast.loading(`Checking ${importedLeads.length} leads for duplicates...`);
 
-          for (const lead of importedLeads) {
-            // FIX A: CIN Validation
+          // Step 1: Filter leads with valid CINs and collect unique CINs
+          const leadsWithCIN = importedLeads.filter(lead => {
             if (!lead.cin || lead.cin.trim() === "") {
               console.warn("Skipping lead without CIN", lead);
-              continue; // Skip invalid leads
+              return false;
             }
+            return true;
+          });
 
-            // Check Firestore for duplicates
-            const q = query(
-              collection(db, "leads"),
-              where("companyId", "==", user?.companyId),
-              where("cin", "==", lead.cin.toLowerCase()) // Ensure case-insensitive check if stored lowercase, or just match exact if standard
-            );
+          if (leadsWithCIN.length === 0) {
+            toast.dismiss(checkToast);
+            toast.warning('No leads with valid CIN found in the file.');
+            return;
+          }
 
-            // Note: In a real app with large imports, we might want to batch these queries or use a cloud function.
-            // For now, sequential await is safer to prevent rate limits, though slower.
-            const snap = await getDocs(q);
+          // Step 2: Collect all CINs (normalize to lowercase for comparison)
+          const allCINs = leadsWithCIN.map(lead => lead.cin.toLowerCase());
+          const uniqueCINs = Array.from(new Set(allCINs));
 
-            if (snap.empty) {
-               validList.push(lead);
-            } else {
-               duplicateList.push(lead);
+          console.log(`[Import] Checking ${uniqueCINs.length} unique CINs against Firestore...`);
+
+          // Step 3: Batch query Firestore using 'in' operator (max 10 per query)
+          const existingCINs = new Set<string>();
+          const batchSize = 10; // Firestore 'in' operator limit
+
+          for (let i = 0; i < uniqueCINs.length; i += batchSize) {
+            const cinBatch = uniqueCINs.slice(i, i + batchSize);
+            
+            try {
+              const q = query(
+                collection(db, "leads"),
+                where("companyId", "==", user?.companyId),
+                where("cin", "in", cinBatch)
+              );
+
+              const snap = await getDocs(q);
+              
+              // Collect existing CINs
+              snap.docs.forEach(doc => {
+                const cin = doc.data().cin?.toLowerCase();
+                if (cin) {
+                  existingCINs.add(cin);
+                }
+              });
+            } catch (error) {
+              console.error(`Error checking CIN batch ${i / batchSize + 1}:`, error);
             }
           }
+
+          console.log(`[Import] Found ${existingCINs.size} existing CINs in Firestore`);
+
+          // Step 4: Classify leads as valid or duplicate
+          leadsWithCIN.forEach(lead => {
+            const cinLower = lead.cin.toLowerCase();
+            if (existingCINs.has(cinLower)) {
+              duplicateList.push(lead);
+            } else {
+              validList.push(lead);
+            }
+          });
 
           toast.dismiss(checkToast);
 
