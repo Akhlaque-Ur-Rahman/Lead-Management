@@ -122,6 +122,14 @@ interface FollowUp {
 - **User Filter**: Available in Assigned Leads view. Allows Team Leads and Admins to filter the list by a specific assignee.
 - **Search**: Client-side search filters by Company Name, CIN, Director Name, etc.
 
+### 5.6 Dynamic Branding
+- **System Name**: Super Admins can set a global "System Name" (visible on Login & Sidebar).
+- **Company Name**: Company Admins can set a custom "Account Name" for their team.
+  - *Default*: Displays the registered Company Name.
+  - *Custom*: Overrides the default if set in Settings.
+  - *Fallback*: Reverts to default if custom name is cleared.
+- **Responsive UI**: Sidebar names automatically wrap to 2 lines or show ellipsis to maintain layout integrity.
+
 ---
 
 ## 7. Performance Optimizations

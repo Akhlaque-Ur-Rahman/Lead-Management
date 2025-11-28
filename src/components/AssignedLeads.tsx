@@ -330,11 +330,11 @@ export function AssignedLeads() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Company</TableHead>
-                    <TableHead className="hidden md:table-cell">Contact Person</TableHead>
-                    <TableHead className="hidden lg:table-cell">Next Follow-up</TableHead>
+                    <TableHead>Contact Person</TableHead>
+                    <TableHead>Next Follow-up</TableHead>
                     <TableHead>Status</TableHead>
                     {user.role !== 'sales_user' && (
-                      <TableHead className="hidden sm:table-cell">Assigned To</TableHead>
+                      <TableHead>Assigned To</TableHead>
                     )}
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -357,7 +357,7 @@ export function AssignedLeads() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">
+                        <TableCell>
                           {lead.directors.length > 0 ? (
                             <div className="space-y-1">
                               <p className="text-sm">
@@ -374,7 +374,7 @@ export function AssignedLeads() {
                             <span className="text-sm text-muted-foreground">No director</span>
                           )}
                         </TableCell>
-                        <TableCell className="hidden lg:table-cell">
+                        <TableCell>
                           {nextFollowUp.date ? (
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -396,7 +396,7 @@ export function AssignedLeads() {
                           </Badge>
                         </TableCell>
                         {user.role !== 'sales_user' && (
-                          <TableCell className="hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             {(user.role === 'company_admin' || user.role === 'team_lead') ? (
                               <Select 
                                 value={lead.assignedTo || undefined} 
