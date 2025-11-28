@@ -75,6 +75,11 @@ export function AssignedLeads() {
       );
     }
 
+    // Filter by User
+    if (selectedUser !== 'all') {
+      filtered = filtered.filter(lead => lead.assignedTo === selectedUser);
+    }
+
     // Sort by Latest Follow-up (Desc)
     return filtered.sort((a, b) => {
         const lastA = getLatestActiveFollowUpForCompany(a);
@@ -83,7 +88,7 @@ export function AssignedLeads() {
         const timeB = lastB ? new Date(`${lastB.date}T${lastB.time}`).getTime() : 0;
         return timeB - timeA;
     });
-  }, [leads, searchQuery, getLatestActiveFollowUpForCompany]);
+  }, [leads, searchQuery, selectedUser, getLatestActiveFollowUpForCompany]);
 
   // 3. Stats Logic (Kept using full list for accurate counts)
   // Get leads based on user role for STATS ONLY

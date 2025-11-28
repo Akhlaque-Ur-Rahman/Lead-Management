@@ -46,6 +46,8 @@ interface AuthContextType {
   getAllUsers: () => User[];
   getUserCountForCompany: (companyId: string | null) => number;
   isLoading: boolean;
+  systemName: string;
+  companyDisplayName: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -343,6 +345,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return [...users];
   };
 
+  const [systemName, setSystemName] = useState("Lead Management");
+  const [companyDisplayName, setCompanyDisplayName] = useState("");
+
+  // Listen for System Name (Global Branding)
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'systemConfig', 'globalBranding'), (doc) => {
+      if (doc.exists()) {
+        setSystemName(doc.data().systemName || "Lead Management");
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Listen for Company Name (Custom)
+  useEffect(() => {
+    if (!user?.companyId) {
+      setCompanyDisplayName("");
+      return;
+    }
+    const unsub = onSnapshot(doc(db, 'companies', user.companyId), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setCompanyDisplayName(data.companyNameCustom || data.companyName || "");
+      }
+    });
+    return () => unsub();
+  }, [user?.companyId]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -358,6 +388,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         getAllUsers,
         getUserCountForCompany,
         isLoading,
+        systemName,
+        companyDisplayName
       }}
     >
       {children}

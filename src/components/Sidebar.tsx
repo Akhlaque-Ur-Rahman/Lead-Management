@@ -25,7 +25,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, systemName, companyDisplayName } = useAuth();
   
   // Base menu items for all users
   const baseMenuItems = [
@@ -82,16 +82,32 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     );
   };
 
+  const nameToShow = user?.role === 'super_admin' 
+    ? systemName 
+    : (companyDisplayName || "Dashboard");
+
   return (
     <div className="w-64 bg-card border-r border-border flex flex-col h-full">
       <div className="p-6 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0">
             <FileSpreadsheet className="h-6 w-6 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="font-semibold">Lead Manager</h1>
-            <p className="text-xs text-muted-foreground">Multi-Tenant LMS</p>
+          <div className="min-w-0 flex-1">
+            <h1 
+              className="font-semibold text-sm leading-tight"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                wordBreak: 'break-word'
+              }}
+              title={nameToShow}
+            >
+              {nameToShow}
+            </h1>
+            <p className="text-xs text-muted-foreground truncate">Multi-Tenant LMS</p>
           </div>
         </div>
         <ThemeSwitcher />
@@ -135,7 +151,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
           {user?.role !== 'super_admin' && user?.companyId && (
             <p className="text-xs text-muted-foreground">
-              Company ID: {user.companyId.split('-')[1]}
+              Company ID: {user.companyId.includes('-') ? user.companyId.split('-')[1] : user.companyId}
             </p>
           )}
         </div>

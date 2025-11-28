@@ -518,6 +518,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         if (leadUpdates?.status === 'Lost') {
           updatePayload.lostAt = serverTimestamp();
           updatePayload.lostBy = user.id;
+        } else if (leadUpdates?.status === 'Converted') {
+          updatePayload.convertedAt = serverTimestamp();
+          updatePayload.convertedBy = user.id;
         }
 
         t.update(leadRef, updatePayload);
@@ -563,10 +566,20 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           return d;
         });
 
-        t.update(leadRef, {
+        const updatePayload: any = {
           ...leadUpdates,
           directors: updatedDirectors,
-        });
+        };
+
+        if (leadUpdates?.status === 'Converted') {
+          updatePayload.convertedAt = serverTimestamp();
+          updatePayload.convertedBy = user.id;
+        } else if (leadUpdates?.status === 'Lost') {
+          updatePayload.lostAt = serverTimestamp();
+          updatePayload.lostBy = user.id;
+        }
+
+        t.update(leadRef, updatePayload);
       });
       refreshLeads();
       triggerUpdateEvent(db, user, 'FOLLOWUP_ADD');
@@ -773,7 +786,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       invoiceNo: data.invoiceNo ?? null,
       projectValue: data.projectValue ?? null,
       convertedBy: data.convertedBy ?? null,
-      convertedAt: data.convertedAt?.toDate?.()?.toISOString() ?? null,
+      convertedAt: data.convertedAt?.toDate?.() 
+        ? data.convertedAt.toDate().toISOString() 
+        : (typeof data.convertedAt === "string" ? data.convertedAt : null),
       lostRemark: data.lostRemark ?? null,
       lostBy: data.lostBy ?? null,
       lostAt: data.lostAt?.toDate?.() 

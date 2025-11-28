@@ -8,7 +8,7 @@ import { Lock, Mail, BarChart3, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Login() {
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, systemName } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -51,7 +51,7 @@ export function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg">
             <BarChart3 className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl tracking-tight">Lead Management System</h1>
+          <h1 className="text-3xl tracking-tight">{systemName || "Lead Management System"}</h1>
           <p className="text-muted-foreground">
             Industry-Level Multi-Tenant LMS Platform
           </p>

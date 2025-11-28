@@ -108,35 +108,6 @@ interface FollowUp {
   createdBy: string;
 }
 ```
-
-### 4.3 Event (`events` collection)
-Used for the hybrid architecture signaling.
-
-```typescript
-interface SystemEvent {
-  type: 'LEAD_UPDATE' | 'LEAD_ADD' | 'FOLLOWUP_ADD' | ...;
-  companyId: string;
-  userId: string;
-  timestamp: ServerTimestamp;
-  payload?: any;
-}
-```
-
----
-
-## 5. Business Rules & Logic
-
-### 5.1 Lead Pool Rules (Final)
-### 5.3 Follow-Up System
-
-- **Singleton Rule**: A company can have only **ONE** active follow-up at a time across all directors.
-- **Status Logic**:
-  - When a new follow-up is added, any existing active follow-up for that company is marked as `updated` (archived).
-  - This ensures the Calendar View only shows the single most relevant action item per lead.
-
-### 5.4 Lead Status Lifecycle
-| :--- | :---: | :---: | :---: | :---: |
-| **View Lead Pool** | ✅ | ✅ | ✅ | ✅ |
 | **View Assigned Leads** | ✅ (All) | ✅ (All) | ✅ (All) | ✅ (Own Only) |
 | **View Calendar** | ✅ | ✅ | ✅ | ✅ (Own Only) |
 | **View Lost Leads** | ✅ | ✅ | ✅ | ✅ (Own Only) |
@@ -144,6 +115,12 @@ interface SystemEvent {
 | **Import Leads** | ❌ | ✅ | ✅ | ❌ |
 | **Assign Leads** | ❌ | ✅ | ✅ | ❌ |
 | **Edit Leads** | ✅ | ✅ | ✅ | ✅ (Assigned) |
+
+### 5.5 Filtering & Sorting
+- **Status Filter**: Available in Lead Pool and Assigned Leads. Allows filtering by lead status (Hot, Warm, Cold, etc.).
+- **Sorting**: Leads can be sorted by "Latest Created" or "Oldest Created".
+- **User Filter**: Available in Assigned Leads view. Allows Team Leads and Admins to filter the list by a specific assignee.
+- **Search**: Client-side search filters by Company Name, CIN, Director Name, etc.
 
 ---
 

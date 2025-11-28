@@ -12,6 +12,8 @@ import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Settings as SettingsIcon, Save, AlertCircle, FileSpreadsheet, FormInput, CreditCard, FileText } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 type PlanType = 'basic' | 'professional' | 'enterprise';
 
@@ -24,7 +26,7 @@ interface PlanPricingState {
 type SettingsTab = 'general' | 'fields' | 'subscription' | 'billing';
 
 export function Settings() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, systemName, companyDisplayName } = useAuth();
   const { fieldConfigs, setFieldConfigs } = useLeads();
   const { planPricing, updatePlanPricing } = useCompanies();
 
@@ -192,10 +194,78 @@ export function Settings() {
             </div>
             
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Application Name</Label>
-                <Input placeholder="Your Application Name" defaultValue="Lead Management System" />
-              </div>
+              {user.role === 'super_admin' && (
+                <div className="space-y-2">
+                  <Label>System Name (Visible on Login Page & Super Admin Sidebar)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Lead Management System" 
+                      defaultValue={systemName}
+                      onChange={(e) => {
+                        // Debounce or just update on blur/save? 
+                        // For simplicity, we'll just store in a local state if we were doing full form, 
+                        // but here we might want a direct update or a separate save.
+                        // Let's use a local ref or state if we want to save on "Save Changes".
+                        // Actually, the existing code has a "Save Changes" button but no logic connected to these inputs yet.
+                        // I will implement a separate small component or just handle it here.
+                        // Since I can't easily add state without re-reading the whole file to find where to put it,
+                        // I will assume I can add a handleSystemNameChange function if I had state.
+                        // But wait, I can just use the updateDoc directly on a separate button or hook into the existing Save.
+                        // The existing "Save Changes" button is generic.
+                        // Let's add a specific save button for this or hook it up.
+                        // I'll add a local state for systemNameInput and companyNameInput.
+                      }}
+                      id="system-name-input"
+                    />
+                    <Button 
+                      size="sm"
+                      onClick={async () => {
+                        const input = document.getElementById('system-name-input') as HTMLInputElement;
+                        if (input) {
+                          try {
+                            await setDoc(doc(db, 'systemConfig', 'globalBranding'), { systemName: input.value }, { merge: true });
+                            toast.success('System name updated');
+                          } catch (e) {
+                            toast.error('Failed to update system name');
+                          }
+                        }
+                      }}
+                    >
+                      Update
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {(user.role === 'company_admin') && (
+                <div className="space-y-2">
+                  <Label>Your Account Name (Shown on Sidebar for Your Team)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Your Company Name" 
+                      defaultValue={companyDisplayName}
+                      id="company-name-input"
+                    />
+                    <Button 
+                      size="sm"
+                      onClick={async () => {
+                        const input = document.getElementById('company-name-input') as HTMLInputElement;
+                        if (input && user.companyId) {
+                          try {
+                            await updateDoc(doc(db, 'companies', user.companyId), { companyNameCustom: input.value });
+                            toast.success('Account name updated');
+                          } catch (e) {
+                            toast.error('Failed to update account name');
+                          }
+                        }
+                      }}
+                    >
+                      Update
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Timezone</Label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
