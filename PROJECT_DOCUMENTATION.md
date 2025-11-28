@@ -119,41 +119,10 @@ interface SystemEvent {
   userId: string;
   timestamp: ServerTimestamp;
   payload?: any;
-}
-```
-
----
-
-## 5. Business Rules & Logic
-
-### 5.1 Lead Pool
-The **Lead Pool** is the staging area for leads that need attention.
--   **Visibility**:
-    -   **Unassigned Leads**: Visible to everyone in the company.
-    -   **Assigned Leads (Zero Follow-ups)**: Visible ONLY to the assigned user (and Admins). This ensures newly assigned leads appear here first.
--   **Exclusions**: Leads with status `Converted` or `Lost` are NEVER shown in the pool.
-
-### 5.2 Assigned Leads
-The workspace for active engagement.
--   **Criteria**: A lead moves to "Assigned Leads" view ONLY when it has **at least one follow-up**.
--   **Sorting**: Automatically sorted by the **Latest Follow-Up Date** (descending), keeping the most active leads at the top.
--   **Visibility**: Sales Users see only their own assigned leads. Admins/Team Leads see all.
-
-### 5.3 Follow-Up System
--   **Singleton Rule**: A company can have only **ONE active follow-up** at a time across all its directors. Adding a new follow-up automatically marks the previous one as 'updated' (history).
--   **Calendar**: Displays only 'active' follow-ups. Past follow-ups remain visible until completed/updated.
-
-### 5.4 Lost & Converted
--   **Lost Leads**:
-    -   Marking as Lost **clears the assignment** fields.
-    -   **Sales Users** are **BLOCKED** from viewing the Lost Leads page.
-    -   Only Admins/Team Leads can view/restore/delete lost leads.
 -   **Converted Leads**:
     -   Requires financial data (Invoice #, Value).
     -   **Sales Users** are **BLOCKED** from viewing the Converted Leads page.
     -   Visible to Team Leads and Admins.
-
----
 
 ## 6. Role-Based Access Control (RBAC)
 
@@ -162,7 +131,7 @@ The workspace for active engagement.
 | **View Lead Pool** | ✅ | ✅ | ✅ | ✅ |
 | **View Assigned Leads** | ✅ (All) | ✅ (All) | ✅ (All) | ✅ (Own Only) |
 | **View Calendar** | ✅ | ✅ | ✅ | ✅ (Own Only) |
-| **View Lost Leads** | ✅ | ✅ | ✅ | ❌ |
+| **View Lost Leads** | ✅ | ✅ | ✅ | ✅ (Own Only) |
 | **View Converted Leads** | ✅ | ✅ | ✅ | ❌ |
 | **Import Leads** | ❌ | ✅ | ✅ | ❌ |
 | **Assign Leads** | ❌ | ✅ | ✅ | ❌ |
@@ -176,6 +145,10 @@ The workspace for active engagement.
 2.  **Duplicate Detection**: Uses optimized `in` queries to check for existing CINs in batches during import.
 3.  **Background Sync**: The `sync.ts` utility monitors `visibilitychange` events. If a user leaves the tab for >2 minutes and returns, the data is automatically refreshed to ensure consistency without constant polling.
 4.  **Memoized Filtering**: Heavy filtering logic (e.g., searching, sorting) is wrapped in `useMemo` to prevent re-calculations on every render.
+5.  **Optimized Import Duplicate Detection**:
+    -   Uses chunked Firestore `in` queries to check for duplicates against `CIN`, `Company Email`, and `Company Name`.
+    -   Prevents reading the entire leads collection.
+    -   Checks for duplicates within the import batch itself.
 
 ---
 

@@ -25,6 +25,7 @@ import { initBackgroundSync } from '../utils/events/sync';
 import { calculateNextFollowUpDate } from '../utils/followups/calculations';
 import { hasPermission, canAssignToUser } from '../utils/role/permissions';
 import { hasFollowUps } from '../utils/role/visibility';
+import { checkForDuplicates } from '../utils/imports/duplicateCheck';
 
 // -------------------- Types --------------------
 
@@ -434,6 +435,11 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         if (!leadDoc.exists()) throw new Error("Lead not found");
         const leadData = leadDoc.data() as Lead;
         
+        // Validation: Cannot add follow-up to unassigned lead
+        if (!leadData.isAssigned) {
+          throw new Error("You cannot add follow-ups to unassigned leads.");
+        }
+        
         const newFollowUp: FollowUp = {
           ...followUp,
           id: `fu-${Date.now()}`,
@@ -506,10 +512,23 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const batchAddLeads = async (leadsData: Partial<Lead>[]): Promise<number> => {
     try {
+      // 1. Check for duplicates
+      const { uniqueLeads, duplicatesCount, skippedLeads } = await checkForDuplicates(db, leadsData);
+      
+      if (duplicatesCount > 0) {
+        console.log(`[batchAddLeads] Skipped ${duplicatesCount} duplicates.`, skippedLeads);
+      }
+
+      if (uniqueLeads.length === 0) {
+        return 0;
+      }
+
       const chunkSize = 500;
       let successCount = 0;
-      for (let i = 0; i < leadsData.length; i += chunkSize) {
-        const chunk = leadsData.slice(i, i + chunkSize);
+      
+      // 2. Insert unique leads
+      for (let i = 0; i < uniqueLeads.length; i += chunkSize) {
+        const chunk = uniqueLeads.slice(i, i + chunkSize);
         const batch = writeBatch(db);
         chunk.forEach(lead => {
           const docRef = doc(collection(db, "leads"));
@@ -528,6 +547,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         await batch.commit();
         successCount += chunk.length;
       }
+      
       refreshLeads();
       triggerUpdateEvent(db, user!, 'LEAD_UPDATE');
       return successCount;

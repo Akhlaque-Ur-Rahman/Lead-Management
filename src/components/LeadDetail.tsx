@@ -57,7 +57,7 @@ interface LeadDetailProps {
 
 export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
   const { user, users } = useAuth();
-  const { updateLead, addFollowUp, updateFollowUp } = useLeads();
+  const { updateLead, addFollowUp } = useLeads();
   const navigate = useNavigate();
   
   // Immediate access guard (permission-aware)
@@ -507,8 +507,10 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
               <Button 
                 onClick={() => handleOpenFollowUpDialog(null)} 
                 size="sm" 
-                className="gap-2"
+                className={cn("gap-2", !lead.isAssigned && "opacity-50 cursor-not-allowed")}
                 variant="outline"
+                disabled={!lead.isAssigned}
+                title={!lead.isAssigned ? "Assign this lead before adding a follow-up." : ""}
               >
                 <Plus className="h-4 w-4" />
                 Add Follow-up
@@ -591,7 +593,9 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                           <Button 
                             onClick={() => handleOpenFollowUpDialog(director)} 
                             size="sm" 
-                            className="gap-2"
+                            className={cn("gap-2", !lead.isAssigned && "opacity-50 cursor-not-allowed")}
+                            disabled={!lead.isAssigned}
+                            title={!lead.isAssigned ? "Assign this lead before adding a follow-up." : ""}
                           >
                             <Plus className="h-4 w-4" />
                             Add Follow-up
