@@ -57,6 +57,7 @@ export function LeadManagement() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<"latest" | "oldest">("latest");
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -66,9 +67,9 @@ export function LeadManagement() {
   // Load leads on mount and when filters change
   useEffect(() => {
     if (user) {
-      loadLeadsAll('pool', { status: statusFilter });
+      loadLeadsAll('pool', { status: statusFilter }, undefined, sortOption);
     }
-  }, [user, statusFilter, refreshFlag]);
+  }, [user, statusFilter, sortOption, refreshFlag]);
 
   // Client-side search and status filtering
   const filteredLeads = leads.filter(lead => {
@@ -959,6 +960,15 @@ export function LeadManagement() {
                 <SelectItem value="Cold">Cold</SelectItem>
                 <SelectItem value="Converted">Converted</SelectItem>
                 <SelectItem value="Lost">Lost</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortOption} onValueChange={(value: "latest" | "oldest") => setSortOption(value)}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="latest">Latest First</SelectItem>
+                <SelectItem value="oldest">Oldest First</SelectItem>
               </SelectContent>
             </Select>
           </div>

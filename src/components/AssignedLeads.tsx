@@ -48,6 +48,7 @@ export function AssignedLeads() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [statusFilter] = useState<string>('all'); 
+  const [sortOption, setSortOption] = useState<"latest" | "oldest">("latest");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   if (!user) return null;
@@ -55,9 +56,9 @@ export function AssignedLeads() {
   // 1. Load Leads (Server-Side)
   useEffect(() => {
     if (user) {
-      loadLeadsAll('assigned', { status: statusFilter });
+      loadLeadsAll('assigned', { status: statusFilter }, undefined, sortOption);
     }
-  }, [user, statusFilter, refreshFlag]);
+  }, [user, statusFilter, sortOption, refreshFlag]);
 
   // 2. Client-Side Search & Sort
   const displayLeads = useMemo(() => {
@@ -297,6 +298,15 @@ export function AssignedLeads() {
                   className="pl-10 w-full sm:w-[250px]"
                 />
               </div>
+              <Select value={sortOption} onValueChange={(value: "latest" | "oldest") => setSortOption(value)}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="latest">Latest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>

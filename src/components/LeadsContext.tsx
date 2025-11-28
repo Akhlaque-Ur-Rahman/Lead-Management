@@ -182,7 +182,8 @@ interface LeadsContextValue {
   loadLeadsAll: (
     view: LeadView,
     filters?: any,
-    limitOverride?: number
+    limitOverride?: number,
+    sortOption?: "latest" | "oldest"
   ) => Promise<Lead[]>;
 }
 
@@ -292,11 +293,12 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const loadLeadsAll = async (
     view: LeadView,
     filters?: any,
-    limitOverride?: number
+    limitOverride?: number,
+    sortOption: "latest" | "oldest" = "latest"
   ): Promise<Lead[]> => {
     if (!user) return [];
 
-    const cacheKey = `${view}-${JSON.stringify(filters || {})}-${user.id}`;
+    const cacheKey = `${view}-${JSON.stringify(filters || {})}-${sortOption}-${user.id}`;
     const now = Date.now();
     const cached = cache.current.get(cacheKey);
 
@@ -322,21 +324,38 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           // For converted/lost views, handled below in view-specific check
         }
 
+        let isVisible = false;
+
         // view-specific selection
         if (view === 'pool') {
-            return isLeadInPoolForUser(user, lead);
-        }
-        if (view === 'assigned') {
-            return isLeadInAssignedForUser(user, lead);
-        }
-        if (view === 'converted') {
-            return lead.status === 'Converted';
-        }
-        if (view === 'lost') {
-            return lead.status === 'Lost';
+            isVisible = isLeadInPoolForUser(user, lead);
+        } else if (view === 'assigned') {
+            isVisible = isLeadInAssignedForUser(user, lead);
+        } else if (view === 'converted') {
+            isVisible = lead.status === 'Converted';
+        } else if (view === 'lost') {
+            isVisible = lead.status === 'Lost';
         }
 
-        return false;
+        if (!isVisible) return false;
+
+        // STATUS FILTER — apply to all roles and both Pool + Assigned views
+        if (filters?.status && filters.status !== "all") {
+            if (lead.status !== filters.status) return false;
+        }
+
+        return true;
+      });
+
+      // SORTING LOGIC
+      filteredLeads.sort((a, b) => {
+          const dateA = new Date(a.createdAt).getTime();
+          const dateB = new Date(b.createdAt).getTime();
+
+          if (sortOption === "latest") return dateB - dateA;
+          if (sortOption === "oldest") return dateA - dateB;
+
+          return 0;
       });
 
       // 4. Update State & Cache
@@ -491,10 +510,17 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           return { ...d, followUps: updatedFollowUps };
         });
 
-        t.update(leadRef, {
+        const updatePayload: any = {
           ...leadUpdates,
           directors: updatedDirectors,
-        });
+        };
+
+        if (leadUpdates?.status === 'Lost') {
+          updatePayload.lostAt = serverTimestamp();
+          updatePayload.lostBy = user.id;
+        }
+
+        t.update(leadRef, updatePayload);
         
         return leadData; // Return data for post-transaction checks
       });
@@ -750,7 +776,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       convertedAt: data.convertedAt?.toDate?.()?.toISOString() ?? null,
       lostRemark: data.lostRemark ?? null,
       lostBy: data.lostBy ?? null,
-      lostAt: data.lostAt?.toDate?.()?.toISOString() ?? null,
+      lostAt: data.lostAt?.toDate?.() 
+        ? data.lostAt.toDate().toISOString() 
+        : (typeof data.lostAt === "string" ? data.lostAt : null),
     } as Lead;
   };
 

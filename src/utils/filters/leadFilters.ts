@@ -13,28 +13,28 @@ export const isLeadInPoolForUser = (user: any, lead: Lead) => {
     // Never include Converted or Lost in pool
     if (lead.status === 'Converted' || lead.status === 'Lost') return false;
 
-    const followUpsCount = countActiveFollowUps(lead);
+    const activeFollowUps = countActiveFollowUps(lead);
 
+    // Sales User Lead Pool
     if (user.role === 'sales_user') {
-        // Sales User Pool Rules:
-        // - lead.assignedTo === user.id
-        // - activeFollowupCount === 0
-        // - lead.status NOT IN ("Lost", "Converted")
-        return lead.assignedTo === user.id && followUpsCount === 0;
+        // "Lead Pool must include ONLY: Leads assigned to the sales user AND with 0 active follow-ups"
+        return lead.assignedTo === user.id && activeFollowUps === 0;
     }
 
+    // Team Leader + Company Admin
     if (user.role === 'team_lead' || user.role === 'company_admin') {
-        // TL/Admin Pool Rules:
-        // - Unassigned leads (assignedTo === null)
-        // - OR leads assigned to THEMSELVES with activeFollowupCount === 0
-        // - NOT leads assigned to sales users
-        // - NOT Lost/Converted
+        // 1. Assigned to self -> Show ONLY if activeFollowUps === 0
+        if (lead.assignedTo === user.id) {
+            return activeFollowUps === 0;
+        }
 
-        // 1. Unassigned
-        if (!lead.isAssigned) return true;
+        // 2. Assigned to others -> NEVER show in pool
+        if (lead.assignedTo && lead.assignedTo !== user.id) {
+            return false;
+        }
 
-        // 2. Assigned to SELF with 0 follow-ups
-        if (lead.assignedTo === user.id && followUpsCount === 0) return true;
+        // 3. Unassigned -> Always remain in Pool
+        if (!lead.assignedTo) return true;
 
         return false;
     }
@@ -52,26 +52,19 @@ export const isLeadInAssignedForUser = (user: any, lead: Lead) => {
     // Assigned view restrictions:
     if (lead.status === 'Converted' || lead.status === 'Lost') return false;
 
+    // Sales User
     if (user.role === 'sales_user') {
-        // Sales User Assigned Rules:
-        // - lead.assignedTo === user.id
-        // - ANY number of follow-ups
-        // - NOT Lost/Converted
         return lead.assignedTo === user.id;
     }
 
+    // Team Leader + Company Admin
     if (user.role === 'team_lead' || user.role === 'company_admin') {
-        // TL/Admin Assigned Rules:
-        // - Must be assigned and in company
-        if (!lead.isAssigned || lead.companyId !== user.companyId) return false;
+        // 1. Show all assigned leads in company
+        // 2. Do NOT show unassigned leads
+        if (!lead.assignedTo) return false;
 
-        // - If assigned to SELF: Show ONLY if has active follow-ups (otherwise it's in Pool)
-        if (lead.assignedTo === user.id) {
-            return countActiveFollowUps(lead) > 0;
-        }
-
-        // - If assigned to OTHERS: Show always (monitoring)
-        return true;
+        // Ensure company check (implied by "in company")
+        return lead.companyId === user.companyId;
     }
 
     if (user.role === 'super_admin') {

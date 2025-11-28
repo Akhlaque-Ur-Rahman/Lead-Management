@@ -135,22 +135,6 @@ interface SystemEvent {
   - This ensures the Calendar View only shows the single most relevant action item per lead.
 
 ### 5.4 Lead Status Lifecycle
-
--   **Hot / Warm / Cold**: Managed manually via Follow-Up outcomes.
--   **Lost Leads**:
-    -   When a lead is marked as "Lost", it moves to the **Lost Leads** page.
-    -   **Sales Users** can ONLY see leads *they* marked as lost.
-    -   **Admins** can see ALL lost leads.
--   **Converted Leads**:
-    -   Requires financial data (Invoice #, Value).
-    -   **Sales Users** are **BLOCKED** from viewing the Converted Leads page.
-    -   Visible to Team Leads and Admins.
-
----
-
-## 6. Role-Based Access Control (RBAC)
-
-| Feature | Super Admin | Company Admin | Team Lead | Sales User |
 | :--- | :---: | :---: | :---: | :---: |
 | **View Lead Pool** | ✅ | ✅ | ✅ | ✅ |
 | **View Assigned Leads** | ✅ (All) | ✅ (All) | ✅ (All) | ✅ (Own Only) |
