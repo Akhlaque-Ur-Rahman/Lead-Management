@@ -19,13 +19,14 @@ import { FEATURE_FLAGS } from '../config/featureFlags';
 
 // Utils
 import { buildLeadsQuery } from '../utils/firestore/queries';
-import { filterLeadsForView, LeadView } from '../utils/filters/leadFilters';
+import { filterLeadsForView, LeadView, isLeadInPoolForUser, isLeadInAssignedForUser } from '../utils/filters/leadFilters';
 import { subscribeToEvents, triggerUpdateEvent } from '../utils/events/eventBus';
 import { initBackgroundSync } from '../utils/events/sync';
 import { calculateNextFollowUpDate } from '../utils/followups/calculations';
 import { hasPermission, canAssignToUser } from '../utils/role/permissions';
 import { hasFollowUps } from '../utils/role/visibility';
 import { checkForDuplicates } from '../utils/imports/duplicateCheck';
+import { countActiveFollowUps } from '../utils/followups/countFollowUps';
 
 // -------------------- Types --------------------
 
@@ -315,7 +316,28 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
 
       // 3. Filter
-      const filteredLeads = filterLeadsForView(fetchedLeads, view, user);
+      const filteredLeads = fetchedLeads.filter(lead => {
+        // Basic exclude
+        if (lead.status === 'Converted' || lead.status === 'Lost') {
+          // For converted/lost views, handled below in view-specific check
+        }
+
+        // view-specific selection
+        if (view === 'pool') {
+            return isLeadInPoolForUser(user, lead);
+        }
+        if (view === 'assigned') {
+            return isLeadInAssignedForUser(user, lead);
+        }
+        if (view === 'converted') {
+            return lead.status === 'Converted';
+        }
+        if (view === 'lost') {
+            return lead.status === 'Lost';
+        }
+
+        return false;
+      });
 
       // 4. Update State & Cache
       setLeads(filteredLeads);
@@ -403,6 +425,12 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       });
       refreshLeads();
       triggerUpdateEvent(db, user, 'LEAD_ASSIGN');
+      try {
+        // Trigger event-based refresh so UI updates immediately
+        triggerUpdateEvent(db, user, 'LEAD_UPDATE'); // Using LEAD_UPDATE as generic refresh trigger if specific type not handled
+      } catch (e) {
+        console.warn('triggerUpdateEvent failed', e);
+      }
       return true;
     } catch (error) {
       console.error("assignLead error:", error);
@@ -430,7 +458,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return false;
     try {
       const leadRef = doc(db, "leads", leadId);
-      await runTransaction(db, async (t) => {
+      const transactionResult = await runTransaction(db, async (t) => {
         const leadDoc = await t.get(leadRef);
         if (!leadDoc.exists()) throw new Error("Lead not found");
         const leadData = leadDoc.data() as Lead;
@@ -467,9 +495,22 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           ...leadUpdates,
           directors: updatedDirectors,
         });
+        
+        return leadData; // Return data for post-transaction checks
       });
+
       refreshLeads();
       triggerUpdateEvent(db, user, 'FOLLOWUP_ADD');
+      
+      // If this was the first active follow-up for the assigned user -> UI refresh
+      // This applies to Sales User (removes from pool) AND TL/Admin (removes from pool)
+      if (transactionResult && user.id === transactionResult.assignedTo) {
+         const activeCount = countActiveFollowUps(transactionResult); // Count BEFORE this add
+         if (activeCount === 0) {
+             refreshLeads();
+             triggerUpdateEvent(db, user, 'LEAD_UPDATE');
+         }
+      }
       return true;
     } catch (error) {
       console.error("addFollowUp error:", error);

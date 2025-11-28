@@ -119,10 +119,34 @@ interface SystemEvent {
   userId: string;
   timestamp: ServerTimestamp;
   payload?: any;
+}
+```
+
+---
+
+## 5. Business Rules & Logic
+
+### 5.1 Lead Pool Rules (Final)
+### 5.3 Follow-Up System
+
+- **Singleton Rule**: A company can have only **ONE** active follow-up at a time across all directors.
+- **Status Logic**:
+  - When a new follow-up is added, any existing active follow-up for that company is marked as `updated` (archived).
+  - This ensures the Calendar View only shows the single most relevant action item per lead.
+
+### 5.4 Lead Status Lifecycle
+
+-   **Hot / Warm / Cold**: Managed manually via Follow-Up outcomes.
+-   **Lost Leads**:
+    -   When a lead is marked as "Lost", it moves to the **Lost Leads** page.
+    -   **Sales Users** can ONLY see leads *they* marked as lost.
+    -   **Admins** can see ALL lost leads.
 -   **Converted Leads**:
     -   Requires financial data (Invoice #, Value).
     -   **Sales Users** are **BLOCKED** from viewing the Converted Leads page.
     -   Visible to Team Leads and Admins.
+
+---
 
 ## 6. Role-Based Access Control (RBAC)
 

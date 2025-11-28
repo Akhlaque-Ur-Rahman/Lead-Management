@@ -5,69 +5,92 @@ import {
     canSalesUserViewLeadInAssigned,
     hasFollowUps
 } from '../role/visibility';
+import { countActiveFollowUps } from '../followups/countFollowUps';
 
 export type LeadView = 'pool' | 'assigned' | 'converted' | 'lost';
 
+export const isLeadInPoolForUser = (user: any, lead: Lead) => {
+    // Never include Converted or Lost in pool
+    if (lead.status === 'Converted' || lead.status === 'Lost') return false;
+
+    const followUpsCount = countActiveFollowUps(lead);
+
+    if (user.role === 'sales_user') {
+        // Sales User Pool Rules:
+        // - lead.assignedTo === user.id
+        // - activeFollowupCount === 0
+        // - lead.status NOT IN ("Lost", "Converted")
+        return lead.assignedTo === user.id && followUpsCount === 0;
+    }
+
+    if (user.role === 'team_lead' || user.role === 'company_admin') {
+        // TL/Admin Pool Rules:
+        // - Unassigned leads (assignedTo === null)
+        // - OR leads assigned to THEMSELVES with activeFollowupCount === 0
+        // - NOT leads assigned to sales users
+        // - NOT Lost/Converted
+
+        // 1. Unassigned
+        if (!lead.isAssigned) return true;
+
+        // 2. Assigned to SELF with 0 follow-ups
+        if (lead.assignedTo === user.id && followUpsCount === 0) return true;
+
+        return false;
+    }
+
+    // Super admin - keep read-only behaviour
+    if (user.role === 'super_admin') {
+        if (lead.status === 'Converted' || lead.status === 'Lost') return false;
+        return true;
+    }
+
+    return false;
+};
+
+export const isLeadInAssignedForUser = (user: any, lead: Lead) => {
+    // Assigned view restrictions:
+    if (lead.status === 'Converted' || lead.status === 'Lost') return false;
+
+    if (user.role === 'sales_user') {
+        // Sales User Assigned Rules:
+        // - lead.assignedTo === user.id
+        // - ANY number of follow-ups
+        // - NOT Lost/Converted
+        return lead.assignedTo === user.id;
+    }
+
+    if (user.role === 'team_lead' || user.role === 'company_admin') {
+        // TL/Admin Assigned Rules:
+        // - Must be assigned and in company
+        if (!lead.isAssigned || lead.companyId !== user.companyId) return false;
+
+        // - If assigned to SELF: Show ONLY if has active follow-ups (otherwise it's in Pool)
+        if (lead.assignedTo === user.id) {
+            return countActiveFollowUps(lead) > 0;
+        }
+
+        // - If assigned to OTHERS: Show always (monitoring)
+        return true;
+    }
+
+    if (user.role === 'super_admin') {
+        return lead.isAssigned;
+    }
+
+    return false;
+};
+
 export const filterLeadsForView = (leads: Lead[], view: LeadView, user: User): Lead[] => {
     return leads.filter(lead => {
-        // 1. Global Exclusions (unless view specific)
-        // Converted and Lost leads should NOT appear in Pool or Assigned (unless specific logic says so)
-        // But 'assigned' view for Sales User MIGHT show them if we didn't filter? 
-        // Actually, Lost/Converted have their own views.
-
         // POOL VIEW
         if (view === 'pool') {
-            if (lead.status === 'Converted' || lead.status === 'Lost') return false;
-
-            // Sales User Logic
-            if (user.role === 'sales_user') {
-                return canSalesUserViewLeadInPool(user, lead);
-            }
-
-            // Admin / Team Lead Logic
-            // 1. Unassigned leads -> Visible
-            if (!lead.isAssigned) return true;
-
-            // 2. Assigned to SELF with 0 follow-ups -> Visible in Pool (Special Rule)
-            // This ensures that if they assign to themselves, it stays in pool until worked on.
-            if (lead.assignedTo === user.id && !hasFollowUps(lead)) {
-                return true;
-            }
-
-            // 3. Assigned to OTHERS -> Visible in Pool if 0 follow-ups?
-            // Usually, if assigned to others, it might disappear from Pool for the admin?
-            // Original logic: "Admin/TLs: Pool = Unassigned OR Assigned with 0 follow-ups"
-            // So if assigned to ANYONE and has 0 follow-ups, it stays in pool.
-            return !hasFollowUps(lead);
+            return isLeadInPoolForUser(user, lead);
         }
 
         // ASSIGNED VIEW
         if (view === 'assigned') {
-            if (lead.status === 'Converted' || lead.status === 'Lost') return false;
-
-            // Sales User Logic
-            if (user.role === 'sales_user') {
-                return canSalesUserViewLeadInAssigned(user, lead);
-            }
-
-            // Admin / Team Lead Logic
-            // 1. Assigned to SELF -> Visible ONLY if has follow-ups (moved from Pool)
-            if (lead.assignedTo === user.id) {
-                return hasFollowUps(lead);
-            }
-
-            // 2. Assigned to OTHERS -> Visible (Admins see all assigned leads)
-            // But usually we only show "active" assigned leads here?
-            // Prompt says: "Assigned Leads Condition: assigned = lead.isAssigned && followUpsCount >= 1"
-            // "No exceptions for roles — once follow-up added, lead must move away from pool."
-            // So for Assigned View, we ONLY show leads that have follow-ups?
-            // "Team Lead sees all assigned leads", "Company Admin sees all assigned leads".
-            // If a lead is assigned to Sales User but has 0 follow-ups, does Admin see it in Assigned View?
-            // Prompt: "Assigned (0 follow-ups) -> visible in Lead Pool" (for Sales User).
-            // "Team Lead / Company Admin ... 1. The lead SHOULD stay in Lead Pool as long as it has 0 follow-ups".
-            // This implies Assigned View should ONLY show leads with >= 1 follow-ups.
-
-            return lead.isAssigned && hasFollowUps(lead);
+            return isLeadInAssignedForUser(user, lead);
         }
 
         // CONVERTED VIEW
