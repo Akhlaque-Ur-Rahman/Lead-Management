@@ -28,8 +28,6 @@ import {
 import { AlertCircle, Plus, Users, CheckCircle, BarChart3, Building2, Copy, Mail, Phone, Edit, Trash2, Ban } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
-import { writeBatch, doc as firestoreDoc, serverTimestamp, deleteField } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
 import {
   Select,
   SelectContent,
@@ -327,56 +325,15 @@ export function CompanyManagement() {
     }
 
     try {
-      // If the active state changed, handle deactivation cascade only (do NOT auto-activate users on company reactivation)
       const isActiveChanged = typeof updateData.isActive === 'boolean' && updateData.isActive !== selectedCompany.isActive;
-      if (isActiveChanged) {
-        // If deactivating the company, mark its users inactive in batches
-        if (updateData.isActive === false) {
-          const companyUsers = getUsersByCompany(selectedCompany.id);
-          if (companyUsers && companyUsers.length > 0) {
-              toast(`Updating ${companyUsers.length} user(s) to inactive...`);
-              const batchSize = 500;
-              for (let i = 0; i < companyUsers.length; i += batchSize) {
-                const batch = writeBatch(db);
-                const slice = companyUsers.slice(i, i + batchSize);
-                slice.forEach(u => {
-                  const uRef = firestoreDoc(db, 'users', u.id);
-                  batch.update(uRef, { isActive: false, deactivatedByCompany: true, updatedAt: serverTimestamp() });
-                });
-                await batch.commit();
-              }
-            }
-
-          // If deactivating, set a default block reason if none provided
-          if (!updateData.blockReason) {
-            updateData.blockReason = 'Marked inactive by admin';
-          }
-        } else {
-          // If reactivating the company, also reactivate its users (batch updates)
-          if (updateData.isActive === true) {
-            const companyUsers = getUsersByCompany(selectedCompany.id);
-            if (companyUsers && companyUsers.length > 0) {
-                toast(`Updating ${companyUsers.length} user(s) to active...`);
-                const batchSize = 500;
-                for (let i = 0; i < companyUsers.length; i += batchSize) {
-                  const batch = writeBatch(db);
-                  const slice = companyUsers.slice(i, i + batchSize).filter(u => u.deactivatedByCompany === true);
-                  slice.forEach(u => {
-                    const uRef = firestoreDoc(db, 'users', u.id);
-                    batch.update(uRef, { isActive: true, deactivatedByCompany: deleteField(), updatedAt: serverTimestamp() });
-                  });
-                  await batch.commit();
-                }
-              }
-            // Clear any previous block reason on the company record
-            delete updateData.blockReason;
-          }
-        }
+      if (isActiveChanged && updateData.isActive === false && !updateData.blockReason) {
+        updateData.blockReason = 'Marked inactive by admin';
+      }
+      if (isActiveChanged && updateData.isActive === true) {
+        delete updateData.blockReason;
       }
 
-      // Remove any undefined fields before sending to Firestore (updateDoc rejects undefined)
       Object.keys(updateData).forEach((k) => {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         if (updateData[k] === undefined) delete updateData[k];
       });
@@ -408,23 +365,6 @@ export function CompanyManagement() {
     const reason = blockReason.trim() || 'Marked inactive by admin';
 
     try {
-      // First, mark all users of this company as inactive via batched writes (max 500 per batch)
-      const companyUsers = getUsersByCompany(companyToBlock.id);
-      if (companyUsers && companyUsers.length > 0) {
-        toast(`Updating ${companyUsers.length} user(s) to inactive...`);
-        const batchSize = 500;
-        for (let i = 0; i < companyUsers.length; i += batchSize) {
-          const batch = writeBatch(db);
-          const slice = companyUsers.slice(i, i + batchSize);
-          slice.forEach(u => {
-            const uRef = firestoreDoc(db, 'users', u.id);
-            batch.update(uRef, { isActive: false, deactivatedByCompany: true, updatedAt: serverTimestamp() });
-          });
-          await batch.commit();
-        }
-      }
-
-      // Then mark the company inactive
       await updateCompany(companyToBlock.id, {
         isActive: false,
         blockReason: reason,

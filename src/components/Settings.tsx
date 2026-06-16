@@ -12,8 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Settings as SettingsIcon, Save, AlertCircle, FileSpreadsheet, FormInput, CreditCard, FileText } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
-import { doc, updateDoc, setDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { api } from '../api/client';
 
 type PlanType = 'basic' | 'professional' | 'enterprise';
 
@@ -223,7 +222,7 @@ export function Settings() {
                         const input = document.getElementById('system-name-input') as HTMLInputElement;
                         if (input) {
                           try {
-                            await setDoc(doc(db, 'systemConfig', 'globalBranding'), { systemName: input.value }, { merge: true });
+                            await api.config.setBranding(input.value);
                             toast.success('System name updated');
                           } catch (e) {
                             toast.error('Failed to update system name');
@@ -252,7 +251,7 @@ export function Settings() {
                         const input = document.getElementById('company-name-input') as HTMLInputElement;
                         if (input && user.companyId) {
                           try {
-                            await updateDoc(doc(db, 'companies', user.companyId), { companyNameCustom: input.value });
+                            await api.companies.update(user.companyId, { companyNameCustom: input.value });
                             toast.success('Account name updated');
                           } catch (e) {
                             toast.error('Failed to update account name');

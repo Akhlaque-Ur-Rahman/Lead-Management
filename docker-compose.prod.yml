@@ -1,0 +1,59 @@
+# Production: lms.edunexservices.com
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  lms-api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: lms-api
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://edunex:Pass%40postgresql123@edunex-postgres:5432/lms}
+      JWT_SECRET: ${JWT_SECRET:-change-me-lms-jwt-secret}
+      API_PORT: "4000"
+    networks:
+      - edge_proxy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  lms-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: lms-web
+    restart: always
+    depends_on:
+      lms-api:
+        condition: service_healthy
+    networks:
+      - edge_proxy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  edge_proxy:
+    external: true
+    name: green-city_default

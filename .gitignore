@@ -36,6 +36,8 @@ Thumbs.db
 # Firebase
 .firebase/
 firebase-debug.log*
+backups/*.json
+tools/serviceAccountKey.json
 
 # TypeScript
 *.tsbuildinfo

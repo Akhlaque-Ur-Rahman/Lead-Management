@@ -1,0 +1,11 @@
+node_modules
+build
+dist
+.git
+*.md
+tools
+functions
+tsc_*.txt
+verify_output.txt
+debug_build.js
+apps/api/node_modules

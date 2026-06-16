@@ -1,24 +1,10 @@
 // src/components/LeadsContext.tsx
 import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
-import {
-  collection,
-  addDoc,
-  setDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-  getDocs,
-  runTransaction,
-  writeBatch,
-  DocumentData,
-} from "firebase/firestore";
-import { db } from "../firebaseConfig";
+import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
 import { FEATURE_FLAGS } from '../config/featureFlags';
 
 // Utils
-import { buildLeadsQuery } from '../utils/firestore/queries';
 import { filterLeadsForView, LeadView, isLeadInPoolForUser, isLeadInAssignedForUser } from '../utils/filters/leadFilters';
 import { subscribeToEvents, triggerUpdateEvent } from '../utils/events/eventBus';
 import { initBackgroundSync } from '../utils/events/sync';
@@ -26,7 +12,6 @@ import { calculateNextFollowUpDate } from '../utils/followups/calculations';
 import { hasPermission, canAssignToUser } from '../utils/role/permissions';
 import { hasFollowUps } from '../utils/role/visibility';
 import { checkForDuplicates } from '../utils/imports/duplicateCheck';
-import { countActiveFollowUps } from '../utils/followups/countFollowUps';
 
 // -------------------- Types --------------------
 
@@ -267,7 +252,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   // Event Listener
   useEffect(() => {
     if (!user || !FEATURE_FLAGS.USE_EVENT_LISTENER) return;
-    const unsub = subscribeToEvents(db, user, () => {
+    const unsub = subscribeToEvents(null, user, () => {
       // console.log(`[Event] Received ${event.type}, refreshing...`);
       refreshLeads();
     });
@@ -310,12 +295,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
     setIsLoading(true);
     try {
-      // 1. Build Query
-      const q = buildLeadsQuery(db, user, limitOverride, view);
-      
-      // 2. Fetch
-      const snapshot = await getDocs(q);
-      const fetchedLeads = snapshot.docs.map(doc => normalizeDoc(doc.id, doc.data()));
+      const { leads: fetchedLeads } = await api.leads.list(view, limitOverride);
 
       // 3. Filter
       const filteredLeads = fetchedLeads.filter(lead => {
@@ -375,20 +355,17 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const addLead = async (leadData: Partial<Lead>): Promise<string | null> => {
     try {
-      const docRef = await addDoc(collection(db, "leads"), {
+      const { lead } = await api.leads.create({
         ...leadData,
         companyId: leadData.companyId ?? user?.companyId ?? null,
         status: leadData.status ?? "Cold",
         isAssigned: !!leadData.isAssigned,
         assignedTo: leadData.assignedTo ?? null,
         uploadedBy: leadData.uploadedBy ?? user?.id ?? null,
-        createdAt: serverTimestamp(),
       });
-      await setDoc(doc(db, "leads", docRef.id), { id: docRef.id }, { merge: true });
-      
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_UPDATE');
-      return docRef.id;
+      triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
+      return lead.id;
     } catch (err) {
       console.error("addLead error:", err);
       return null;
@@ -398,32 +375,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const updateLead = async (leadId: string, updates: Partial<Lead>): Promise<boolean> => {
     if (!user) return false;
     try {
-      const leadDocRef = doc(db, "leads", leadId);
-      
-      if (updates.directors) {
-        await runTransaction(db, async (t) => {
-          const snap = await t.get(leadDocRef);
-          if (!snap.exists()) throw new Error("Lead not found");
-          const currentData = snap.data() as Lead;
-          
-          if (user.role === "sales_user" && currentData.assignedTo !== user.id) {
-            throw new Error("Unauthorized");
-          }
-
-          const currentDirectors = currentData.directors || [];
-          const mergedDirectors = updates.directors!.map(formDir => {
-            const dbDir = currentDirectors.find(d => d.id === formDir.id);
-            return dbDir ? { ...formDir, followUps: dbDir.followUps || [] } : formDir;
-          });
-
-          t.update(leadDocRef, { ...updates, directors: mergedDirectors });
-        });
-      } else {
-        await updateDoc(leadDocRef, { ...updates } as any);
-      }
-      
+      await api.leads.update(leadId, updates);
       refreshLeads();
-      triggerUpdateEvent(db, user, 'LEAD_UPDATE');
+      triggerUpdateEvent(null, user, 'LEAD_UPDATE');
       return true;
     } catch (err) {
       console.error("updateLead error:", err);
@@ -437,19 +391,10 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     if (!targetUser || !canAssignToUser(user.role as RoleKey, targetUser.role as RoleKey)) return false;
 
     try {
-      await updateDoc(doc(db, "leads", leadId), {
-        isAssigned: true,
-        assignedTo: userId,
-        assignedAt: serverTimestamp(),
-      });
+      await api.leads.assign(leadId, userId);
       refreshLeads();
-      triggerUpdateEvent(db, user, 'LEAD_ASSIGN');
-      try {
-        // Trigger event-based refresh so UI updates immediately
-        triggerUpdateEvent(db, user, 'LEAD_UPDATE'); // Using LEAD_UPDATE as generic refresh trigger if specific type not handled
-      } catch (e) {
-        console.warn('triggerUpdateEvent failed', e);
-      }
+      triggerUpdateEvent(null, user, 'LEAD_ASSIGN');
+      triggerUpdateEvent(null, user, 'LEAD_UPDATE');
       return true;
     } catch (error) {
       console.error("assignLead error:", error);
@@ -459,13 +404,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const unassignLead = async (leadId: string): Promise<boolean> => {
     try {
-      await updateDoc(doc(db, "leads", leadId), {
-        isAssigned: false,
-        assignedTo: null,
-        assignedAt: null
-      });
+      await api.leads.unassign(leadId);
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_ASSIGN');
+      triggerUpdateEvent(null, user!, 'LEAD_ASSIGN');
       return true;
     } catch (error) {
       console.error("unassignLead error:", error);
@@ -476,70 +417,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const addFollowUp = async (leadId: string, followUp: Omit<FollowUp, "id" | "createdAt" | "createdBy" | "status">, leadUpdates?: Partial<Lead>): Promise<boolean> => {
     if (!user) return false;
     try {
-      const leadRef = doc(db, "leads", leadId);
-      const transactionResult = await runTransaction(db, async (t) => {
-        const leadDoc = await t.get(leadRef);
-        if (!leadDoc.exists()) throw new Error("Lead not found");
-        const leadData = leadDoc.data() as Lead;
-        
-        // Validation: Cannot add follow-up to unassigned lead
-        if (!leadData.isAssigned) {
-          throw new Error("You cannot add follow-ups to unassigned leads.");
-        }
-        
-        const newFollowUp: FollowUp = {
-          ...followUp,
-          id: `fu-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          createdBy: user.id,
-          status: 'active'
-        };
-
-        const updatedDirectors = leadData.directors.map(d => {
-          if (d.id === followUp.talkedToId) {
-             // Mark old active follow-ups as updated
-             const updatedFollowUps = (d.followUps || []).map(f => 
-               (!f.status || f.status === 'active') ? { ...f, status: 'updated' as const } : f
-             );
-             return { ...d, followUps: [...updatedFollowUps, newFollowUp] };
-          }
-          // Also mark active follow-ups in OTHER directors as updated (Singleton Rule)
-          const updatedFollowUps = (d.followUps || []).map(f => 
-            (!f.status || f.status === 'active') ? { ...f, status: 'updated' as const } : f
-          );
-          return { ...d, followUps: updatedFollowUps };
-        });
-
-        const updatePayload: any = {
-          ...leadUpdates,
-          directors: updatedDirectors,
-        };
-
-        if (leadUpdates?.status === 'Lost') {
-          updatePayload.lostAt = serverTimestamp();
-          updatePayload.lostBy = user.id;
-        } else if (leadUpdates?.status === 'Converted') {
-          updatePayload.convertedAt = serverTimestamp();
-          updatePayload.convertedBy = user.id;
-        }
-
-        t.update(leadRef, updatePayload);
-        
-        return leadData; // Return data for post-transaction checks
-      });
-
+      await api.leads.addFollowUp(leadId, followUp, leadUpdates);
       refreshLeads();
-      triggerUpdateEvent(db, user, 'FOLLOWUP_ADD');
-      
-      // If this was the first active follow-up for the assigned user -> UI refresh
-      // This applies to Sales User (removes from pool) AND TL/Admin (removes from pool)
-      if (transactionResult && user.id === transactionResult.assignedTo) {
-         const activeCount = countActiveFollowUps(transactionResult); // Count BEFORE this add
-         if (activeCount === 0) {
-             refreshLeads();
-             triggerUpdateEvent(db, user, 'LEAD_UPDATE');
-         }
-      }
+      triggerUpdateEvent(null, user, 'FOLLOWUP_ADD');
       return true;
     } catch (error) {
       console.error("addFollowUp error:", error);
@@ -550,39 +430,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const updateFollowUp = async (leadId: string, followUp: FollowUp, leadUpdates?: Partial<Lead>): Promise<boolean> => {
     if (!user) return false;
     try {
-      const leadRef = doc(db, "leads", leadId);
-      await runTransaction(db, async (t) => {
-        const leadDoc = await t.get(leadRef);
-        if (!leadDoc.exists()) throw new Error("Lead not found");
-        const leadData = leadDoc.data() as Lead;
-        
-        const updatedDirectors = leadData.directors.map(d => {
-          const existingFollowUpIndex = (d.followUps || []).findIndex(f => f.id === followUp.id);
-          if (existingFollowUpIndex !== -1) {
-             const newFollowUps = [...(d.followUps || [])];
-             newFollowUps[existingFollowUpIndex] = { ...followUp, createdBy: user.id };
-             return { ...d, followUps: newFollowUps };
-          }
-          return d;
-        });
-
-        const updatePayload: any = {
-          ...leadUpdates,
-          directors: updatedDirectors,
-        };
-
-        if (leadUpdates?.status === 'Converted') {
-          updatePayload.convertedAt = serverTimestamp();
-          updatePayload.convertedBy = user.id;
-        } else if (leadUpdates?.status === 'Lost') {
-          updatePayload.lostAt = serverTimestamp();
-          updatePayload.lostBy = user.id;
-        }
-
-        t.update(leadRef, updatePayload);
-      });
+      await api.leads.updateFollowUp(leadId, followUp, leadUpdates);
       refreshLeads();
-      triggerUpdateEvent(db, user, 'FOLLOWUP_ADD');
+      triggerUpdateEvent(null, user, 'FOLLOWUP_ADD');
       return true;
     } catch (error) {
       console.error("updateFollowUp error:", error);
@@ -592,69 +442,35 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const batchAddLeads = async (leadsData: Partial<Lead>[]): Promise<number> => {
     try {
-      // 1. Check for duplicates
-      const { uniqueLeads, duplicatesCount, skippedLeads } = await checkForDuplicates(db, leadsData);
-      
+      const { uniqueLeads, duplicatesCount } = await checkForDuplicates(null, leadsData);
       if (duplicatesCount > 0) {
-        console.log(`[batchAddLeads] Skipped ${duplicatesCount} duplicates.`, skippedLeads);
+        console.log(`[batchAddLeads] Skipped ${duplicatesCount} duplicates.`);
       }
-
-      if (uniqueLeads.length === 0) {
-        return 0;
-      }
-
-      const chunkSize = 500;
-      let successCount = 0;
-      
-      // 2. Insert unique leads
-      for (let i = 0; i < uniqueLeads.length; i += chunkSize) {
-        const chunk = uniqueLeads.slice(i, i + chunkSize);
-        const batch = writeBatch(db);
-        chunk.forEach(lead => {
-          const docRef = doc(collection(db, "leads"));
-          batch.set(docRef, {
-            ...lead,
-            status: lead.status || "Cold",
-            isAssigned: !!lead.assignedTo,
-            assignedTo: lead.assignedTo || null,
-            companyId: lead.companyId || user?.companyId || '',
-            createdAt: lead.createdAt || new Date().toISOString(),
-            directors: lead.directors || [],
-            uploadedBy: user?.id || '',
-            id: docRef.id
-          });
-        });
-        await batch.commit();
-        successCount += chunk.length;
-      }
-      
+      if (uniqueLeads.length === 0) return 0;
+      const payload = uniqueLeads.map((lead) => ({
+        ...lead,
+        status: lead.status || "Cold",
+        isAssigned: !!lead.assignedTo,
+        assignedTo: lead.assignedTo || null,
+        companyId: lead.companyId || user?.companyId || '',
+        directors: lead.directors || [],
+        uploadedBy: user?.id || '',
+      }));
+      const { count } = await api.leads.batchCreate(payload);
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_UPDATE');
-      return successCount;
+      triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
+      return count;
     } catch (err) {
       console.error("batchAddLeads error:", err);
       return 0;
     }
   };
 
-  const markAsLost = async (leadId: string, remark: string, userId: string, isPermanent: boolean = false): Promise<boolean> => {
+  const markAsLost = async (leadId: string, remark: string, userId: string): Promise<boolean> => {
     try {
-      const leadRef = doc(db, "leads", leadId);
-      if (isPermanent) {
-          // If permanent delete requested (usually separate function, but handling here if needed)
-          // But usually markAsLost just sets status.
-      }
-      await updateDoc(leadRef, {
-        status: 'Lost',
-        lostRemark: remark,
-        lostBy: userId,
-        lostAt: serverTimestamp(),
-        isAssigned: false, // Clear assignment
-        assignedTo: null,
-        assignedAt: null
-      });
+      await api.leads.markLost(leadId, remark, userId);
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_UPDATE');
+      triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
       return true;
     } catch (error) {
       console.error("markAsLost error:", error);
@@ -664,15 +480,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const restoreLostLead = async (lostId: string): Promise<boolean> => {
     try {
-      const leadRef = doc(db, "leads", lostId);
-      await updateDoc(leadRef, {
-        status: 'Cold', // Default to Cold on restore
-        lostRemark: null,
-        lostBy: null,
-        lostAt: null
-      });
+      await api.leads.restoreLost(lostId);
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_UPDATE');
+      triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
       return true;
     } catch (error) {
       console.error("restoreLostLead error:", error);
@@ -682,9 +492,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const permanentlyDeleteLost = async (lostId: string): Promise<boolean> => {
     try {
-      await deleteDoc(doc(db, "leads", lostId));
+      await api.leads.delete(lostId);
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_DELETE');
+      triggerUpdateEvent(null, user!, 'LEAD_DELETE');
       return true;
     } catch (error) {
       console.error("permanentlyDeleteLost error:", error);
@@ -694,16 +504,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const markAsConverted = async (leadId: string, invoiceNo: string, projectValue: string, userId: string): Promise<boolean> => {
     try {
-      const leadRef = doc(db, "leads", leadId);
-      await updateDoc(leadRef, {
-        status: 'Converted',
-        invoiceNo,
-        projectValue,
-        convertedBy: userId,
-        convertedAt: serverTimestamp()
-      });
+      await api.leads.markConverted(leadId, invoiceNo, projectValue, userId);
       refreshLeads();
-      triggerUpdateEvent(db, user!, 'LEAD_UPDATE');
+      triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
       return true;
     } catch (error) {
       console.error("markAsConverted error:", error);
@@ -757,45 +560,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // -------------------- Normalization --------------------
-  const normalizeDoc = (id: string, data: DocumentData): Lead => {
-    return {
-      id,
-      companyId: data.companyId ?? "",
-      cin: data.cin ?? "",
-      companyName: data.companyName ?? "",
-      authorisedCapital: data.authorisedCapital ?? "",
-      paidUpCapital: data.paidUpCapital ?? "",
-      dateOfIncorporation: data.dateOfIncorporation ?? "",
-      registeredAddress: data.registeredAddress ?? "",
-      companyEmail: data.companyEmail ?? "",
-      directors: data.directors ?? [],
-      din: data.din ?? data.directors?.[0]?.din ?? "",
-      directorFirstName: data.directorFirstName ?? "",
-      directorLastName: data.directorLastName ?? "",
-      mobile: data.mobile ?? "",
-      directorEmail: data.directorEmail ?? "",
-      status: (data.status ?? "Cold") as LeadStatus,
-      isAssigned: !!data.isAssigned,
-      assignedTo: data.assignedTo ?? null,
-      assignedAt: data.assignedAt?.toDate?.()?.toISOString() ?? null,
-      followUpDate: data.followUpDate ?? null,
-      nextFollowUpDate: data.nextFollowUpDate ?? null,
-      notes: data.notes ?? "",
-      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? data.createdAt ?? new Date().toISOString(),
-      uploadedBy: data.uploadedBy ?? null,
-      invoiceNo: data.invoiceNo ?? null,
-      projectValue: data.projectValue ?? null,
-      convertedBy: data.convertedBy ?? null,
-      convertedAt: data.convertedAt?.toDate?.() 
-        ? data.convertedAt.toDate().toISOString() 
-        : (typeof data.convertedAt === "string" ? data.convertedAt : null),
-      lostRemark: data.lostRemark ?? null,
-      lostBy: data.lostBy ?? null,
-      lostAt: data.lostAt?.toDate?.() 
-        ? data.lostAt.toDate().toISOString() 
-        : (typeof data.lostAt === "string" ? data.lostAt : null),
-    } as Lead;
-  };
+  // API returns normalized leads; kept for compatibility if needed elsewhere.
 
   return (
     <LeadsContext.Provider

@@ -38,8 +38,7 @@ import * as XLSX from 'xlsx';
 import { hasPermission, canAssignToUser } from '../types/roles';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { cn } from './ui/utils';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { api } from '../api/client';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
@@ -278,23 +277,9 @@ export function LeadManagement() {
 
           for (let i = 0; i < uniqueCINs.length; i += batchSize) {
             const cinBatch = uniqueCINs.slice(i, i + batchSize);
-            
             try {
-              const q = query(
-                collection(db, "leads"),
-                where("companyId", "==", user?.companyId),
-                where("cin", "in", cinBatch)
-              );
-
-              const snap = await getDocs(q);
-              
-              // Collect existing CINs
-              snap.docs.forEach(doc => {
-                const cin = doc.data().cin?.toLowerCase();
-                if (cin) {
-                  existingCINs.add(cin);
-                }
-              });
+              const { duplicates } = await api.leads.checkDuplicatesScoped(user?.companyId || '', cinBatch);
+              duplicates.forEach((cin) => existingCINs.add(cin.toLowerCase()));
             } catch (error) {
               console.error(`Error checking CIN batch ${i / batchSize + 1}:`, error);
             }

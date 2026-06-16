@@ -1,26 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc,
-  onSnapshot, 
-  serverTimestamp,
-  getDoc,
-  query,
-  where,
-  getDocs,
-  writeBatch,
-  deleteField
-} from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { api } from '../api/client';
 
 interface PlanPricingBase {
   basic: number;
   professional: number;
   enterprise: number;
-  custom?: number; // Optional custom plan price
+  custom?: number;
 }
 
 export interface PlanPricing {
@@ -30,7 +15,7 @@ export interface PlanPricing {
 
 export interface Company {
   id: string;
-  companyId: string; // Unique readable company ID (e.g., CO_20251110_5A7B)
+  companyId: string;
   name: string;
   email: string;
   phone: string;
@@ -43,22 +28,12 @@ export interface Company {
   blockReason?: string | null;
   subscriptionPlan: 'basic' | 'professional' | 'enterprise' | 'custom';
   maxUsers: number;
-  monthlyPrice?: number; // Only for custom plans
+  monthlyPrice?: number;
 }
 
 export const DEFAULT_PLAN_PRICES: PlanPricing = {
-  prices: {
-    basic: 99,
-    professional: 299,
-    enterprise: 999,
-    custom: 0
-  },
-  maxUsers: {
-    basic: 10,
-    professional: 50,
-    enterprise: 200,
-    custom: 0
-  }
+  prices: { basic: 99, professional: 299, enterprise: 999, custom: 0 },
+  maxUsers: { basic: 10, professional: 50, enterprise: 200, custom: 0 },
 };
 
 interface CompanyContextType {
@@ -70,14 +45,7 @@ interface CompanyContextType {
   updateCompany: (companyId: string, updates: Partial<Omit<Company, 'id' | 'companyId' | 'createdAt'>>) => Promise<void>;
   deleteCompany: (companyId: string) => Promise<void>;
   getCompany: (companyId: string) => Company | undefined;
-  // Test function to verify Firestore integration
-  testFirestoreConnection: () => Promise<{
-    success: boolean;
-    companyId?: string;
-    error?: string;
-    firestoreData?: any;
-  }>;
-  // Helper to determine whether a role may change subscription plans
+  testFirestoreConnection: () => Promise<{ success: boolean; companyId?: string; error?: string }>;
   canChangePlan: (role?: string) => boolean;
 }
 
@@ -85,349 +53,96 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export const useCompanies = () => {
   const context = useContext(CompanyContext);
-  if (context === undefined) {
-    throw new Error('useCompanies must be used within a CompanyProvider');
-  }
+  if (!context) throw new Error('useCompanies must be used within a CompanyProvider');
   return context;
 };
 
-// Generate unique company ID
-const generateCompanyId = (): string => {
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `CO_${dateStr}_${randomStr}`;
-};
-
-// Helper to parse Firestore timestamp
-const parseTimestamp = (timestamp: any): string => {
-  if (!timestamp) return new Date().toISOString();
-  if (timestamp.toDate) return timestamp.toDate().toISOString();
-  if (timestamp.seconds) return new Date(timestamp.seconds * 1000).toISOString();
-  return new Date(timestamp).toISOString();
-};
-
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [planPricing, setPlanPricing] = useState<PlanPricing>(DEFAULT_PLAN_PRICES);
 
-  // Load companies from Firestore with real-time updates
-  useEffect(() => {
-    console.log('Setting up Firestore listener for companies');
-    
-    const companiesRef = collection(db, 'companies');
-    const unsubscribe = onSnapshot(
-      companiesRef,
-      (snapshot) => {
-        console.log('Companies snapshot received:', snapshot.docs.length, 'companies (before filtering)');
-        const companiesData = snapshot.docs
-          .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            companyId: doc.id, // Use doc.id as companyId
-            name: data.name || '',
-            email: data.email || '',
-            phone: data.phone || '',
-            address: data.address || '',
-            logo: data.logo,
-            createdAt: parseTimestamp(data.createdAt),
-            updatedAt: data.updatedAt ? parseTimestamp(data.updatedAt) : undefined,
-            isActive: data.isActive !== false, // default to true if not set
-            // Treat only a strict boolean true as deleted; anything else counts as not deleted
-            isDeleted: data.isDeleted === true,
-            subscriptionPlan: data.subscriptionPlan || 'basic',
-            maxUsers: data.maxUsers || 0,
-            monthlyPrice: data.monthlyPrice,
-            blockReason: data.blockReason || null
-          } as Company;
-        })
-          .filter(c => !c.isDeleted);
-        console.log('Companies after filtering isDeleted:', companiesData.length);
-        setCompanies(companiesData);
-        setIsLoading(false);
-      },
-      (error) => {
-        console.error('Error loading companies:', error);
-        setIsLoading(false);
-      }
-    );
-
-    // Clean up the listener on unmount
-    return () => {
-      console.log('Cleaning up companies listener');
-      unsubscribe();
-    };
+  const refreshCompanies = useCallback(async () => {
+    try {
+      const { companies: list } = await api.companies.list();
+      setCompanies(list);
+    } catch (e) {
+      console.error('Failed to load companies', e);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  // Add a new company to Firestore
+  useEffect(() => {
+    refreshCompanies();
+    const interval = setInterval(refreshCompanies, 10000);
+    return () => clearInterval(interval);
+  }, [refreshCompanies]);
+
   const addCompany = async (companyData: Omit<Company, 'id' | 'companyId' | 'createdAt' | 'updatedAt' | 'isDeleted'>): Promise<Company> => {
-    console.log('Adding new company:', companyData);
-    
-    try {
-      const trimmedName = (companyData.name || '').trim();
-      const trimmedEmail = (companyData.email || '').trim();
-      const trimmedPhone = (companyData.phone || '').trim();
-      const trimmedAddress = (companyData.address || '').trim();
-
-      if (!trimmedName) {
-        throw new Error('COMPANY_NAME_REQUIRED');
-      }
-
-      // Server-side duplicate check by company name to avoid race conditions
-      const companiesRef = collection(db, 'companies');
-      const duplicateQuery = query(
-        companiesRef,
-        where('name', '==', trimmedName)
-      );
-      const duplicateSnapshot = await getDocs(duplicateQuery);
-      if (!duplicateSnapshot.empty) {
-        throw new Error('COMPANY_NAME_ALREADY_EXISTS');
-      }
-
-      // Check for duplicate company email
-      if (trimmedEmail) {
-        const emailQuery = query(
-          companiesRef,
-          where('email', '==', trimmedEmail)
-        );
-        const emailSnapshot = await getDocs(emailQuery);
-        if (!emailSnapshot.empty) {
-          throw new Error('COMPANY_EMAIL_ALREADY_EXISTS');
-        }
-      }
-
-      const normalizedData = {
-        ...companyData,
-        name: trimmedName,
-        email: trimmedEmail,
-        phone: trimmedPhone,
-        address: trimmedAddress,
-      };
-
-      const companyId = generateCompanyId();
-      const now = serverTimestamp();
-      const companyRef = doc(db, 'companies', companyId);
-      
-      // Create a plain object without any Firestore timestamps for logging
-      const companyToLog = {
-        ...normalizedData,
-        isActive: companyData.isActive !== false,
-        isDeleted: false,
-        blockReason: companyData.blockReason || null,
-        createdAt: '[ServerTimestamp]',
-        updatedAt: '[ServerTimestamp]'
-      };
-      
-      console.log('Attempting to create company in Firestore with ID:', companyId);
-      console.log('Company data to save:', companyToLog);
-      
-      // Create the actual company data with Firestore timestamps
-      const companyToSave = {
-        ...normalizedData,
-        isActive: companyData.isActive !== false,
-        isDeleted: false,
-        blockReason: companyData.blockReason || null,
-        createdAt: now,
-        updatedAt: now
-      };
-      
-      console.log('Saving to Firestore...');
-      await setDoc(companyRef, companyToSave);
-      
-      console.log('Company successfully written to Firestore');
-      
-      // Verify the document was created
-      const docSnap = await getDoc(companyRef);
-      if (!docSnap.exists()) {
-        throw new Error('Failed to verify company creation in Firestore');
-      }
-      console.log('Company document verified in Firestore');
-      
-      return { 
-        id: companyId,
-        companyId,
-        ...companyToSave,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('Error in addCompany:', {
-        error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace'
-      });
-      throw error;
-    }
+    const trimmedName = (companyData.name || '').trim();
+    if (!trimmedName) throw new Error('COMPANY_NAME_REQUIRED');
+    const { company } = await api.companies.create({
+      ...companyData,
+      name: trimmedName,
+      email: (companyData.email || '').trim(),
+      phone: (companyData.phone || '').trim(),
+      address: (companyData.address || '').trim(),
+    });
+    await refreshCompanies();
+    return company;
   };
 
-  // Update an existing company in Firestore
   const updateCompany = async (companyId: string, updates: Partial<Omit<Company, 'id' | 'companyId' | 'createdAt'>>) => {
-    console.log('Updating company:', companyId, updates);
-    
-    try {
-      const companyRef = doc(db, 'companies', companyId);
-
-      // Read existing company state to detect isActive changes
-      const prevCompanySnap = await getDoc(companyRef);
-      const prevIsActive = prevCompanySnap.exists() ? (prevCompanySnap.data().isActive !== false) : true;
-      const newIsActive = typeof updates.isActive === 'boolean' ? updates.isActive : prevIsActive;
-
-      // If isActive changed, sync users accordingly
-      if (typeof updates.isActive === 'boolean' && newIsActive !== prevIsActive) {
-        // Query all users for this company
-        const usersQuery = query(
-          collection(db, 'users'),
-          where('companyId', '==', companyId)
-        );
-        const usersSnap = await getDocs(usersQuery);
-        const userDocs = usersSnap.docs;
-
-        if (newIsActive === false) {
-          // Deactivating company: mark all users inactive and flag them as deactivatedByCompany
-          console.log(`Deactivating ${userDocs.length} users for company ${companyId}`);
-          const batchSize = 500;
-          for (let i = 0; i < userDocs.length; i += batchSize) {
-            const batch = writeBatch(db);
-            const slice = userDocs.slice(i, i + batchSize);
-            slice.forEach((uDoc) => {
-              batch.update(uDoc.ref, { isActive: false, deactivatedByCompany: true, updatedAt: serverTimestamp() });
-            });
-            await batch.commit();
-          }
-        } else {
-          // Reactivating company: only reactivate users that were deactivated by company
-          console.log(`Reactivating users (only those deactivated by company) for ${companyId}`);
-          const toReactivate = userDocs.filter(d => d.data()?.deactivatedByCompany === true);
-          const batchSize = 500;
-          for (let i = 0; i < toReactivate.length; i += batchSize) {
-            const batch = writeBatch(db);
-            const slice = toReactivate.slice(i, i + batchSize);
-            slice.forEach((uDoc) => {
-              batch.update(uDoc.ref, { isActive: true, deactivatedByCompany: deleteField(), updatedAt: serverTimestamp() });
-            });
-            await batch.commit();
-          }
-        }
-      }
-
-      await updateDoc(companyRef, {
-        ...updates,
-        updatedAt: serverTimestamp()
-      });
-      console.log('Company updated successfully');
-    } catch (error) {
-      console.error('Error updating company in Firestore:', error);
-      throw error;
-    }
+    await api.companies.update(companyId, updates);
+    await refreshCompanies();
   };
 
-  // Permanently delete a company from Firestore
   const deleteCompany = async (companyId: string) => {
-    console.log('Deleting company permanently:', companyId);
-    
-    try {
-      const companyRef = doc(db, 'companies', companyId);
-      await deleteDoc(companyRef);
-      console.log('Company deleted successfully from Firestore');
-    } catch (error) {
-      console.error('Error deleting company in Firestore:', error);
-      throw error;
-    }
+    await api.companies.delete(companyId);
+    await refreshCompanies();
   };
 
-  // Get a single company by ID (from in-memory state)
   const getCompany = useCallback((companyId: string) => {
-    return companies.find(c => c.id === companyId || c.companyId === companyId);
+    return companies.find((c) => c.id === companyId || c.companyId === companyId);
   }, [companies]);
 
-  // Update plan pricing (kept in local state as it's UI-only)
   const updatePlanPricing = useCallback((updates: Partial<PlanPricing>) => {
-    setPlanPricing(prev => ({
+    setPlanPricing((prev) => ({
       ...prev,
       ...updates,
       prices: { ...prev.prices, ...(updates.prices || {}) },
-      maxUsers: { ...prev.maxUsers, ...(updates.maxUsers || {}) }
+      maxUsers: { ...prev.maxUsers, ...(updates.maxUsers || {}) },
     }));
   }, []);
 
-  // Test function to verify Firestore connection and permissions
   const testFirestoreConnection = async () => {
-    const testCompany = {
-      name: 'Test Company ' + Math.random().toString(36).substring(2, 8),
-      email: `test-${Date.now()}@example.com`,
-      phone: '+1234567890',
-      address: '123 Test St, Test City',
-      isActive: true,
-      subscriptionPlan: 'basic' as const,
-      maxUsers: 10
-    };
-
     try {
-      console.log('Starting Firestore connection test...');
-      
-      // Test 1: Write to Firestore
-      console.log('Creating test company...');
-      const company = await addCompany(testCompany);
-      console.log('Test company created:', company);
-      
-      // Test 2: Read from Firestore
-      console.log('Reading test company from Firestore...');
-      const companyRef = doc(db, 'companies', company.id);
-      const docSnap = await getDoc(companyRef);
-      
-      if (!docSnap.exists()) {
-        throw new Error('Failed to read the test company from Firestore');
-      }
-      
-      const firestoreData = docSnap.data();
-      console.log('Test company data from Firestore:', firestoreData);
-      
-      // Clean up
-      console.log('Cleaning up test company...');
-      await updateDoc(companyRef, { isDeleted: true });
-      
-      return {
-        success: true,
-        companyId: company.id,
-        firestoreData: {
-          ...firestoreData,
-          id: docSnap.id,
-          // Convert Firestore timestamps to strings for logging
-          createdAt: firestoreData.createdAt?.toDate?.()?.toISOString() || firestoreData.createdAt,
-          updatedAt: firestoreData.updatedAt?.toDate?.()?.toISOString() || firestoreData.updatedAt
-        }
-      };
-    } catch (error) {
-      console.error('Firestore test failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        companyId: undefined,
-        firestoreData: undefined
-      };
+      const company = await addCompany({
+        name: 'Test Company ' + Math.random().toString(36).substring(2, 8),
+        email: `test-${Date.now()}@example.com`,
+        phone: '+1234567890',
+        address: '123 Test St',
+        isActive: true,
+        subscriptionPlan: 'basic',
+        maxUsers: 10,
+      });
+      await api.companies.softDelete(company.id);
+      await refreshCompanies();
+      return { success: true, companyId: company.id };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   };
 
-  const value = {
-    companies,
-    isLoading,
-    planPricing,
-    updatePlanPricing,
-    addCompany,
-    updateCompany,
-    deleteCompany,
-    getCompany,
-    testFirestoreConnection
-    ,
-    canChangePlan: (role?: string) => {
-      return role === 'super_admin' || role === 'platform_admin';
-    }
-  };
+  const canChangePlan = (role?: string) => role === 'super_admin' || role === 'platform_admin';
 
   return (
-    <CompanyContext.Provider value={value}>
+    <CompanyContext.Provider value={{
+      companies, isLoading, planPricing, updatePlanPricing,
+      addCompany, updateCompany, deleteCompany, getCompany,
+      testFirestoreConnection, canChangePlan,
+    }}>
       {children}
     </CompanyContext.Provider>
   );

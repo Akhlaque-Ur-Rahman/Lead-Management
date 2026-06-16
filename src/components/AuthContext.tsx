@@ -1,32 +1,15 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { type RoleKey, type RoleId, getRoleId } from '../types/roles';
 import { toast } from 'sonner';
-import bcrypt from 'bcryptjs';
-
-import { 
-  doc, 
-  getDoc, 
-  updateDoc, 
-  deleteDoc,
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  onSnapshot,
-  serverTimestamp,
-  setDoc
-} from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-
-const SESSION_KEY = 'lms_user_session';
+import { api, setAuth, clearAuth, getStoredUser } from '../api/client';
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: RoleKey;
-  roleId: RoleId; // Unique identifier for the role
-  companyId: string | null; // null for super_admin
+  roleId: RoleId;
+  companyId: string | null;
   createdAt: string;
   isActive: boolean;
   deactivatedByCompany?: boolean;
@@ -60,127 +43,88 @@ export const useAuth = () => {
   return context;
 };
 
-const USERS_COLLECTION = 'users';
-
-const mapFirebaseUser = (firebaseUser: any): User => ({
-  id: firebaseUser.id || firebaseUser.uid,
-  name: firebaseUser.name || firebaseUser.displayName || '',
-  email: firebaseUser.email,
-  role: firebaseUser.role,
-  roleId: firebaseUser.roleId,
-  companyId: firebaseUser.companyId || null,
-  isActive: firebaseUser.isActive !== undefined ? firebaseUser.isActive : true,
-  deactivatedByCompany: firebaseUser.deactivatedByCompany === true,
-  createdAt: firebaseUser.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-  lastLoginAt: firebaseUser.lastLoginAt?.toDate?.()?.toISOString()
-});
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [systemName, setSystemName] = useState('Lead Management');
+  const [companyDisplayName, setCompanyDisplayName] = useState('');
 
+  const refreshUsers = useCallback(async () => {
+    try {
+      const { users: list } = await api.users.list();
+      setUsers(list);
+    } catch (e) {
+      console.error('Failed to load users', e);
+    }
+  }, []);
 
+  const refreshBranding = useCallback(async () => {
+    try {
+      const { systemName: name } = await api.config.getBranding();
+      setSystemName(name || 'Lead Management');
+    } catch {
+      /* not logged in yet */
+    }
+  }, []);
 
+  const refreshCompanyDisplay = useCallback(async (companyId: string) => {
+    try {
+      const { company } = await api.companies.get(companyId);
+      setCompanyDisplayName(company.companyNameCustom || company.name || '');
+    } catch {
+      setCompanyDisplayName('');
+    }
+  }, []);
 
   useEffect(() => {
-    // Restore session from localStorage
-    const restoreSession = async () => {
-      const storedSession = localStorage.getItem(SESSION_KEY);
-      if (storedSession) {
+    const restore = async () => {
+      const stored = getStoredUser();
+      if (stored) {
         try {
-          const sessionUser = JSON.parse(storedSession);
-          // Verify user still exists and is active in Firestore
-          const userDoc = await getDoc(doc(db, USERS_COLLECTION, sessionUser.id));
-          if (userDoc.exists() && userDoc.data().isActive !== false) {
-            setUser(mapFirebaseUser({ ...userDoc.data(), id: userDoc.id }));
+          const { user: me } = await api.auth.me();
+          if (me.isActive !== false) {
+            setUser(me);
           } else {
-            // User no longer exists or is inactive
-            localStorage.removeItem(SESSION_KEY);
-            setUser(null);
+            clearAuth();
           }
-        } catch (error) {
-          console.error('Error restoring session:', error);
-          localStorage.removeItem(SESSION_KEY);
+        } catch {
+          clearAuth();
         }
       }
       setIsLoading(false);
     };
-
-    restoreSession();
-
-    // Load all users (active and inactive) so the UI can show status filters
-    const usersRef = collection(db, USERS_COLLECTION);
-    const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
-      const usersList: User[] = [];
-      snapshot.forEach((doc) => {
-        usersList.push(mapFirebaseUser({ ...doc.data(), id: doc.id }));
-      });
-      setUsers(usersList);
-    });
-
-    return () => {
-      unsubscribeUsers();
-    };
+    restore();
   }, []);
 
-  // If the current user's company becomes inactive, sign them out immediately.
+  useEffect(() => {
+    if (!user) return;
+    refreshUsers();
+    refreshBranding();
+    const interval = setInterval(refreshUsers, 10000);
+    return () => clearInterval(interval);
+  }, [user, refreshUsers, refreshBranding]);
 
+  useEffect(() => {
+    if (!user?.companyId) {
+      setCompanyDisplayName('');
+      return;
+    }
+    refreshCompanyDisplay(user.companyId);
+    const interval = setInterval(() => refreshCompanyDisplay(user.companyId!), 10000);
+    return () => clearInterval(interval);
+  }, [user?.companyId, refreshCompanyDisplay]);
 
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const normalizedEmail = email.toLowerCase();
-      
-      // Query user by email
-      const usersQuery = query(
-        collection(db, USERS_COLLECTION), 
-        where('email', '==', normalizedEmail)
-      );
-      const querySnapshot = await getDocs(usersQuery);
-      
-      if (querySnapshot.empty) {
-        toast.error('Invalid email or password');
-        return { success: false, error: 'Invalid email or password' };
-      }
-
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-
-      // Check password
-      const isPasswordValid = await bcrypt.compare(password, userData.password);
-      if (!isPasswordValid) {
-        toast.error('Invalid email or password');
-        return { success: false, error: 'Invalid email or password' };
-      }
-
-      if (userData.isActive === false) {
-        toast.error('This account has been deactivated');
-        return { success: false, error: 'This account has been deactivated' };
-      }
-
-      if (userData.companyId) {
-        const companyDoc = await getDoc(doc(db, 'companies', userData.companyId));
-        if (companyDoc.exists() && !companyDoc.data()?.isActive) {
-          toast.error('Your company account is inactive');
-          return { success: false, error: 'Your company account is inactive' };
-        }
-      }
-
-      // Update last login
-      await updateDoc(userDoc.ref, {
-        lastLoginAt: serverTimestamp()
-      });
-
-      const userObj = mapFirebaseUser({ ...userData, id: userDoc.id });
-      setUser(userObj);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(userObj));
-      
-      toast.success(`Welcome back, ${userData.name || userData.email}!`);
+      const { user: loggedIn, token } = await api.auth.login(email, password);
+      setAuth(token, loggedIn);
+      setUser(loggedIn);
+      toast.success(`Welcome back, ${loggedIn.name || loggedIn.email}!`);
       return { success: true };
     } catch (error: any) {
-      console.error('Login error:', error);
-      toast.error('Login failed. Please try again.');
+      toast.error(error.message || 'Login failed');
       return { success: false, error: error.message };
     } finally {
       setIsLoading(false);
@@ -188,71 +132,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    localStorage.removeItem(SESSION_KEY);
+    try { await api.auth.logout(); } catch { /* ignore */ }
+    clearAuth();
     setUser(null);
     toast.success('Successfully logged out');
   };
 
   const getUserCountForCompany = (companyId: string | null) => {
     if (!companyId) return 0;
-    // Count only active users for company-level limits/stats
-    return users.filter(user => user.companyId === companyId && user.isActive).length;
+    return users.filter((u) => u.companyId === companyId && u.isActive).length;
   };
 
   const addUser = async (userData: Omit<User, 'id' | 'createdAt' | 'roleId'> & { password: string }) => {
     try {
       setIsLoading(true);
       const roleId = getRoleId(userData.role);
-      if (!roleId) {
-        throw new Error('Invalid role');
-      }
-
-      const normalizedEmail = userData.email.toLowerCase();
-
-      // Check if email already exists
-      const emailQuery = query(
-        collection(db, USERS_COLLECTION),
-        where('email', '==', normalizedEmail)
-      );
-      const emailSnapshot = await getDocs(emailQuery);
-      if (!emailSnapshot.empty) {
-        throw new Error('Email is already in use');
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
-
-      // Create new user doc with auto-generated ID
-      const newUserRef = doc(collection(db, USERS_COLLECTION));
-      const newUserDoc = {
+      if (!roleId) throw new Error('Invalid role');
+      const { user: created } = await api.users.create({
         name: userData.name,
-        email: normalizedEmail,
+        email: userData.email,
+        password: userData.password,
         role: userData.role,
-        roleId,
-        companyId: userData.companyId || null,
-        password: hashedPassword,
-        isActive: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-
-      await setDoc(newUserRef, newUserDoc);
-
-      const newUser: User = {
-        id: newUserRef.id,
-        name: userData.name,
-        email: normalizedEmail,
-        role: userData.role,
-        roleId,
-        companyId: userData.companyId || null,
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
-
+        companyId: userData.companyId,
+      });
+      await refreshUsers();
       toast.success(`User ${userData.name} created successfully`);
-      return newUser;
+      return created;
     } catch (error: any) {
-      console.error('Error adding user:', error);
       toast.error(error.message || 'Failed to create user');
       throw error;
     } finally {
@@ -263,27 +169,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateUser = async (userId: string, updates: Partial<Omit<User, 'roleId' | 'id'>> & { password?: string }) => {
     try {
       setIsLoading(true);
-      const userRef = doc(db, USERS_COLLECTION, userId);
-      const userDoc = await getDoc(userRef);
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-      const updateData: any = {
-        ...updates,
-        updatedAt: serverTimestamp()
-      };
-      const { password, ...userUpdates } = updateData;
-      
-      // If password is provided, hash it
-      if (password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        await updateDoc(userRef, { ...userUpdates, password: hashedPassword });
-      } else {
-        await updateDoc(userRef, userUpdates);
-      }
+      await api.users.update(userId, updates);
+      await refreshUsers();
       toast.success('User updated successfully');
     } catch (error: any) {
-      console.error('Error updating user:', error);
       toast.error('Failed to update user');
       throw error;
     } finally {
@@ -294,17 +183,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteUser = async (userId: string) => {
     try {
       setIsLoading(true);
-      const userRef = doc(db, USERS_COLLECTION, userId);
-      await deleteDoc(userRef);
+      await api.users.delete(userId);
       if (user && user.id === userId) {
-        localStorage.removeItem(SESSION_KEY);
+        clearAuth();
         setUser(null);
       }
+      await refreshUsers();
       toast.success('User deleted permanently');
-    } catch (error) {
-      console.error('Error deleting user:', error);
+    } catch {
       toast.error('Failed to delete user');
-      throw error;
+      throw new Error('Failed');
     } finally {
       setIsLoading(false);
     }
@@ -313,85 +201,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteUsersByCompanyId = async (companyId: string) => {
     try {
       setIsLoading(true);
-      const usersQuery = query(
-        collection(db, USERS_COLLECTION),
-        where('companyId', '==', companyId)
-      );
-      const querySnapshot = await getDocs(usersQuery);
-      const deletions: Promise<void>[] = [];
-      querySnapshot.forEach((userDoc) => {
-        deletions.push(deleteDoc(userDoc.ref));
-      });
-      await Promise.all(deletions);
+      await api.users.deleteByCompany(companyId);
       if (user && user.companyId === companyId) {
-        localStorage.removeItem(SESSION_KEY);
+        clearAuth();
         setUser(null);
       }
-      toast.success(`All users from company have been deleted permanently`);
-    } catch (error) {
-      console.error('Error deleting company users:', error);
+      await refreshUsers();
+      toast.success('All users from company have been deleted permanently');
+    } catch {
       toast.error('Failed to delete company users');
-      throw error;
+      throw new Error('Failed');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getUsersByCompany = (companyId: string) => {
-    return users.filter(user => user.companyId === companyId);
-  };
-
-  const getAllUsers = () => {
-    return [...users];
-  };
-
-  const [systemName, setSystemName] = useState("Lead Management");
-  const [companyDisplayName, setCompanyDisplayName] = useState("");
-
-  // Listen for System Name (Global Branding)
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'systemConfig', 'globalBranding'), (doc) => {
-      if (doc.exists()) {
-        setSystemName(doc.data().systemName || "Lead Management");
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  // Listen for Company Name (Custom)
-  useEffect(() => {
-    if (!user?.companyId) {
-      setCompanyDisplayName("");
-      return;
-    }
-    const unsub = onSnapshot(doc(db, 'companies', user.companyId), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        setCompanyDisplayName(data.companyNameCustom || data.companyName || "");
-      }
-    });
-    return () => unsub();
-  }, [user?.companyId]);
+  const getUsersByCompany = (companyId: string) => users.filter((u) => u.companyId === companyId);
+  const getAllUsers = () => [...users];
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        users,
-        login,
-        logout,
-        addUser,
-        updateUser,
-        deleteUser,
-        deleteUsersByCompanyId,
-        getUsersByCompany,
-        getAllUsers,
-        getUserCountForCompany,
-        isLoading,
-        systemName,
-        companyDisplayName
-      }}
-    >
+    <AuthContext.Provider value={{
+      user, users, login, logout, addUser, updateUser, deleteUser,
+      deleteUsersByCompanyId, getUsersByCompany, getAllUsers,
+      getUserCountForCompany, isLoading, systemName, companyDisplayName,
+    }}>
       {children}
     </AuthContext.Provider>
   );
