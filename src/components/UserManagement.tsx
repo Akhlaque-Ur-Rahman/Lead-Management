@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth, type User } from './AuthContext';
 import { useCompanies } from './CompanyContext';
-import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission } from '../types/roles';
+import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission, getAssignableRoles } from '../types/roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -118,41 +118,11 @@ export function UserManagement() {
     isActive: true,
   });
 
-  // Loading guard - check this BEFORE user check
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
-            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">Loading user management...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
-  // Check access rights using proper permission system
-  const canManageUsers = hasPermission(user?.role, 'MANAGE_USERS');
-  
-  if (!canManageUsers) {
-    return (
-      <div className="p-4 sm:p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Access Denied: You don't have permission to manage users.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  const canManageUsers = user ? hasPermission(user.role, 'MANAGE_USERS') : false;
 
   // Get base users based on role
   const baseUsers = useMemo(() => {
-    if (!users) return [];
+    if (!user || !users) return [];
     
     if (user.role === 'super_admin') {
       return [...users]; // Super admin sees all users
@@ -247,8 +217,6 @@ export function UserManagement() {
       ? companies 
       : companies.filter(c => c.id === user?.companyId);
   }, [user, companies]);
-
-  if (!user) return null;
 
   const resetForm = () => {
     if (!user) return;
@@ -379,6 +347,7 @@ export function UserManagement() {
   };
 
   const handleDelete = (userToDelete: User) => {
+    if (!user) return;
     if (userToDelete.id === user.id) {
       toast.error('You cannot delete your own account');
       return;
@@ -398,7 +367,9 @@ export function UserManagement() {
 
   
   // Get unique companies for filter dropdown
-  const companyOptions = useMemo(() => [
+  const companyOptions = useMemo(() => {
+    if (!user) return [{ value: 'all', label: 'All Companies' }];
+    return [
     { value: 'all', label: 'All Companies' },
     ...(user.role === 'super_admin' 
       ? [
@@ -423,17 +394,49 @@ export function UserManagement() {
             label: c.name
           }))
     )
-  ], [companies, user.role, user.companyId]);
+  ];
+  }, [companies, user]);
   
   // Role options for filter
   const roleOptions = useMemo(() => [
     { value: 'all', label: 'All Roles' },
-    ...(user.role === 'super_admin' ? [{ value: 'super_admin', label: 'Super Admin' }] : []),
+    ...(user?.role === 'super_admin' ? [{ value: 'super_admin', label: 'Super Admin' }] : []),
     { value: 'platform_admin', label: 'Platform Admin' },
     { value: 'company_admin', label: 'Company Admin' },
     { value: 'team_lead', label: 'Team Lead' },
     { value: 'sales_user', label: 'Sales User' },
-  ], [user.role]);
+  ], [user?.role]);
+
+  const assignableRoleOptions = useMemo(() => {
+    if (!user) return [];
+    return getAssignableRoles(user.role);
+  }, [user]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status" />
+          <p className="mt-2 text-sm text-muted-foreground">Loading user management...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  if (!canManageUsers) {
+    return (
+      <div className="p-4 sm:p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Access Denied: You don't have permission to manage users.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -793,9 +796,9 @@ export function UserManagement() {
                   {user.role === 'super_admin' && (
                     <SelectItem value="super_admin">Super Admin</SelectItem>
                   )}
-                  <SelectItem value="company_admin">Company Admin</SelectItem>
-                  <SelectItem value="team_lead">Team Lead</SelectItem>
-                  <SelectItem value="sales_user">Sales User</SelectItem>
+                  {assignableRoleOptions.map((role) => (
+                    <SelectItem key={role.key} value={role.key}>{role.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -905,9 +908,9 @@ export function UserManagement() {
                   {user.role === 'super_admin' && (
                     <SelectItem value="super_admin">Super Admin</SelectItem>
                   )}
-                  <SelectItem value="company_admin">Company Admin</SelectItem>
-                  <SelectItem value="team_lead">Team Lead</SelectItem>
-                  <SelectItem value="sales_user">Sales User</SelectItem>
+                  {assignableRoleOptions.map((role) => (
+                    <SelectItem key={role.key} value={role.key}>{role.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

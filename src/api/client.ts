@@ -3,6 +3,13 @@ const SESSION_KEY = 'lms_user_session';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+type SessionExpiredHandler = () => void;
+let onSessionExpired: SessionExpiredHandler | null = null;
+
+export function setSessionExpiredHandler(handler: SessionExpiredHandler) {
+  onSessionExpired = handler;
+}
+
 function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -35,7 +42,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
+
+  if (res.status === 401) {
+    clearAuth();
+    onSessionExpired?.();
+    throw new Error('Session expired. Please log in again.');
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);
@@ -85,16 +103,22 @@ export const api = {
       request(`/leads/${id}/follow-up`, { method: 'POST', body: JSON.stringify({ followUp, leadUpdates }) }),
     updateFollowUp: (id: string, followUp: any, leadUpdates?: any) =>
       request(`/leads/${id}/follow-up/update`, { method: 'POST', body: JSON.stringify({ followUp, leadUpdates }) }),
-    markLost: (id: string, remark: string, userId: string) =>
-      request(`/leads/${id}/mark-lost`, { method: 'POST', body: JSON.stringify({ remark, userId }) }),
+    markLost: (id: string, remark: string) =>
+      request(`/leads/${id}/mark-lost`, { method: 'POST', body: JSON.stringify({ remark }) }),
     restoreLost: (id: string) => request(`/leads/${id}/restore-lost`, { method: 'POST' }),
     delete: (id: string) => request(`/leads/${id}`, { method: 'DELETE' }),
-    markConverted: (id: string, invoiceNo: string, projectValue: string, userId: string) =>
-      request(`/leads/${id}/mark-converted`, { method: 'POST', body: JSON.stringify({ invoiceNo, projectValue, userId }) }),
-    checkDuplicates: (field: string, values: string[]) =>
-      request<{ duplicates: string[] }>('/leads/check-duplicates', { method: 'POST', body: JSON.stringify({ field, values }) }),
+    markConverted: (id: string, invoiceNo: string, projectValue: string) =>
+      request(`/leads/${id}/mark-converted`, { method: 'POST', body: JSON.stringify({ invoiceNo, projectValue }) }),
+    checkDuplicates: (field: string, values: string[], companyId?: string) =>
+      request<{ duplicates: string[] }>('/leads/check-duplicates', {
+        method: 'POST',
+        body: JSON.stringify({ field, values, companyId }),
+      }),
     checkDuplicatesScoped: (companyId: string, cins: string[]) =>
-      request<{ duplicates: string[] }>('/leads/check-duplicates-scoped', { method: 'POST', body: JSON.stringify({ companyId, cins }) }),
+      request<{ duplicates: string[] }>('/leads/check-duplicates-scoped', {
+        method: 'POST',
+        body: JSON.stringify({ companyId, cins }),
+      }),
   },
   events: {
     latest: (since?: string) => {
@@ -108,5 +132,15 @@ export const api = {
     getBranding: () => request<{ systemName: string }>('/config/branding'),
     setBranding: (systemName: string) =>
       request('/config/branding', { method: 'PUT', body: JSON.stringify({ systemName }) }),
+    getFieldConfig: (companyId: string) =>
+      request<{ fieldConfigs: any[] | null }>(`/config/field-config/${companyId}`),
+    setFieldConfig: (companyId: string, fieldConfigs: any[]) =>
+      request(`/config/field-config/${companyId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ fieldConfigs }),
+      }),
+    getPlanPricing: () => request<{ planPricing: any }>('/config/plan-pricing'),
+    setPlanPricing: (planPricing: any) =>
+      request('/config/plan-pricing', { method: 'PUT', body: JSON.stringify({ planPricing }) }),
   },
 };

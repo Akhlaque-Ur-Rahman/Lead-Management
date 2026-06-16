@@ -1,19 +1,25 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-lms-jwt-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
+
+if (!JWT_SECRET) {
+  console.warn('JWT_SECRET not set — using dev-only fallback. Set JWT_SECRET in production.');
+}
+
+const EFFECTIVE_SECRET = JWT_SECRET || 'dev-only-not-for-production';
 
 function signToken(user) {
   return jwt.sign(
     { sub: user.id, role: user.role, companyId: user.companyId },
-    JWT_SECRET,
+    EFFECTIVE_SECRET,
     { expiresIn: JWT_EXPIRES }
   );
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, EFFECTIVE_SECRET);
 }
 
 async function hashPassword(password) {

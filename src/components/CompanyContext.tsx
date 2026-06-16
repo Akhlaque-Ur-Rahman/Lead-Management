@@ -79,6 +79,14 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     return () => clearInterval(interval);
   }, [refreshCompanies]);
 
+  useEffect(() => {
+    api.config.getPlanPricing()
+      .then(({ planPricing: saved }) => {
+        if (saved) setPlanPricing(saved);
+      })
+      .catch(() => {});
+  }, []);
+
   const addCompany = async (companyData: Omit<Company, 'id' | 'companyId' | 'createdAt' | 'updatedAt' | 'isDeleted'>): Promise<Company> => {
     const trimmedName = (companyData.name || '').trim();
     if (!trimmedName) throw new Error('COMPANY_NAME_REQUIRED');
@@ -107,32 +115,21 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     return companies.find((c) => c.id === companyId || c.companyId === companyId);
   }, [companies]);
 
-  const updatePlanPricing = useCallback((updates: Partial<PlanPricing>) => {
-    setPlanPricing((prev) => ({
-      ...prev,
-      ...updates,
-      prices: { ...prev.prices, ...(updates.prices || {}) },
-      maxUsers: { ...prev.maxUsers, ...(updates.maxUsers || {}) },
-    }));
-  }, []);
+  const updatePlanPricing = useCallback(async (updates: Partial<PlanPricing>) => {
+    const next: PlanPricing = {
+      prices: { ...planPricing.prices, ...(updates.prices || {}) },
+      maxUsers: { ...planPricing.maxUsers, ...(updates.maxUsers || {}) },
+    };
+    setPlanPricing(next);
+    try {
+      await api.config.setPlanPricing(next);
+    } catch (e) {
+      console.error('Failed to save plan pricing', e);
+    }
+  }, [planPricing]);
 
   const testFirestoreConnection = async () => {
-    try {
-      const company = await addCompany({
-        name: 'Test Company ' + Math.random().toString(36).substring(2, 8),
-        email: `test-${Date.now()}@example.com`,
-        phone: '+1234567890',
-        address: '123 Test St',
-        isActive: true,
-        subscriptionPlan: 'basic',
-        maxUsers: 10,
-      });
-      await api.companies.softDelete(company.id);
-      await refreshCompanies();
-      return { success: true, companyId: company.id };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
+    return { success: false, error: 'Disabled in PostgreSQL deployment' };
   };
 
   const canChangePlan = (role?: string) => role === 'super_admin' || role === 'platform_admin';

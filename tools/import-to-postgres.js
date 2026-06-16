@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
  * Import firebase-export.json into PostgreSQL (lms database).
- * Usage: DATABASE_URL=... node tools/import-to-postgres.js [exportFile]
+ * Usage: DATABASE_URL=... node tools/import-to-postgres.js [--force] [exportFile]
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-const EXPORT_FILE = process.argv[2]
+const args = process.argv.slice(2);
+const forceTruncate = args.includes('--force');
+const exportArg = args.find((a) => a !== '--force');
+const EXPORT_FILE = exportArg
   || path.join(__dirname, '../backups/firebase-export.json');
 
 const ROLE_IDS = {
@@ -31,8 +34,11 @@ function ts(val) {
 }
 
 function pool() {
-  const url = process.env.DATABASE_URL
-    || 'postgresql://edunex:Pass%40postgresql123@127.0.0.1:5432/lms';
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error('DATABASE_URL is required');
+    process.exit(1);
+  }
   return new Pool({ connectionString: url });
 }
 
@@ -51,6 +57,10 @@ async function main() {
     await client.query('BEGIN');
 
     // Clear existing data (keep schema)
+    if (!forceTruncate) {
+      console.error('Refusing to truncate database without --force flag');
+      process.exit(1);
+    }
     await client.query('TRUNCATE events, leads, users, companies, system_config RESTART IDENTITY CASCADE');
 
     const companyIds = new Set();

@@ -75,7 +75,7 @@ export function LeadManagement() {
     // Search Filter
     if (searchTerm) {
       const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (lead.cin || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (lead.directors && lead.directors.some(d => 
                             d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -195,6 +195,13 @@ export function LeadManagement() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+    if (file.size > MAX_IMPORT_BYTES) {
+      toast.error('File too large. Maximum import size is 5 MB.');
+      event.target.value = '';
+      return;
+    }
+
     // Validate permission
     if (!user?.role || !hasPermission(user.role, 'IMPORT_LEADS')) {
       toast.error("You don't have permission to import leads.");
@@ -217,21 +224,10 @@ export function LeadManagement() {
         let jsonData;
 
         if (fileExtension === 'csv') {
-          // Handle CSV files
           const csvData = e.target?.result as string;
-          const lines = csvData.split('\n');
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-          
-          jsonData = lines.slice(1)
-            .filter(line => line.trim())
-            .map(line => {
-              const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-              const row: any = {};
-              headers.forEach((header, index) => {
-                row[header] = values[index] || '';
-              });
-              return row;
-            });
+          const workbook = XLSX.read(csvData, { type: 'string' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          jsonData = XLSX.utils.sheet_to_json(worksheet);
         } else {
           // Handle Excel files
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
@@ -272,13 +268,19 @@ export function LeadManagement() {
 
 
           // Step 3: Batch query Firestore using 'in' operator (max 10 per query)
+          const companyId = user?.companyId;
+          if (!companyId) {
+            toast.error('Company context required for import.');
+            return;
+          }
+
           const existingCINs = new Set<string>();
-          const batchSize = 10; // Firestore 'in' operator limit
+          const batchSize = 100;
 
           for (let i = 0; i < uniqueCINs.length; i += batchSize) {
             const cinBatch = uniqueCINs.slice(i, i + batchSize);
             try {
-              const { duplicates } = await api.leads.checkDuplicatesScoped(user?.companyId || '', cinBatch);
+              const { duplicates } = await api.leads.checkDuplicatesScoped(companyId, cinBatch);
               duplicates.forEach((cin) => existingCINs.add(cin.toLowerCase()));
             } catch (error) {
               console.error(`Error checking CIN batch ${i / batchSize + 1}:`, error);
@@ -310,7 +312,7 @@ export function LeadManagement() {
           }
 
           // Show loading toast
-          const loadingToast = toast.loading(`Importing ${validList.length} leads to Firestore... (${duplicateList.length} duplicates skipped)`);
+          const loadingToast = toast.loading(`Importing ${validList.length} leads... (${duplicateList.length} duplicates skipped)`);
           
           try {
             // Use batch import
@@ -324,14 +326,14 @@ export function LeadManagement() {
             if (duplicateList.length > 0) {
               toast.success(`[${successCount}] leads imported successfully. [${duplicateList.length}] duplicates skipped based on CIN.`);
             } else {
-              toast.success(`Successfully imported ${successCount} leads to Firestore!`);
+              toast.success(`Successfully imported ${successCount} leads!`);
             }
             
 
           } catch (error) {
             toast.dismiss(loadingToast);
             console.error('Import error:', error);
-            toast.error('Error importing leads to Firestore. Please try again.');
+            toast.error('Error importing leads. Please try again.');
           }
         } else {
           toast.warning('No valid leads found in the file. Please check that your Excel file has a "Company Name" column.');
@@ -354,7 +356,7 @@ export function LeadManagement() {
   };
 
   const processImportedData = (data: any[]): Lead[] => {
-    const validStatuses = ['Hot', 'Warm', 'Cold', 'Converted', 'Lost'];
+    const validStatuses = ['Hot', 'Warm', 'Cold'];
     const companiesMap = new Map<string, any>(); // Group by CIN or Company Name
     let currentCIN = ''; // Track the current CIN for sequential grouping
     let currentCompanyKey = ''; // Track the current company key
@@ -500,7 +502,7 @@ export function LeadManagement() {
             });
 
             // Set defaults
-            if (!leadData.status) {
+            if (!leadData.status || !validStatuses.includes(leadData.status)) {
               leadData.status = 'Cold';
             }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from './components/AuthContext';
+import { hasPermission } from './types/roles';
 import { Login } from './components/Login';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/Sidebar';
@@ -18,6 +19,7 @@ import { Toaster } from './components/ui/sonner';
 
 
 function DashboardLayout() {
+  const { user } = useAuth();
   const { activeTab } = useParams();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,11 +49,14 @@ function DashboardLayout() {
       case 'reports':
         return <Reports />;
       case 'users':
+        if (!user || !hasPermission(user.role, 'MANAGE_USERS')) return <Navigate to="/dashboard" replace />;
         return <UserManagement />;
       case 'companies':
+        if (!user || !hasPermission(user.role, 'MANAGE_COMPANIES')) return <Navigate to="/dashboard" replace />;
         return <CompanyManagement />;
       case 'settings':
       case 'subscription':
+        if (!user || !hasPermission(user.role, 'MANAGE_SETTINGS')) return <Navigate to="/dashboard" replace />;
         return <Settings />;
       default:
         // If tab not found, redirect to dashboard

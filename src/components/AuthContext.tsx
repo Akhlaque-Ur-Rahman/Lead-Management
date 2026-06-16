@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { type RoleKey, type RoleId, getRoleId } from '../types/roles';
 import { toast } from 'sonner';
-import { api, setAuth, clearAuth, getStoredUser } from '../api/client';
+import { api, setAuth, clearAuth, getStoredUser, setSessionExpiredHandler } from '../api/client';
 
 export interface User {
   id: string;
@@ -49,6 +49,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [systemName, setSystemName] = useState('Lead Management');
   const [companyDisplayName, setCompanyDisplayName] = useState('');
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      setUser(null);
+      setUsers([]);
+      toast.error('Session expired. Please log in again.');
+    });
+  }, []);
 
   const refreshUsers = useCallback(async () => {
     try {

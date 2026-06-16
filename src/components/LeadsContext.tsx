@@ -1,11 +1,11 @@
 // src/components/LeadsContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from "react";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
 import { FEATURE_FLAGS } from '../config/featureFlags';
 
 // Utils
-import { filterLeadsForView, LeadView, isLeadInPoolForUser, isLeadInAssignedForUser } from '../utils/filters/leadFilters';
+import { filterLeadsForView, LeadView, isLeadInPoolForUser, isLeadInAssignedForUser } from '../utils/role/visibility';
 import { subscribeToEvents, triggerUpdateEvent } from '../utils/events/eventBus';
 import { initBackgroundSync } from '../utils/events/sync';
 import { calculateNextFollowUpDate } from '../utils/followups/calculations';
@@ -232,10 +232,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const { user, users } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [lostLeads, setLostLeads] = useState<LostLead[]>([]);
-  const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>(() => {
-    const saved = localStorage.getItem('lms_fieldConfigs');
-    return saved ? JSON.parse(saved) : defaultFieldConfigs;
-  });
+  const [fieldConfigs, setFieldConfigsState] = useState<FieldConfig[]>(defaultFieldConfigs);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [refreshFlag, setRefreshFlag] = useState(0);
 
@@ -268,10 +265,25 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return cleanup;
   }, []);
 
-  // Persist Configs
+  // Load field configs from server per company
   useEffect(() => {
-    localStorage.setItem('lms_fieldConfigs', JSON.stringify(fieldConfigs));
-  }, [fieldConfigs]);
+    if (!user?.companyId) return;
+    api.config.getFieldConfig(user.companyId)
+      .then(({ fieldConfigs: saved }) => {
+        if (saved?.length) setFieldConfigsState(saved);
+      })
+      .catch(() => {});
+  }, [user?.companyId]);
+
+  const setFieldConfigs = useCallback((configs: FieldConfig[] | ((prev: FieldConfig[]) => FieldConfig[])) => {
+    setFieldConfigsState((prev) => {
+      const next = typeof configs === 'function' ? configs(prev) : configs;
+      if (user?.companyId) {
+        api.config.setFieldConfig(user.companyId, next).catch((e) => console.error('Failed to save field config', e));
+      }
+      return next;
+    });
+  }, [user?.companyId]);
 
   // -------------------- Load Leads --------------------
 
@@ -468,7 +480,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const markAsLost = async (leadId: string, remark: string, userId: string): Promise<boolean> => {
     try {
-      await api.leads.markLost(leadId, remark, userId);
+      await api.leads.markLost(leadId, remark);
       refreshLeads();
       triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
       return true;
@@ -504,7 +516,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
   const markAsConverted = async (leadId: string, invoiceNo: string, projectValue: string, userId: string): Promise<boolean> => {
     try {
-      await api.leads.markConverted(leadId, invoiceNo, projectValue, userId);
+      await api.leads.markConverted(leadId, invoiceNo, projectValue);
       refreshLeads();
       triggerUpdateEvent(null, user!, 'LEAD_UPDATE');
       return true;

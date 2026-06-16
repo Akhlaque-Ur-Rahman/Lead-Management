@@ -2,6 +2,12 @@ const express = require('express');
 const { query } = require('../db');
 const { mapCompanyRow } = require('../auth');
 const { requireAuth } = require('../middleware');
+const {
+  isPlatformRole,
+  assertCompanyAccess,
+  requirePermission,
+  requireRoles,
+} = require('../rbac');
 
 const router = express.Router();
 
@@ -14,20 +20,33 @@ function generateCompanyId() {
 
 router.use(requireAuth);
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
+  if (isPlatformRole(req.user.role)) {
+    const result = await query(
+      'SELECT * FROM companies WHERE is_deleted = FALSE ORDER BY created_at DESC'
+    );
+    return res.json({ companies: result.rows.map(mapCompanyRow) });
+  }
+  if (!req.user.companyId) {
+    return res.json({ companies: [] });
+  }
   const result = await query(
-    'SELECT * FROM companies WHERE is_deleted = FALSE ORDER BY created_at DESC'
+    'SELECT * FROM companies WHERE id = $1 AND is_deleted = FALSE',
+    [req.user.companyId]
   );
   res.json({ companies: result.rows.map(mapCompanyRow) });
 });
 
 router.get('/:id', async (req, res) => {
+  if (!assertCompanyAccess(req.user, req.params.id)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   const result = await query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
   if (!result.rows[0]) return res.status(404).json({ error: 'Company not found' });
   res.json({ company: mapCompanyRow(result.rows[0]) });
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requirePermission('MANAGE_COMPANIES'), async (req, res) => {
   try {
     const c = req.body;
     const id = generateCompanyId();
@@ -44,23 +63,36 @@ router.post('/', async (req, res) => {
     res.status(201).json({ company: mapCompanyRow(result.rows[0]) });
   } catch (err) {
     console.error('create company error', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to create company' });
   }
 });
 
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!assertCompanyAccess(req.user, id)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (!isPlatformRole(req.user.role) && req.user.role !== 'company_admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const u = req.body;
     const fields = [];
     const values = [];
     let i = 1;
     const map = {
       name: 'name', email: 'email', phone: 'phone', address: 'address', logo: 'logo',
-      isActive: 'is_active', isDeleted: 'is_deleted', blockReason: 'block_reason',
-      subscriptionPlan: 'subscription_plan', maxUsers: 'max_users', monthlyPrice: 'monthly_price',
-      companyNameCustom: 'company_name_custom',
+      blockReason: 'block_reason', companyNameCustom: 'company_name_custom',
     };
+
+    if (isPlatformRole(req.user.role)) {
+      Object.assign(map, {
+        isActive: 'is_active', isDeleted: 'is_deleted',
+        subscriptionPlan: 'subscription_plan', maxUsers: 'max_users', monthlyPrice: 'monthly_price',
+      });
+    }
+
     for (const [key, col] of Object.entries(map)) {
       if (u[key] !== undefined) { fields.push(`${col} = $${i++}`); values.push(u[key]); }
     }
@@ -69,17 +101,19 @@ router.patch('/:id', async (req, res) => {
     values.push(id);
     await query(`UPDATE companies SET ${fields.join(', ')} WHERE id = $${i}`, values);
 
-    if (u.isActive === false) {
-      await query(
-        'UPDATE users SET is_active = FALSE, deactivated_by_company = TRUE, updated_at = NOW() WHERE company_id = $1',
-        [id]
-      );
-    } else if (u.isActive === true) {
-      await query(
-        `UPDATE users SET is_active = TRUE, deactivated_by_company = FALSE, updated_at = NOW()
-         WHERE company_id = $1 AND deactivated_by_company = TRUE`,
-        [id]
-      );
+    if (isPlatformRole(req.user.role)) {
+      if (u.isActive === false) {
+        await query(
+          'UPDATE users SET is_active = FALSE, deactivated_by_company = TRUE, updated_at = NOW() WHERE company_id = $1',
+          [id]
+        );
+      } else if (u.isActive === true) {
+        await query(
+          `UPDATE users SET is_active = TRUE, deactivated_by_company = FALSE, updated_at = NOW()
+           WHERE company_id = $1 AND deactivated_by_company = TRUE`,
+          [id]
+        );
+      }
     }
 
     const result = await query('SELECT * FROM companies WHERE id = $1', [id]);
@@ -90,12 +124,12 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRoles('super_admin'), async (req, res) => {
   await query('DELETE FROM companies WHERE id = $1', [req.params.id]);
   res.json({ success: true });
 });
 
-router.post('/:id/soft-delete', async (req, res) => {
+router.post('/:id/soft-delete', requireRoles('super_admin', 'platform_admin'), async (req, res) => {
   await query('UPDATE companies SET is_deleted = TRUE, updated_at = NOW() WHERE id = $1', [req.params.id]);
   res.json({ success: true });
 });

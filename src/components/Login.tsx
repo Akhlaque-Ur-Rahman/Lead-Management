@@ -30,8 +30,7 @@ export function Login() {
       const result = await login(email, password);
       
       if (result.success) {
-        // Navigation will be handled by the parent component or router
-        toast.success('Login successful');
+        // Navigation handled by router; welcome toast shown in AuthContext
       } else {
         toast.error(result.error || 'Login failed');
       }

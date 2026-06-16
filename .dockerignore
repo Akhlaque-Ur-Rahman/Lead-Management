@@ -9,3 +9,11 @@ tsc_*.txt
 verify_output.txt
 debug_build.js
 apps/api/node_modules
+.env
+.env.*
+backups
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.node.json

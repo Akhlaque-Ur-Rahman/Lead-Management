@@ -80,7 +80,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
     if (user?.role === 'sales_user' && lead.assignedTo !== user.id) {
       toast.error("Unauthorized: You can only view leads assigned to you");
       onClose();
-      navigate('/assigned-leads');
+      navigate('/assigned');
       return;
     }
   }, [user, lead, onClose, navigate]);

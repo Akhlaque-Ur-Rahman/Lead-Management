@@ -11,8 +11,10 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://edunex:Pass%40postgresql123@edunex-postgres:5432/lms}
-      JWT_SECRET: ${JWT_SECRET:-change-me-lms-jwt-secret}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://lms.edunexservices.com}
+      NODE_ENV: production
       API_PORT: "4000"
     networks:
       - edge_proxy

@@ -33,7 +33,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: ['company_admin', 'team_lead', 'sales_user'] },
     { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['company_admin', 'team_lead', 'sales_user'] },
     { id: 'calendar', label: 'Follow-up Calendar', icon: Calendar, roles: ['company_admin', 'team_lead', 'sales_user'] },
-    { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['super_admin', 'platform_admin', 'company_admin'] },
+    { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead'] },
     { id: 'lost', label: 'Lost Leads', icon: XCircle, roles: ['company_admin', 'team_lead', 'sales_user'] },
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'platform_admin', 'company_admin', 'team_lead', 'sales_user'] },
   ];
@@ -54,6 +54,10 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     menuItems = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'platform_admin'] },
       { id: 'leads', label: 'Lead Pool', icon: ClipboardList, roles: ['super_admin', 'platform_admin'] },
+      { id: 'assigned', label: 'Assigned Leads', icon: UserCheck, roles: ['super_admin', 'platform_admin'] },
+      { id: 'calendar', label: 'Follow-up Calendar', icon: Calendar, roles: ['super_admin', 'platform_admin'] },
+      { id: 'converted', label: 'Converted Leads', icon: CheckCircle, roles: ['super_admin', 'platform_admin'] },
+      { id: 'lost', label: 'Lost Leads', icon: XCircle, roles: ['super_admin', 'platform_admin'] },
       { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['super_admin', 'platform_admin'] },
       { id: 'users', label: 'User Management', icon: UserCog, roles: ['super_admin', 'platform_admin'] },
       { id: 'companies', label: 'Companies', icon: Building2, roles: ['super_admin', 'platform_admin'] },
