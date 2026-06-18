@@ -114,6 +114,16 @@
   --status-updated-bg: #64748b;
   --status-updated-fg: #ffffff;
   --status-updated-border: #475569;
+  --hero-gradient-start: #312e81;
+  --hero-gradient-mid: #4338ca;
+  --hero-gradient-end: #6366f1;
+  --hero-foreground: #ffffff;
+  --hero-foreground-muted: #e0e7ff;
+  --hero-badge-bg: color-mix(in srgb, var(--hero-foreground) 20%, transparent);
+  --stat-trend-up-bg: #dcfce7;
+  --stat-trend-up-fg: #14532d;
+  --stat-trend-down-bg: #fee2e2;
+  --stat-trend-down-fg: #991b1b;
 }
 
 .dark {
@@ -220,6 +230,16 @@
   --status-updated-bg: #64748b;
   --status-updated-fg: #ffffff;
   --status-updated-border: #64748b;
+  --hero-gradient-start: #312e81;
+  --hero-gradient-mid: #4338ca;
+  --hero-gradient-end: #6366f1;
+  --hero-foreground: #ffffff;
+  --hero-foreground-muted: #e0e7ff;
+  --hero-badge-bg: color-mix(in srgb, var(--hero-foreground) 20%, transparent);
+  --stat-trend-up-bg: #14532d;
+  --stat-trend-up-fg: #bbf7d0;
+  --stat-trend-down-bg: #7f1d1d;
+  --stat-trend-down-fg: #fecaca;
 }
 
 @theme inline {
@@ -487,10 +507,25 @@ html {
   position: relative;
   overflow: hidden;
   border-radius: 1.25rem;
-  background: linear-gradient(135deg, #312e81 0%, #4338ca 45%, #6366f1 100%);
+  background: linear-gradient(
+    135deg,
+    var(--hero-gradient-start) 0%,
+    var(--hero-gradient-mid) 45%,
+    var(--hero-gradient-end) 100%
+  );
   box-shadow: 0 8px 32px -8px rgba(79, 70, 229, 0.45);
-  color: #ffffff;
+  color: var(--hero-foreground);
   border: none;
+}
+.text-hero {
+  color: var(--hero-foreground);
+}
+.text-hero-muted {
+  color: var(--hero-foreground-muted);
+}
+.hero-trend-badge {
+  background: var(--hero-badge-bg);
+  color: var(--hero-foreground);
 }
 .card-hero::before,
 .card-hero::after {
@@ -548,20 +583,12 @@ html {
   grid-column: 1 / -1;
 }
 .stat-trend-up {
-  background: #dcfce7;
-  color: #14532d;
+  background: var(--stat-trend-up-bg);
+  color: var(--stat-trend-up-fg);
 }
 .stat-trend-down {
-  background: #fee2e2;
-  color: #991b1b;
-}
-.dark .stat-trend-up {
-  background: #14532d;
-  color: #bbf7d0;
-}
-.dark .stat-trend-down {
-  background: #7f1d1d;
-  color: #fecaca;
+  background: var(--stat-trend-down-bg);
+  color: var(--stat-trend-down-fg);
 }
 
 /* Sidebar scroll — hidden until hover */

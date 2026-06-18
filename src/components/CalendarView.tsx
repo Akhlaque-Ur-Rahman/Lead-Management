@@ -209,8 +209,8 @@ export function Calendar() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Calendar Section */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
+          <Card className={cn('card-bento gap-0 border-0')}>
+            <CardHeader className="px-5 pt-5">
               <div className="flex items-center justify-between">
                 <CardTitle>{monthName}</CardTitle>
                 <div className="flex gap-2">
@@ -230,7 +230,7 @@ export function Calendar() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 pb-5">
               {/* Calendar Grid */}
               <div className="grid grid-cols-7 gap-1 sm:gap-2">
                 {/* Day Headers */}
@@ -326,8 +326,8 @@ export function Calendar() {
 
         {/* Follow-ups List Section */}
         <div className="lg:col-span-1">
-          <Card className="sticky top-4">
-            <CardHeader>
+          <Card className={cn('card-bento gap-0 border-0 sticky top-4')}>
+            <CardHeader className="px-5 pt-5">
               <CardTitle className="flex items-center justify-between">
                 <span>
                   {selectedDate
@@ -355,7 +355,7 @@ export function Calendar() {
                 </CardDescription>
               )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 pb-5">
               {!selectedDate ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CalendarIcon className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />

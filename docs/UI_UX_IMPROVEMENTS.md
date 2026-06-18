@@ -33,6 +33,7 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 8 | Surface consistency rollout, static cards (no hover glow) | Shipped |
 | Phase 9 | Bento dashboards, hero metric cards, light sidebar | Shipped |
 | Phase 10 | Bento admin rollout, tablet spans, collapsed nav indicator | Shipped |
+| Phase 11 | Contrast hardening + pipeline bento rollout | Shipped |
 
 ---
 
@@ -378,6 +379,50 @@ Replaced Phase 8 `card-premium` tinted stat cards with white `BentoStatCard` / `
 | Onboarding checklist | `card-bento` with subtle primary border on dashboard |
 
 `.card-premium` utility retained in CSS for legacy/edge use but no longer used on admin or dashboard routes.
+
+---
+
+## 12e. Contrast hardening (Phase 11a)
+
+### Audit results
+
+All semantic token pairs in [`src/styles/globals.css`](../src/styles/globals.css) pass **WCAG AA** (4.5:1 body text, 3:1 UI/icons) in both light and dark themes. No token value changes were required.
+
+### Script coverage
+
+[`scripts/check-contrast.mjs`](../scripts/check-contrast.mjs) expanded from 27 to **43 token pairs** plus hero/trend pill checks:
+
+- Badge success, stat converted/primary surfaces, muted-on-card, primary links, popover, sidebar primary button, icon warning/info
+- Hero foreground/muted on gradient start stop; trend up/down pill fg/bg (theme-aware via CSS vars)
+
+### Tokenization
+
+- `--hero-gradient-*`, `--hero-foreground`, `--hero-foreground-muted`, `--hero-badge-bg`
+- `--stat-trend-up/down-bg/fg` (dark overrides in `.dark`)
+- `.card-hero`, `.stat-trend-up/down`, `.text-hero`, `.text-hero-muted`, `.hero-trend-badge` utilities
+- [`HeroMetricCard`](../src/components/dashboard/HeroMetricCard.tsx) — removed `text-white/*` opacity classes
+
+### Hardcoded color cleanup
+
+| File | Change |
+|------|--------|
+| UserManagement | Status dots → `--status-converted-bg` / `--status-lost-bg` |
+| HistoryModal | Timeline dots → `--status-active-*` / `--status-updated-*` |
+| Reports | Chart fills/strokes → `var(--status-*)` and `var(--chart-*)` |
+
+---
+
+## 12f. Pipeline bento rollout (Phase 11b)
+
+Pipeline pages migrated to match admin/dashboard bento pattern:
+
+| Page | Changes |
+|------|---------|
+| Lead Pool | KPI strip (total, hot, warm, cold) + `card-bento` table wrapper; virtualized table unchanged |
+| Assigned Leads | `BentoStatCard` stats + `card-bento` team distribution and table |
+| Converted Leads | 3 KPI bento cards + `card-bento` table |
+| Lost Leads | Total lost + lost-this-month KPIs + `card-bento` table |
+| Calendar | Month grid and day-detail panels in `card-bento`; heat-map tokens preserved |
 
 ---
 

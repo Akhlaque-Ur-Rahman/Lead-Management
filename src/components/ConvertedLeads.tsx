@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { PageHeader } from './layout/PageHeader';
+import { BentoStatCard } from './dashboard/BentoStatCard';
+import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -205,61 +207,40 @@ export function ConvertedLeads() {
       </Alert>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Converted</CardTitle>
-            <CheckCircle className="h-4 w-4 text-icon-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{convertedLeads.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Successful conversions
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Value</CardTitle>
-            <IndianRupee className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {canViewFinancialData 
-                ? `₹${calculateTotalValue().toLocaleString('en-IN')}`
-                : 'Access Restricted'
-              }
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Combined project value
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Average Deal Size</CardTitle>
-            <IndianRupee className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {canViewFinancialData
-                ? `₹${convertedLeads.length > 0 
-                    ? Math.round(calculateTotalValue() / convertedLeads.length).toLocaleString('en-IN')
-                    : '0'}`
-                : 'Access Restricted'
-              }
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Per conversion
-            </p>
-          </CardContent>
-        </Card>
+      <div className="dashboard-bento">
+        <BentoStatCard
+          label="Total Converted"
+          value={convertedLeads.length}
+          subtitle="Successful conversions"
+          icon={<CheckCircle className="h-4 w-4 text-icon-success" />}
+          className="stat-card-converted"
+        />
+        <BentoStatCard
+          label="Total Value"
+          value={
+            canViewFinancialData
+              ? `₹${calculateTotalValue().toLocaleString('en-IN')}`
+              : 'Restricted'
+          }
+          subtitle="Combined project value"
+          icon={<IndianRupee className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Average Deal Size"
+          value={
+            canViewFinancialData
+              ? `₹${convertedLeads.length > 0
+                  ? Math.round(calculateTotalValue() / convertedLeads.length).toLocaleString('en-IN')
+                  : '0'}`
+              : 'Restricted'
+          }
+          subtitle="Per conversion"
+          icon={<IndianRupee className="h-4 w-4" />}
+        />
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className={cn('card-bento gap-0 border-0')}>
+        <CardHeader className="px-5 pt-5">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <CardTitle>Converted Leads ({sortedLeads.length})</CardTitle>
@@ -289,7 +270,7 @@ export function ConvertedLeads() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-5 pb-5">
           {sortedLeads.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <CheckCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />

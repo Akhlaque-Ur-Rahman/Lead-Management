@@ -182,8 +182,8 @@ export function HistoryModal({
                         <div
                           className={`flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 mt-1 ${
                             isActive
-                              ? "bg-blue-500 border-blue-600"
-                              : "bg-gray-400 border-gray-500"
+                              ? "bg-[var(--status-active-bg)] border-[var(--status-active-border)]"
+                              : "bg-[var(--status-updated-bg)] border-[var(--status-updated-border)]"
                           }`}
                         />
 

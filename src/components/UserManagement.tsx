@@ -657,7 +657,7 @@ export function UserManagement() {
                       <span
                         className={cn(
                           'h-2 w-2 rounded-full',
-                          u.isActive ? 'bg-green-500' : 'bg-gray-400'
+                          u.isActive ? 'bg-[var(--status-converted-bg)]' : 'bg-[var(--status-lost-bg)]'
                         )}
                       />
                       {u.isActive ? 'Active' : 'Inactive'}
@@ -752,12 +752,12 @@ export function UserManagement() {
                       <div className="flex items-center gap-2">
                         {u.isActive ? (
                           <>
-                            <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                            <div className="h-2 w-2 rounded-full bg-[var(--status-converted-bg)]"></div>
                             <span>Active</span>
                           </>
                         ) : (
                           <>
-                            <div className="h-2 w-2 rounded-full bg-gray-400"></div>
+                            <div className="h-2 w-2 rounded-full bg-[var(--status-lost-bg)]"></div>
                             <span>Inactive</span>
                           </>
                         )}

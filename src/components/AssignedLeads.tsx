@@ -37,6 +37,7 @@ import { LeadForm } from './LeadForm';
 import { PaginationControls } from './ui/pagination-controls';
 import { usePagination } from '../hooks/usePagination';
 import { PageHeader } from './layout/PageHeader';
+import { BentoStatCard } from './dashboard/BentoStatCard';
 
 import { toast } from 'sonner';
 
@@ -222,74 +223,43 @@ export function AssignedLeads() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Assigned</CardTitle>
-            <Building2 className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{allAssignedLeads.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across all users
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="stat-surface-hot border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Hot Leads</CardTitle>
-            <Building2 className="h-4 w-4" style={{ color: 'var(--status-hot-bg)' }} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              {allAssignedLeads.filter(l => l.status === 'Hot').length}
-            </div>
-            <p className="text-xs stat-surface-hot-muted mt-1">
-              High priority
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="stat-surface-warm border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Warm Leads</CardTitle>
-            <Building2 className="h-4 w-4" style={{ color: 'var(--status-warm-bg)' }} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              {allAssignedLeads.filter(l => l.status === 'Warm').length}
-            </div>
-            <p className="text-xs stat-surface-warm-muted mt-1">
-              Medium priority
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="stat-surface-cold border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Cold Leads</CardTitle>
-            <Building2 className="h-4 w-4" style={{ color: 'var(--status-cold-bg)' }} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">
-              {allAssignedLeads.filter(l => l.status === 'Cold').length}
-            </div>
-            <p className="text-xs stat-surface-cold-muted mt-1">
-              Low priority
-            </p>
-          </CardContent>
-        </Card>
+      <div className="dashboard-bento">
+        <BentoStatCard
+          label="Total Assigned"
+          value={allAssignedLeads.length}
+          subtitle="Across all users"
+          icon={<Building2 className="h-4 w-4" />}
+          className="stat-card-assigned"
+        />
+        <BentoStatCard
+          label="Hot Leads"
+          value={allAssignedLeads.filter(l => l.status === 'Hot').length}
+          subtitle="High priority"
+          icon={<Building2 className="h-4 w-4 text-icon-warning" />}
+          className="stat-card-pool"
+        />
+        <BentoStatCard
+          label="Warm Leads"
+          value={allAssignedLeads.filter(l => l.status === 'Warm').length}
+          subtitle="Medium priority"
+          icon={<Building2 className="h-4 w-4 text-icon-warning" />}
+        />
+        <BentoStatCard
+          label="Cold Leads"
+          value={allAssignedLeads.filter(l => l.status === 'Cold').length}
+          subtitle="Low priority"
+          icon={<Building2 className="h-4 w-4 text-icon-info" />}
+        />
       </div>
 
       {/* User-wise Distribution (for Admins) */}
       {user.role !== 'sales_user' && userStats.length > 0 && (
-        <Card>
-          <CardHeader>
+        <Card className="card-bento border-0 gap-0">
+          <CardHeader className="px-5 pt-5">
             <CardTitle>Team Distribution</CardTitle>
             <CardDescription>Leads assigned to each team member</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {userStats.map(({ user: u, count }) => (
                 <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -309,8 +279,8 @@ export function AssignedLeads() {
       )}
 
       {/* Filters and Search */}
-      <Card>
-        <CardHeader>
+      <Card className="card-bento border-0 gap-0">
+        <CardHeader className="px-5 pt-5">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <CardTitle>All Assigned Leads</CardTitle>
@@ -353,7 +323,7 @@ export function AssignedLeads() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-5 pb-5">
           {displayLeads.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />

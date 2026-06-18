@@ -32,8 +32,6 @@ import { useAuth } from './AuthContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { cn } from './ui/utils';
 import { toast } from 'sonner';
-import { toast } from 'sonner';
-import { toast } from 'sonner';
 
 export function Reports() {
   const { leads, lostLeads, getLeadsByCompany, getGlobalAggregates } = useLeads();
@@ -59,12 +57,20 @@ export function Reports() {
   const conversionRate = totalProcessed > 0 ? ((convertedCount / totalProcessed) * 100).toFixed(1) : '0';
 
   // Status distribution with real data
+  const statusChartColors: Record<string, string> = {
+    Hot: 'var(--status-hot-bg)',
+    Warm: 'var(--status-warm-bg)',
+    Cold: 'var(--status-cold-bg)',
+    Converted: 'var(--status-converted-bg)',
+    Lost: 'var(--status-lost-bg)',
+  };
+
   const statusDistribution = [
-    { name: 'Hot', value: reportLeads.filter(l => l.status === 'Hot').length, color: '#dc2626' },
-    { name: 'Warm', value: reportLeads.filter(l => l.status === 'Warm').length, color: '#d97706' },
-    { name: 'Cold', value: reportLeads.filter(l => l.status === 'Cold').length, color: '#2563eb' },
-    { name: 'Converted', value: convertedCount, color: '#16a34a' },
-    { name: 'Lost', value: lostCount, color: '#64748b' }
+    { name: 'Hot', value: reportLeads.filter(l => l.status === 'Hot').length, color: statusChartColors.Hot },
+    { name: 'Warm', value: reportLeads.filter(l => l.status === 'Warm').length, color: statusChartColors.Warm },
+    { name: 'Cold', value: reportLeads.filter(l => l.status === 'Cold').length, color: statusChartColors.Cold },
+    { name: 'Converted', value: convertedCount, color: statusChartColors.Converted },
+    { name: 'Lost', value: lostCount, color: statusChartColors.Lost }
   ].filter(item => item.value > 0); // Only show non-zero values
 
   // User performance - leads assigned to each user
@@ -119,7 +125,13 @@ export function Reports() {
     // In real implementation, this would generate and download a PDF/Excel report
   };
 
-  const COLORS = ['#dc2626', '#d97706', '#2563eb', '#16a34a', '#64748b'];
+  const COLORS = [
+    'var(--status-hot-bg)',
+    'var(--status-warm-bg)',
+    'var(--status-cold-bg)',
+    'var(--status-converted-bg)',
+    'var(--status-lost-bg)',
+  ];
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -211,10 +223,10 @@ export function Reports() {
                 <Line 
                   type="monotone" 
                   dataKey="converted" 
-                  stroke="#16a34a" 
+                  stroke="var(--status-converted-bg)" 
                   strokeWidth={2}
                   name="Converted"
-                  dot={{ fill: '#16a34a' }}
+                  dot={{ fill: 'var(--status-converted-bg)' }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -238,7 +250,7 @@ export function Reports() {
                     labelLine={false}
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     outerRadius={100}
-                    fill="#8884d8"
+                    fill="var(--chart-2)"
                     dataKey="value"
                   >
                     {statusDistribution.map((entry, index) => (
@@ -291,8 +303,8 @@ export function Reports() {
                   />
                   <Legend />
                   <Bar dataKey="leads" fill="hsl(var(--primary))" name="Total Leads" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="converted" fill="#16a34a" name="Converted" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="lost" fill="#64748b" name="Lost" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="converted" fill="var(--status-converted-bg)" name="Converted" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="lost" fill="var(--status-lost-bg)" name="Lost" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

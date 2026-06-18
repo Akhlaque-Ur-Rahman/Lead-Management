@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PageHeader } from './layout/PageHeader';
+import { BentoStatCard } from './dashboard/BentoStatCard';
+import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
 import { useLeads } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -140,6 +142,13 @@ export function LostLeads() {
     return foundUser ? foundUser.name : 'Unknown';
   };
 
+  const lostThisMonth = filteredLostLeads.filter((lead) => {
+    if (!lead.lostAt) return false;
+    const lostDate = new Date(lead.lostAt);
+    const now = new Date();
+    return lostDate.getMonth() === now.getMonth() && lostDate.getFullYear() === now.getFullYear();
+  }).length;
+
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <PageHeader
@@ -154,14 +163,31 @@ export function LostLeads() {
         </AlertDescription>
       </Alert>
 
-      <Card>
-        <CardHeader>
+      <div className="dashboard-bento">
+        <BentoStatCard
+          label="Total Lost"
+          value={filteredLostLeads.length}
+          subtitle="All lost leads"
+          icon={<AlertCircle className="h-4 w-4" />}
+          className="stat-card-lost"
+        />
+        <BentoStatCard
+          label="Lost This Month"
+          value={lostThisMonth}
+          subtitle="Current calendar month"
+          icon={<AlertCircle className="h-4 w-4 text-icon-muted" />}
+          className="stat-card-lost"
+        />
+      </div>
+
+      <Card className={cn('card-bento gap-0 border-0')}>
+        <CardHeader className="px-5 pt-5">
           <CardTitle>All lost leads ({filteredLostLeads.length})</CardTitle>
           <CardDescription>
             View and manage leads that have been marked as lost
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-5 pb-5">
           {/* Search */}
           <div className="mb-6">
             <div className="relative">

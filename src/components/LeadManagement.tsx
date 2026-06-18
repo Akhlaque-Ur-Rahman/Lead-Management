@@ -47,6 +47,7 @@ import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { cn } from './ui/utils';
 import { api } from '../api/client';
 import { PageHeader } from './layout/PageHeader';
+import { BentoStatCard } from './dashboard/BentoStatCard';
 import { EmptyState } from './layout/EmptyState';
 import { LoadingTable } from './layout/LoadingTable';
 import { PaginationControls } from './ui/pagination-controls';
@@ -1094,8 +1095,36 @@ export function LeadManagement() {
         </Accordion>
       )}
 
-      <Card>
-        <CardContent className="pt-6">
+      <div className="dashboard-bento">
+        <BentoStatCard
+          label="Total in Pool"
+          value={filteredLeads.length}
+          subtitle="Matching current filters"
+          icon={<ClipboardList className="h-4 w-4" />}
+          className="stat-card-pool"
+        />
+        <BentoStatCard
+          label="Hot"
+          value={filteredLeads.filter((l) => l.status === 'Hot').length}
+          subtitle="High priority"
+          className="stat-card-pool"
+        />
+        <BentoStatCard
+          label="Warm"
+          value={filteredLeads.filter((l) => l.status === 'Warm').length}
+          subtitle="Medium priority"
+          className="stat-card-followups"
+        />
+        <BentoStatCard
+          label="Cold"
+          value={filteredLeads.filter((l) => l.status === 'Cold').length}
+          subtitle="Low priority"
+          className="stat-card-assigned"
+        />
+      </div>
+
+      <Card className={cn('card-bento gap-0 border-0')}>
+        <CardContent className="pt-6 px-5 pb-5">
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
             <div className="relative flex-1">
