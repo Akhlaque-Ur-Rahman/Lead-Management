@@ -5,7 +5,6 @@ import { useLeads } from './LeadsContext';
 import { toLocalDateKey } from '../utils/dates';
 import { isLeadInPoolForUser, isLeadInAssignedForUser } from '../utils/role/visibility';
 import { Navigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { ClipboardList, UserCheck, CheckCircle, XCircle, Calendar, Plus, ArrowRight } from 'lucide-react';
 import { hasPermission } from '../types/roles';
@@ -13,6 +12,38 @@ import { SuperDashboard } from './SuperDashboard';
 import { PageHeader } from './layout/PageHeader';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { PipelineTrendChart } from './dashboard/PipelineTrendChart';
+import { BentoStatCard } from './dashboard/BentoStatCard';
+import { HeroMetricCard } from './dashboard/HeroMetricCard';
+import type { Lead } from './LeadsContext';
+
+function computeLeadTrend(leads: Lead[]): { value: string; positive: boolean } | undefined {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let recent = 0;
+  let prior = 0;
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = toLocalDateKey(d);
+    const count = leads.filter((l) => {
+      if (!l.createdAt) return false;
+      const created = new Date(l.createdAt);
+      return !Number.isNaN(created.getTime()) && toLocalDateKey(created) === key;
+    }).length;
+
+    if (i < 3) recent += count;
+    else prior += count;
+  }
+
+  if (recent === 0 && prior === 0) return undefined;
+  if (prior === 0) return { value: `+${recent}`, positive: true };
+
+  const pct = Math.round(((recent - prior) / prior) * 100);
+  if (pct === 0) return { value: '0%', positive: true };
+  return { value: `${pct > 0 ? '+' : ''}${pct}%`, positive: pct >= 0 };
+}
 
 export function Dashboard() {
   const { user, isLoading } = useAuth();
@@ -23,11 +54,12 @@ export function Dashboard() {
     loadLeadsForDashboard();
   }, [loadLeadsForDashboard, refreshFlag]);
 
-  const { stats, followUpsTodayList } = useMemo(() => {
+  const { stats, followUpsTodayList, leadTrend } = useMemo(() => {
     if (!user) {
       return {
         stats: { pool: 0, assigned: 0, converted: 0, lost: 0, followUpsToday: 0 },
         followUpsTodayList: [],
+        leadTrend: undefined,
       };
     }
 
@@ -57,6 +89,7 @@ export function Dashboard() {
         followUpsToday: todayEntries.length,
       },
       followUpsTodayList: uniqueTodayLeads.slice(0, 5),
+      leadTrend: computeLeadTrend(leads),
     };
   }, [leads, user, getDirectorFollowUpsForDate]);
 
@@ -85,10 +118,16 @@ export function Dashboard() {
     day: 'numeric',
   });
 
+  const firstName = user.name.split(' ')[0];
+  const canViewConverted = hasPermission(user.role, 'VIEW_CONVERTED_LEADS');
+  const heroSubtitle = canViewConverted
+    ? `${stats.converted} converted · ${stats.lost} lost`
+    : `${stats.lost} lost leads total`;
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <PageHeader
-        title={`Welcome back, ${user.name.split(' ')[0]}`}
+        title={`Welcome back, ${firstName}`}
         description={todayLabel}
         actions={
           <>
@@ -108,67 +147,38 @@ export function Dashboard() {
 
       <OnboardingChecklist />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="card-premium stat-card-premium stat-card-pool stat-surface-cold gap-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-cold-muted">
-              <ClipboardList className="h-4 w-4" />
-              Lead Pool
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{stats.pool}</div>
-          </CardContent>
-        </Card>
-        <Card className="card-premium stat-card-premium stat-card-assigned stat-surface-warm gap-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-warm-muted">
-              <UserCheck className="h-4 w-4" />
-              Assigned
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{stats.assigned}</div>
-          </CardContent>
-        </Card>
-        {hasPermission(user.role, 'VIEW_CONVERTED_LEADS') && (
-          <Card className="card-premium stat-card-premium stat-card-converted stat-surface-converted gap-0">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-converted-muted">
-                <CheckCircle className="h-4 w-4" />
-                Converted
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold font-display">{stats.converted}</div>
-            </CardContent>
-          </Card>
-        )}
-        <Card className="card-premium stat-card-premium stat-card-followups stat-surface-warm gap-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-warm-muted">
-              <Calendar className="h-4 w-4" />
-              Follow-ups Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{stats.followUpsToday}</div>
-            <p className="text-xs text-muted-foreground mt-1">{stats.lost} lost leads total</p>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="dashboard-bento">
+        <HeroMetricCard
+          className="bento-span-2"
+          greeting={`Hey, ${firstName}`}
+          label="Lead Pool"
+          value={stats.pool}
+          subtitle={heroSubtitle}
+          trend={leadTrend}
+        />
+        <BentoStatCard
+          label="Assigned"
+          value={stats.assigned}
+          subtitle="Active in your queue"
+          icon={<UserCheck className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Follow-ups Today"
+          value={stats.followUpsToday}
+          subtitle="Scheduled for today"
+          icon={<Calendar className="h-4 w-4" />}
+        />
 
-      <PipelineTrendChart leads={leads} />
+        <PipelineTrendChart leads={leads} className="bento-span-3" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="card-premium">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-semibold">Follow-ups due today</CardTitle>
+        <div className="card-bento flex flex-col">
+          <div className="flex flex-row items-center justify-between pb-2 px-5 pt-5">
+            <h3 className="text-base font-semibold font-display">Follow-ups due today</h3>
             <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate('/calendar')}>
               View all <ArrowRight className="h-4 w-4" />
             </Button>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div className="px-5 pb-5">
             {followUpsTodayList.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6 text-center">No follow-ups scheduled for today.</p>
             ) : (
@@ -191,14 +201,14 @@ export function Dashboard() {
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="card-premium">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Quick actions</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
+        <div className="card-bento flex flex-col">
+          <div className="pb-2 px-5 pt-5">
+            <h3 className="text-base font-semibold font-display">Quick actions</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-5 pb-5">
             <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => navigate('/leads')}>
               <ClipboardList className="h-5 w-5" />
               <span className="text-xs">Lead Pool</span>
@@ -215,8 +225,8 @@ export function Dashboard() {
               <XCircle className="h-5 w-5" />
               <span className="text-xs">Lost Leads</span>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

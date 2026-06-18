@@ -31,6 +31,7 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 6 | Brand theming, virtualized tables, LeadForm zod | Shipped |
 | Phase 7 | Premium mesh canvas, elevated cards, sidebar controls, Super Dashboard polish | Shipped |
 | Phase 8 | Surface consistency rollout, static cards (no hover glow) | Shipped |
+| Phase 9 | Bento dashboards, hero metric cards, light sidebar | Shipped |
 
 ---
 
@@ -330,6 +331,29 @@ Fixtures: [`e2e/fixtures/auth.ts`](../e2e/fixtures/auth.ts) mocks `/api/auth/me`
 | User Management | Stat cards + user table container |
 | Company Management | Filter card + top aggregate stat cards |
 | Settings | General Settings and Subscription Plans section wrappers |
+
+---
+
+## 12c. Bento dashboards + light sidebar (Phase 9)
+
+### Light theme sidebar
+
+- Light mode `:root` sidebar tokens are white with dark text (no longer forced dark slate)
+- Active nav: blue text + right-edge pill indicator (replaces full purple fill)
+- Hidden sidebar scrollbar (thin thumb on hover only)
+- Profile footer inset card with Settings + Logout links
+
+### Bento card system
+
+- `.card-bento` — white surface, soft shadow, rounded-2xl (reference fintech style)
+- `.card-hero` — indigo gradient hero metric with mesh circle overlays
+- `BentoStatCard` / `HeroMetricCard` reusable components in [`src/components/dashboard/`](../src/components/dashboard/)
+- `.dashboard-bento` grid with `bento-span-2`, `bento-span-3`, `bento-span-full` helpers
+
+### Dashboard layouts
+
+- **Company dashboard** — hero Lead Pool (2 col) + Assigned + Follow-ups; pipeline chart spans 3 cols; follow-ups + quick actions row
+- **Super Dashboard** — compact filter strip; hero Total Users; white stat bento cards; clean table card
 
 ---
 

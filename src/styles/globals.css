@@ -2,7 +2,7 @@
 
 :root {
   --font-size: 16px;
-  --background: #eef1f8;
+  --background: #f4f7fa;
   --foreground: #1e293b;
   --card: #ffffff;
   --card-foreground: #1e293b;
@@ -32,23 +32,24 @@
   --chart-4: #14b8a6;
   --chart-5: #f59e0b;
   --radius: 0.75rem;
-  --sidebar: #1e293b;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #6366f1;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #334155;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #e2e8f0;
   --sidebar-ring: #6366f1;
-  --sidebar-foreground-muted: #94a3b8;
-  --sidebar-foreground-subtle: #cbd5e1;
+  --sidebar-foreground-muted: #64748b;
+  --sidebar-foreground-subtle: #475569;
   --sidebar-width-collapsed: 3.5rem;
   --card-elevated: #ffffff;
   --card-border-glow: color-mix(in srgb, var(--primary) 12%, var(--border));
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
-  --mesh-primary: color-mix(in srgb, var(--primary) 28%, transparent);
-  --mesh-accent: color-mix(in srgb, var(--chart-2) 22%, transparent);
-  --mesh-teal: color-mix(in srgb, var(--chart-4) 18%, transparent);
+  --mesh-primary: color-mix(in srgb, var(--primary) 18%, transparent);
+  --mesh-accent: color-mix(in srgb, var(--chart-2) 14%, transparent);
+  --mesh-teal: color-mix(in srgb, var(--chart-4) 12%, transparent);
+  --shadow-bento: 0 4px 24px -4px rgba(15, 23, 42, 0.08);
   --badge-success-bg: #dcfce7;
   --badge-success-fg: #14532d;
   --badge-success-border: #86efac;
@@ -157,6 +158,7 @@
   --card-elevated: #1a2740;
   --card-border-glow: color-mix(in srgb, var(--primary) 18%, var(--border));
   --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.28);
+  --shadow-bento: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
   --mesh-primary: color-mix(in srgb, var(--primary) 32%, transparent);
   --mesh-accent: color-mix(in srgb, var(--chart-2) 26%, transparent);
   --mesh-teal: color-mix(in srgb, var(--chart-4) 20%, transparent);
@@ -407,7 +409,7 @@ html {
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  opacity: 0.35;
+  opacity: 0.22;
 }
 .dark .app-mesh-blob {
   opacity: 0.28;
@@ -469,6 +471,119 @@ html {
 .stat-card-premium .stat-surface-converted-muted,
 .stat-card-premium .stat-surface-primary-muted {
   opacity: 0.9;
+}
+
+/* Bento dashboard cards */
+.card-bento {
+  background: var(--card);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-bento);
+  border: none;
+}
+.dark .card-bento {
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
+}
+.card-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: linear-gradient(135deg, #312e81 0%, #4338ca 45%, #6366f1 100%);
+  box-shadow: 0 8px 32px -8px rgba(79, 70, 229, 0.45);
+  color: #ffffff;
+  border: none;
+}
+.card-hero::before,
+.card-hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.card-hero::before {
+  width: 12rem;
+  height: 12rem;
+  top: -3rem;
+  right: -2rem;
+  background: color-mix(in srgb, #ec4899 55%, transparent);
+  opacity: 0.55;
+}
+.card-hero::after {
+  width: 9rem;
+  height: 9rem;
+  bottom: -2rem;
+  right: 5rem;
+  background: color-mix(in srgb, #818cf8 45%, transparent);
+  opacity: 0.4;
+}
+.card-hero > * {
+  position: relative;
+  z-index: 1;
+}
+.dashboard-bento {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.25rem;
+  auto-rows: min;
+}
+@media (min-width: 768px) {
+  .dashboard-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .dashboard-bento {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .bento-span-2 {
+    grid-column: span 2;
+  }
+  .bento-span-3 {
+    grid-column: span 3;
+  }
+  .bento-row-2 {
+    grid-row: span 2;
+  }
+}
+.bento-span-full {
+  grid-column: 1 / -1;
+}
+.stat-trend-up {
+  background: #dcfce7;
+  color: #14532d;
+}
+.stat-trend-down {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.dark .stat-trend-up {
+  background: #14532d;
+  color: #bbf7d0;
+}
+.dark .stat-trend-down {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+/* Sidebar scroll — hidden until hover */
+.sidebar-scroll {
+  scrollbar-width: none;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-scroll:hover {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--sidebar-foreground-muted) 35%, transparent) transparent;
+  }
+  .sidebar-scroll:hover::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--sidebar-foreground-muted) 35%, transparent);
+    border-radius: 9999px;
+  }
 }
 
 /* Badge & icon utilities (continued) */

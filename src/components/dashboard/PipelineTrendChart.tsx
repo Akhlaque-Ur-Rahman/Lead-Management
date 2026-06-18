@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Lead } from '../LeadsContext';
 import { toLocalDateKey } from '../../utils/dates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { cn } from '../ui/utils';
 import {
   BarChart,
   Bar,
@@ -14,6 +15,7 @@ import {
 
 interface PipelineTrendChartProps {
   leads: Lead[];
+  className?: string;
 }
 
 function parseLeadDate(lead: Lead): Date | null {
@@ -22,7 +24,7 @@ function parseLeadDate(lead: Lead): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function PipelineTrendChart({ leads }: PipelineTrendChartProps) {
+export function PipelineTrendChart({ leads, className }: PipelineTrendChartProps) {
   const { chartData, hasActivity } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -57,12 +59,12 @@ export function PipelineTrendChart({ leads }: PipelineTrendChartProps) {
   }, [leads]);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className={cn('card-bento gap-0 border-0', className)}>
+      <CardHeader className="pb-2 px-5 pt-5">
         <CardTitle className="text-base font-semibold">Pipeline activity (7 days)</CardTitle>
         <CardDescription>New leads added per day</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 pb-5">
         {!hasActivity ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
             No new leads in the last 7 days.

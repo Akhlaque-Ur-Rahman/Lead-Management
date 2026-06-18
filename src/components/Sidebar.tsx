@@ -136,15 +136,21 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
         aria-current={isActive ? 'page' : undefined}
         aria-label={collapsed ? item.label : undefined}
         className={cn(
-          'w-full flex items-center rounded-lg text-sm transition-all duration-150',
+          'relative w-full flex items-center rounded-lg text-sm transition-colors duration-150',
           collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
           isActive
-            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium'
+            ? 'bg-accent/60 text-primary font-medium'
             : 'text-sidebar-foreground-subtle hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
         )}
       >
-        <Icon className="h-4 w-4 flex-shrink-0" />
+        <Icon className={cn('h-4 w-4 flex-shrink-0', isActive && 'text-primary')} />
         {!collapsed && <span className="truncate">{item.label}</span>}
+        {isActive && !collapsed && (
+          <span
+            className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary"
+            aria-hidden
+          />
+        )}
       </button>
     );
 
@@ -189,8 +195,8 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
         className="h-9 w-9 rounded-lg object-cover border border-sidebar-border flex-shrink-0"
       />
     ) : (
-      <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
-        <FileSpreadsheet className="h-5 w-5 text-sidebar-primary-foreground" />
+      <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+        <FileSpreadsheet className="h-5 w-5 text-primary-foreground" />
       </div>
     );
 
@@ -229,37 +235,49 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
           )}
         </div>
 
-        <nav className="flex-1 min-h-0 p-3 overflow-y-auto" aria-label="Main navigation">
+        <nav className="flex-1 min-h-0 p-3 overflow-y-auto sidebar-scroll" aria-label="Main navigation">
           <NavGroup label="Overview" items={overview} />
           <NavGroup label="Pipeline" items={pipeline} />
           <NavGroup label="Administration" items={admin} />
         </nav>
 
-        <div className="shrink-0 p-3 border-t border-sidebar-border space-y-2">
+        <div className="shrink-0 p-3 border-t border-sidebar-border">
           {!collapsed ? (
-            <>
-              <div className="flex items-center gap-3 px-2">
+            <div className="rounded-xl bg-sidebar-accent/80 p-3 space-y-3">
+              <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9 border border-sidebar-border">
-                  <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">
+                  <AvatarFallback className="bg-background text-foreground text-xs">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{user.name}</p>
+                  <p className="text-sm font-medium truncate text-sidebar-foreground">{user.name}</p>
                   <Badge variant={getRoleBadgeVariant(user.role)} className="mt-0.5 text-[10px] px-1.5 py-0">
                     {getRoleLabel(user.role)}
                   </Badge>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground-subtle hover:bg-destructive/20 hover:text-destructive transition-colors"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </button>
-            </>
+              <div className="flex flex-col gap-0.5 border-t border-sidebar-border pt-2">
+                {allowedIds.has('settings') && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('settings')}
+                    className="flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-sidebar-foreground-subtle hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors text-left"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-sidebar-foreground-subtle hover:bg-destructive/10 hover:text-destructive transition-colors text-left"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              </div>
+            </div>
           ) : (
             <>
               <Tooltip>

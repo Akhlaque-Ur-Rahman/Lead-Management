@@ -4,13 +4,14 @@ import { useDebounce } from 'use-debounce';
 import { useAuth } from './AuthContext';
 import { useCompanies } from './CompanyContext';
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { PageHeader } from './layout/PageHeader';
+import { BentoStatCard } from './dashboard/BentoStatCard';
+import { HeroMetricCard } from './dashboard/HeroMetricCard';
 
 const normalizeCompanyId = (value: string | number | null | undefined) => {
   if (value === null || value === undefined) {
@@ -235,6 +236,11 @@ export function SuperDashboard() {
     return null;
   }
 
+  const activeRate =
+    stats.totalUsers > 0
+      ? `${Math.round((stats.activeUsers / stats.totalUsers) * 100)}% active in scope`
+      : 'No users in current filter';
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <PageHeader
@@ -247,11 +253,12 @@ export function SuperDashboard() {
         }
       />
 
-      {/* Filter Section */}
-      <Card className="card-premium gap-4 p-4 sm:p-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="dashboard-bento">
+        {/* Filter strip */}
+        <div className="card-bento bento-span-full p-4 sm:p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Status</label>
+          <label className="text-sm font-medium text-muted-foreground">Status</label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -265,7 +272,7 @@ export function SuperDashboard() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Company</label>
+          <label className="text-sm font-medium text-muted-foreground">Company</label>
           <Select value={companyFilter} onValueChange={setCompanyFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Select company" />
@@ -283,7 +290,7 @@ export function SuperDashboard() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Roles</label>
+          <label className="text-sm font-medium text-muted-foreground">Roles</label>
           <Select>
             <SelectTrigger>
               <SelectValue placeholder="Select roles">
@@ -320,7 +327,7 @@ export function SuperDashboard() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Search</label>
+          <label className="text-sm font-medium text-muted-foreground">Search</label>
           <div className="relative">
             <Input
               placeholder="Search name or email"
@@ -337,74 +344,51 @@ export function SuperDashboard() {
           </div>
         </div>
         </div>
-      </Card>
+        </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-          <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium stat-surface-primary-muted">Total Users</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.totalUsers}</div>
-          </CardContent>
-        </Card>
+        <HeroMetricCard
+          className="bento-span-2"
+          greeting="Platform overview"
+          label="Total Users"
+          value={stats.totalUsers}
+          subtitle={activeRate}
+        />
 
-        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-          <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium stat-surface-converted-muted">Active Users</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.activeUsers}</div>
-          </CardContent>
-        </Card>
+        <BentoStatCard
+          label="Active Users"
+          value={stats.activeUsers}
+          subtitle="Currently enabled"
+        />
+        <BentoStatCard
+          label="Inactive Users"
+          value={stats.inactiveUsers}
+          subtitle="Disabled accounts"
+        />
+        <BentoStatCard
+          label="Admins"
+          value={stats.adminsCount}
+          subtitle="Platform & company admins"
+        />
+        <BentoStatCard
+          label="Team Leads"
+          value={stats.teamLeads}
+          subtitle="Team leaders"
+        />
+        <BentoStatCard
+          label="Sales Users"
+          value={stats.salesUsers}
+          subtitle="Sales team members"
+        />
 
-        <Card className="card-premium stat-card-premium stat-surface-hot gap-0">
-          <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium stat-surface-hot-muted">Inactive Users</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.inactiveUsers}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-warm gap-0">
-          <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium stat-surface-warm-muted">Admins</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.adminsCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-cold gap-0">
-          <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium stat-surface-cold-muted">Team Leads</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.teamLeads}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-          <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium stat-surface-primary-muted">Sales Users</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.salesUsers}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* User Table */}
-      <Card className="card-premium gap-0 overflow-hidden">
-        <div className="px-4 py-3 border-b border-border text-sm text-muted-foreground bg-muted/30">
+        {/* User Table */}
+        <div className="card-bento bento-span-full overflow-hidden">
+        <div className="px-5 py-3 border-b border-border text-sm text-muted-foreground">
           {companyFilterLabel}
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-border">
-            <thead className="bg-muted/40">
-              <tr>
+            <thead>
+              <tr className="border-b border-border">
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</th>
@@ -412,7 +396,7 @@ export function SuperDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border bg-card/50">
+            <tbody className="divide-y divide-border bg-card">
               {filteredUsers.length > 0 ? (
                 filteredUsers.map(user => (
                   <tr key={user.id} className="hover:bg-muted/30 transition-colors">
@@ -441,7 +425,8 @@ export function SuperDashboard() {
             </tbody>
           </table>
         </div>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
