@@ -170,7 +170,7 @@ export function ConvertedLeads() {
         >
           ← Back to Converted Leads
         </Button>
-        <Card>
+        <Card className={cn('card-bento gap-0 border-0')}>
           <CardContent className="p-6">
             <LeadDetail 
               lead={selectedLead} 
@@ -213,7 +213,7 @@ export function ConvertedLeads() {
           value={convertedLeads.length}
           subtitle="Successful conversions"
           icon={<CheckCircle className="h-4 w-4 text-icon-success" />}
-          className="stat-card-converted"
+          variant="rose"
         />
         <BentoStatCard
           label="Total Value"
@@ -224,6 +224,7 @@ export function ConvertedLeads() {
           }
           subtitle="Combined project value"
           icon={<IndianRupee className="h-4 w-4" />}
+          variant="primary"
         />
         <BentoStatCard
           label="Average Deal Size"
@@ -236,6 +237,7 @@ export function ConvertedLeads() {
           }
           subtitle="Per conversion"
           icon={<IndianRupee className="h-4 w-4" />}
+          variant="teal"
         />
       </div>
 

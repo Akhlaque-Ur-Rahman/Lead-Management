@@ -495,13 +495,120 @@ html {
 
 /* Bento dashboard cards */
 .card-bento {
-  background: var(--card);
+  position: relative;
+  overflow: hidden;
   border-radius: 1rem;
+  border: 1px solid var(--card-border-glow);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-elevated) 12%, var(--card)) 0%,
+    var(--card) 100%
+  );
   box-shadow: var(--shadow-bento);
-  border: none;
+}
+.card-bento::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--foreground) 5%, transparent) 0%,
+    transparent 42%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.card-bento > * {
+  position: relative;
+  z-index: 1;
 }
 .dark .card-bento {
   box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* Stat card variants — distinct accents, not hero circles */
+.card-bento-v-primary {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 11%, var(--card)) 0%,
+    var(--card) 58%,
+    color-mix(in srgb, var(--card-elevated) 10%, var(--card)) 100%
+  );
+}
+.card-bento-v-primary::after {
+  content: '';
+  position: absolute;
+  top: -2.5rem;
+  right: -2rem;
+  width: 9rem;
+  height: 9rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+  filter: blur(28px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.card-bento-v-teal {
+  background: linear-gradient(
+    225deg,
+    color-mix(in srgb, var(--chart-4) 14%, var(--card)) 0%,
+    var(--card) 62%
+  );
+  box-shadow:
+    var(--shadow-bento),
+    inset 0 2px 0 color-mix(in srgb, var(--chart-4) 38%, transparent);
+}
+.dark .card-bento-v-teal {
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.4),
+    inset 0 2px 0 color-mix(in srgb, var(--chart-4) 38%, transparent);
+}
+
+.card-bento-v-warm {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--stat-warm-surface) 70%, var(--card)) 0%,
+    var(--card) 72%
+  );
+  border-left: 3px solid var(--status-warm-bg);
+}
+
+.card-bento-v-rose {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--chart-3) 12%, var(--card)) 0%,
+    var(--card) 65%
+  );
+}
+.card-bento-v-rose::after {
+  content: '';
+  position: absolute;
+  bottom: -2rem;
+  left: -1.5rem;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--chart-3) 20%, transparent);
+  filter: blur(26px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.card-bento-v-slate {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-elevated) 22%, var(--card)) 0%,
+    var(--card) 100%
+  );
+  box-shadow:
+    var(--shadow-bento),
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.dark .card-bento-v-slate {
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 .card-hero {
   position: relative;

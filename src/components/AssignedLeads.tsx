@@ -229,26 +229,28 @@ export function AssignedLeads() {
           value={allAssignedLeads.length}
           subtitle="Across all users"
           icon={<Building2 className="h-4 w-4" />}
-          className="stat-card-assigned"
+          index={0}
         />
         <BentoStatCard
           label="Hot Leads"
           value={allAssignedLeads.filter(l => l.status === 'Hot').length}
           subtitle="High priority"
           icon={<Building2 className="h-4 w-4 text-icon-warning" />}
-          className="stat-card-pool"
+          index={1}
         />
         <BentoStatCard
           label="Warm Leads"
           value={allAssignedLeads.filter(l => l.status === 'Warm').length}
           subtitle="Medium priority"
           icon={<Building2 className="h-4 w-4 text-icon-warning" />}
+          index={2}
         />
         <BentoStatCard
           label="Cold Leads"
           value={allAssignedLeads.filter(l => l.status === 'Cold').length}
           subtitle="Low priority"
           icon={<Building2 className="h-4 w-4 text-icon-info" />}
+          index={3}
         />
       </div>
 
@@ -338,7 +340,7 @@ export function AssignedLeads() {
               {paginatedLeads.map((lead) => {
                 const nextFollowUp = getNextFollowUpDate(lead);
                 return (
-                  <Card key={lead.id} className="p-4">
+                  <Card key={lead.id} className="card-bento border-0 gap-0 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium truncate">{lead.companyName}</p>

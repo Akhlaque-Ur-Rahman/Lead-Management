@@ -512,30 +512,35 @@ export function CompanyManagement() {
                 value={agg.totalLeads}
                 subtitle="Leads in scope"
                 icon={<Users className="h-4 w-4" />}
+                index={0}
               />
               <BentoStatCard
                 label="Converted Leads"
                 value={agg.convertedLeads}
                 subtitle="Successfully closed"
                 icon={<CheckCircle className="h-4 w-4" />}
+                index={1}
               />
               <BentoStatCard
                 label="Conversion Rate"
                 value={`${agg.conversionRate}%`}
                 subtitle="Converted / (Converted + Lost)"
                 icon={<BarChart3 className="h-4 w-4" />}
+                index={2}
               />
               <BentoStatCard
                 label="Active Users"
                 value={agg.activeUsers}
                 subtitle="Users active in scope"
                 icon={<Users className="h-4 w-4" />}
+                index={3}
               />
               <BentoStatCard
                 label="Inactive Users"
                 value={inactiveUsersCount}
                 subtitle="Users inactive in scope"
                 icon={<Users className="h-4 w-4" />}
+                index={4}
               />
             </>
           );
@@ -547,12 +552,14 @@ export function CompanyManagement() {
           value={stats.total}
           subtitle="Companies"
           icon={<Building2 className="h-4 w-4" />}
+          index={5}
         />
         <BentoStatCard
           label="Active Companies"
           value={stats.active}
           subtitle="Running"
           icon={<Building2 className="h-4 w-4" />}
+          index={6}
         />
 
         <Card>

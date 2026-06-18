@@ -53,6 +53,22 @@ import { LoadingTable } from './layout/LoadingTable';
 import { PaginationControls } from './ui/pagination-controls';
 import { usePagination } from '../hooks/usePagination';
 
+function estimateLeadRowHeight(lead: Lead, canAssign: boolean): number {
+  const directorCount = lead.directors?.length ?? 0;
+  const directorBlock =
+    directorCount === 0 ? 28 : directorCount * 52 + Math.max(0, directorCount - 1) * 8;
+  const assignBlock = canAssign ? 88 : 32;
+  const companyBlock = 28;
+  return 16 + Math.max(directorBlock, assignBlock, companyBlock) + 16;
+}
+
+const LEAD_POOL_COLUMN_COUNT = 8;
+
+interface VirtualRowProps {
+  ref?: (node: HTMLTableRowElement | null) => void;
+  'data-index'?: number;
+}
+
 export function LeadManagement() {
   const { user, users } = useAuth();
   const { 
@@ -242,18 +258,31 @@ export function LeadManagement() {
   };
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
+  const canAssignLeads = Boolean(user?.role && hasPermission(user.role, 'ASSIGN_LEADS'));
+
   const rowVirtualizer = useVirtualizer({
     count: filteredLeads.length,
     getScrollElement: () => tableScrollRef.current,
-    estimateSize: () => 80,
-    overscan: 10,
+    estimateSize: (index) => estimateLeadRowHeight(filteredLeads[index], canAssignLeads),
+    getItemKey: (index) => filteredLeads[index]?.id ?? index,
+    overscan: 5,
   });
 
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [filteredLeads.length, statusFilter, sortOption, canAssignLeads, rowVirtualizer]);
+
   const renderDesktopLeadRow = useCallback(
-    (lead: Lead, style?: React.CSSProperties) => (
-      <TableRow key={lead.id} style={style}>
-        <TableCell className="font-medium">{lead.companyName}</TableCell>
-        <TableCell className="hidden md:table-cell">
+    (lead: Lead, virtualRowProps?: VirtualRowProps) => (
+      <TableRow
+        key={lead.id}
+        ref={virtualRowProps?.ref}
+        data-index={virtualRowProps?.['data-index']}
+      >
+        <TableCell className="font-medium whitespace-normal max-w-0">
+          <span className="block truncate" title={lead.companyName}>{lead.companyName}</span>
+        </TableCell>
+        <TableCell className="hidden md:table-cell whitespace-normal">
           {lead.directors && lead.directors.length > 0 ? (
             <div className="space-y-2">
               {lead.directors.map((director, idx) => (
@@ -268,7 +297,7 @@ export function LeadManagement() {
           )}
         </TableCell>
         <TableCell className="font-mono text-sm">{lead.cin}</TableCell>
-        <TableCell className="hidden lg:table-cell">
+        <TableCell className="hidden lg:table-cell whitespace-normal">
           {lead.directors && lead.directors.length > 0 ? (
             <div className="space-y-2">
               {lead.directors.map((director, idx) => (
@@ -286,7 +315,7 @@ export function LeadManagement() {
             {lead.status}
           </Badge>
         </TableCell>
-        <TableCell className="hidden sm:table-cell">
+        <TableCell className="hidden sm:table-cell whitespace-normal">
           <div className="flex flex-col gap-2">
             {lead.isAssigned ? (
               <Badge variant="secondary" className="w-fit">
@@ -1101,25 +1130,25 @@ export function LeadManagement() {
           value={filteredLeads.length}
           subtitle="Matching current filters"
           icon={<ClipboardList className="h-4 w-4" />}
-          className="stat-card-pool"
+          variant="primary"
         />
         <BentoStatCard
           label="Hot"
           value={filteredLeads.filter((l) => l.status === 'Hot').length}
           subtitle="High priority"
-          className="stat-card-pool"
+          variant="warm"
         />
         <BentoStatCard
           label="Warm"
           value={filteredLeads.filter((l) => l.status === 'Warm').length}
           subtitle="Medium priority"
-          className="stat-card-followups"
+          variant="rose"
         />
         <BentoStatCard
           label="Cold"
           value={filteredLeads.filter((l) => l.status === 'Cold').length}
           subtitle="Low priority"
-          className="stat-card-assigned"
+          variant="teal"
         />
       </div>
 
@@ -1179,7 +1208,7 @@ export function LeadManagement() {
           <>
           <div className="md:hidden space-y-3">
             {paginatedLeads.map((lead) => (
-              <Card key={lead.id} className="p-4">
+              <Card key={lead.id} className="card-bento border-0 gap-0 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{lead.companyName}</p>
@@ -1214,7 +1243,17 @@ export function LeadManagement() {
             ref={tableScrollRef}
             className="hidden md:block rounded-md border overflow-auto max-h-[calc(100vh-280px)]"
           >
-            <Table>
+            <Table className="table-fixed w-full">
+              <colgroup>
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '6%' }} />
+              </colgroup>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableHead>Company Name</TableHead>
@@ -1227,22 +1266,44 @@ export function LeadManagement() {
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody
-                style={{
-                  height: `${rowVirtualizer.getTotalSize()}px`,
-                  position: 'relative',
-                }}
-              >
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const lead = filteredLeads[virtualRow.index];
-                  return renderDesktopLeadRow(lead, {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
-                  });
-                })}
+              <TableBody>
+                {(() => {
+                  const virtualRows = rowVirtualizer.getVirtualItems();
+                  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+                  const paddingBottom =
+                    virtualRows.length > 0
+                      ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+                      : 0;
+
+                  return (
+                    <>
+                      {paddingTop > 0 && (
+                        <TableRow aria-hidden className="hover:bg-transparent border-0">
+                          <TableCell
+                            colSpan={LEAD_POOL_COLUMN_COUNT}
+                            className="p-0 border-0"
+                            style={{ height: paddingTop }}
+                          />
+                        </TableRow>
+                      )}
+                      {virtualRows.map((virtualRow) =>
+                        renderDesktopLeadRow(filteredLeads[virtualRow.index], {
+                          ref: rowVirtualizer.measureElement,
+                          'data-index': virtualRow.index,
+                        })
+                      )}
+                      {paddingBottom > 0 && (
+                        <TableRow aria-hidden className="hover:bg-transparent border-0">
+                          <TableCell
+                            colSpan={LEAD_POOL_COLUMN_COUNT}
+                            className="p-0 border-0"
+                            style={{ height: paddingBottom }}
+                          />
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })()}
               </TableBody>
             </Table>
           </div>

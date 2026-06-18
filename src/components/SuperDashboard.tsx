@@ -358,26 +358,31 @@ export function SuperDashboard() {
           label="Active Users"
           value={stats.activeUsers}
           subtitle="Currently enabled"
+          variant="primary"
         />
         <BentoStatCard
           label="Inactive Users"
           value={stats.inactiveUsers}
           subtitle="Disabled accounts"
+          variant="slate"
         />
         <BentoStatCard
           label="Admins"
           value={stats.adminsCount}
           subtitle="Platform & company admins"
+          variant="warm"
         />
         <BentoStatCard
           label="Team Leads"
           value={stats.teamLeads}
           subtitle="Team leaders"
+          variant="teal"
         />
         <BentoStatCard
           label="Sales Users"
           value={stats.salesUsers}
           subtitle="Sales team members"
+          variant="rose"
         />
 
         {/* User Table */}

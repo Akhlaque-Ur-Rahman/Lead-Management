@@ -478,24 +478,28 @@ export function UserManagement() {
           value={filteredUsers.filter(u => u.role !== 'super_admin').length}
           subtitle={user.role === 'super_admin' ? 'Across all companies' : 'In your company'}
           icon={<Users className="h-4 w-4" />}
+          variant="primary"
         />
         <BentoStatCard
           label="Active Users"
           value={stats.activeUsers}
           subtitle={`${stats.inactiveUsers} inactive`}
           icon={<CheckCircle2 className="h-4 w-4" />}
+          variant="teal"
         />
         <BentoStatCard
           label="Admins"
           value={stats.adminsCount}
           subtitle="Platform & Company Admins"
           icon={<Shield className="h-4 w-4" />}
+          variant="warm"
         />
         <BentoStatCard
           label="Team Members"
           value={stats.teamLeads + stats.salesUsers}
           subtitle={`${stats.teamLeads} team leads, ${stats.salesUsers} sales users`}
           icon={<UserIcon className="h-4 w-4" />}
+          variant="rose"
         />
       </div>
 
@@ -634,7 +638,7 @@ export function UserManagement() {
               />
             ) : (
               paginatedUsers.map((u) => (
-                <Card key={u.id} className="p-4">
+                <Card key={u.id} className="card-bento border-0 gap-0 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">

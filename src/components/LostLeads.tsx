@@ -169,14 +169,14 @@ export function LostLeads() {
           value={filteredLostLeads.length}
           subtitle="All lost leads"
           icon={<AlertCircle className="h-4 w-4" />}
-          className="stat-card-lost"
+          variant="slate"
         />
         <BentoStatCard
           label="Lost This Month"
           value={lostThisMonth}
           subtitle="Current calendar month"
           icon={<AlertCircle className="h-4 w-4 text-icon-muted" />}
-          className="stat-card-lost"
+          variant="rose"
         />
       </div>
 

@@ -161,12 +161,14 @@ export function Dashboard() {
           value={stats.assigned}
           subtitle="Active in your queue"
           icon={<UserCheck className="h-4 w-4" />}
+          variant="primary"
         />
         <BentoStatCard
           label="Follow-ups Today"
           value={stats.followUpsToday}
           subtitle="Scheduled for today"
           icon={<Calendar className="h-4 w-4" />}
+          variant="teal"
         />
 
         <PipelineTrendChart leads={leads} className="bento-span-3" />

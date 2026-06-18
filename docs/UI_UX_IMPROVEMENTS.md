@@ -34,6 +34,7 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 9 | Bento dashboards, hero metric cards, light sidebar | Shipped |
 | Phase 10 | Bento admin rollout, tablet spans, collapsed nav indicator | Shipped |
 | Phase 11 | Contrast hardening + pipeline bento rollout | Shipped |
+| Phase 12 | Premium card depth — stat variants + elevated panels | Shipped |
 
 ---
 
@@ -423,6 +424,30 @@ Pipeline pages migrated to match admin/dashboard bento pattern:
 | Converted Leads | 3 KPI bento cards + `card-bento` table |
 | Lost Leads | Total lost + lost-this-month KPIs + `card-bento` table |
 | Calendar | Month grid and day-detail panels in `card-bento`; heat-map tokens preserved |
+
+---
+
+## 12g. Premium card depth (Phase 12)
+
+### Three-tier card system
+
+| Tier | Class | Use |
+|------|-------|-----|
+| Hero | `.card-hero` | One hero metric per dashboard (`HeroMetricCard`) — indigo gradient + circle blobs |
+| Stat variants | `.card-bento-v-{primary,teal,warm,rose,slate}` | All `BentoStatCard` KPI tiles — distinct accent each (no hero pattern repeat) |
+| Content panels | Enhanced `.card-bento` | Tables, charts, filter strips — border-glow, vertical gradient, top highlight |
+
+### BentoStatCard variants
+
+[`BentoStatCard`](../src/components/dashboard/BentoStatCard.tsx) accepts `variant` or `index` (auto-cycles through 5 variants):
+
+- **primary** — diagonal indigo tint + soft top-right glow
+- **teal** — reverse diagonal + top inset highlight
+- **warm** — warm surface tint + left accent bar
+- **rose** — pink tint + bottom-left glow
+- **slate** — neutral elevated + inset top highlight
+
+Applied across Super Dashboard, Company Dashboard, Reports, User/Company Management, and all pipeline pages.
 
 ---
 

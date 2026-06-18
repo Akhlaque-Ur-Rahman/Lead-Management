@@ -166,24 +166,28 @@ export function Reports() {
           value={totalLeads}
           subtitle="Active in system"
           icon={<Users className="h-4 w-4" />}
+          variant="primary"
         />
         <BentoStatCard
           label="Conversion Rate"
           value={`${conversionRate}%`}
           subtitle={`${convertedCount} of ${totalProcessed} closed`}
           icon={<Target className="h-4 w-4" />}
+          variant="warm"
         />
         <BentoStatCard
           label="Converted Leads"
           value={convertedCount}
           subtitle="Successfully closed"
           icon={<TrendingUp className="h-4 w-4" />}
+          variant="rose"
         />
         <BentoStatCard
           label="Active Users"
           value={getGlobalAggregates(selectedCompany === 'all' ? undefined : selectedCompany).activeUsers}
           subtitle="Users active in selected scope"
           icon={<Users className="h-4 w-4" />}
+          variant="teal"
         />
 
         <Card className={cn('card-bento gap-0 border-0')}>
