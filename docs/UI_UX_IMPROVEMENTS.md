@@ -560,6 +560,20 @@ Lead Pool, Assigned, Converted, Lost, User Management, Company Management, Super
 
 ---
 
+## 12l. Reports bento chart layout (Phase 17)
+
+Charts on [`Reports.tsx`](../src/components/Reports.tsx) use asymmetric `dashboard-bento` spans instead of four equal narrow columns:
+
+| Breakpoint | Layout |
+|------------|--------|
+| default | Single column stack |
+| md (768+) | Monthly trend full width; status + pipeline side-by-side; team performance full width |
+| xl (1280+) | Monthly trend `bento-span-3` + status donut; pipeline `bento-span-2-xl` + team `bento-span-2`; performance table full width |
+
+Wide charts use `h-[280px] md:h-[300px]`. New utility: `.bento-span-2-xl` (span 2 only at xl).
+
+---
+
 ## 13. Enterprise depth (Phase 6)
 
 ### 12a. Brand theming / logo upload

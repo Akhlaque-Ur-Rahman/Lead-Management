@@ -20,7 +20,8 @@ Charts and KPIs for lead pipeline performance. All analytics are computed client
 - **Company filter** — All companies or specific company (platform roles)
 - **Period filter** — All Time, This Month, This Quarter, This Year (filters all KPIs and charts)
 - **KPI cards** — Total leads, conversion rate, converted count, active users
-- **Charts:**
+- **Charts (bento grid):**
+  - Asymmetric layout on tablet/desktop — wide trend + compact donut on xl; status and pipeline side-by-side on md
   - Monthly lead trend (Shadcn line chart, real `createdAt` data)
   - Status distribution (Shadcn donut chart)
   - Team performance (Shadcn grouped bar chart)

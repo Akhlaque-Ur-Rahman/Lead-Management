@@ -148,10 +148,10 @@ export function Reports() {
           variant="teal"
         />
 
-        <MonthlyTrendChart data={monthlyData} />
+        <MonthlyTrendChart data={monthlyData} className="bento-span-2 bento-span-3" />
         <StatusDistributionChart data={statusDistribution} />
-        <TeamPerformanceChart data={teamPerformance} />
-        <PipelineFunnelChart data={pipelineStages} />
+        <PipelineFunnelChart data={pipelineStages} className="bento-span-2-xl" />
+        <TeamPerformanceChart data={teamPerformance} className="bento-span-2" />
         <PerformanceSummaryTable data={performanceSummary} />
       </div>
     </div>

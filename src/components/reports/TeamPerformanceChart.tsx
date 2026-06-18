@@ -35,12 +35,12 @@ export function TeamPerformanceChart({ data, className }: TeamPerformanceChartPr
       </CardHeader>
       <CardContent className="px-5 pb-5">
         {data.length === 0 ? (
-          <div className="flex h-[280px] flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="flex h-[280px] md:h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <Users className="h-8 w-8 opacity-50" />
             <p className="text-sm">No user data available</p>
           </div>
         ) : (
-          <ChartContainer config={teamPerformanceChartConfig} className="aspect-auto h-[280px] w-full">
+          <ChartContainer config={teamPerformanceChartConfig} className="aspect-auto h-[280px] md:h-[300px] w-full">
             <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} />
               <XAxis

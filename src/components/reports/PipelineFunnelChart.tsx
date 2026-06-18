@@ -28,12 +28,12 @@ export function PipelineFunnelChart({ data, className }: PipelineFunnelChartProp
       </CardHeader>
       <CardContent className="px-5 pb-5">
         {!hasData ? (
-          <div className="flex h-[280px] flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="flex h-[280px] md:h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <Filter className="h-8 w-8 opacity-50" />
             <p className="text-sm">No pipeline data in the selected period</p>
           </div>
         ) : (
-          <ChartContainer config={pipelineChartConfig} className="aspect-auto h-[280px] w-full">
+          <ChartContainer config={pipelineChartConfig} className="aspect-auto h-[280px] md:h-[300px] w-full">
             <BarChart
               data={data}
               layout="vertical"

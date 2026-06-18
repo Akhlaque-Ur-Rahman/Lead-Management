@@ -788,6 +788,9 @@ html {
   .bento-span-3 {
     grid-column: span 3;
   }
+  .bento-span-2-xl {
+    grid-column: span 2;
+  }
   .bento-row-2 {
     grid-row: span 2;
   }

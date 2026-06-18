@@ -30,12 +30,12 @@ export function MonthlyTrendChart({ data, className }: MonthlyTrendChartProps) {
       </CardHeader>
       <CardContent className="px-5 pb-5">
         {!hasData ? (
-          <div className="flex h-[280px] flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="flex h-[280px] md:h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <TrendingUp className="h-8 w-8 opacity-50" />
             <p className="text-sm">No lead activity in the selected period</p>
           </div>
         ) : (
-          <ChartContainer config={monthlyTrendChartConfig} className="aspect-auto h-[280px] w-full">
+          <ChartContainer config={monthlyTrendChartConfig} className="aspect-auto h-[280px] md:h-[300px] w-full">
             <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} />
               <XAxis
