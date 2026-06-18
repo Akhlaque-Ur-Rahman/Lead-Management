@@ -98,7 +98,7 @@ export function AppShell({ activeTab, onMenuClick, onCommandPalette, children }:
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto page-enter">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain page-enter">
         {children}
       </div>
     </div>

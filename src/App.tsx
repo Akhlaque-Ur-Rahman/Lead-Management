@@ -111,7 +111,7 @@ function DashboardLayout() {
       <div
         id="main-content"
         className={cn(
-          'flex flex-col flex-1 min-w-0',
+          'flex flex-col flex-1 min-w-0 min-h-0 h-full',
           showSalesBottomNav && 'pb-16'
         )}
       >

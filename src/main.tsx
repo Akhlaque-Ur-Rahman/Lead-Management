@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import "./styles/globals.css";
 import "./styles/login.css";
 import { BrowserRouter } from "react-router-dom";
 import { CompanyProvider } from "./components/CompanyContext";
