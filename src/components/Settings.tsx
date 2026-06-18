@@ -202,7 +202,7 @@ export function Settings() {
   const renderGeneralSettings = () => {
     return (
       <div className="space-y-6">
-        <Card className="card-premium">
+        <Card className="card-bento border-0 gap-0">
           <CardHeader>
             <CardTitle>General Settings</CardTitle>
             <CardDescription>Configure general application settings</CardDescription>
@@ -457,7 +457,7 @@ export function Settings() {
 
     return (
       <div className="space-y-6">
-        <Card className="card-premium">
+        <Card className="card-bento border-0 gap-0">
           <CardHeader>
             <CardTitle>Subscription Plans</CardTitle>
             <CardDescription>Configure pricing for different tiers</CardDescription>

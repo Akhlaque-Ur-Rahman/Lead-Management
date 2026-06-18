@@ -29,6 +29,7 @@ import {
 import { AlertCircle, Plus, Users, CheckCircle, BarChart3, Building2, Copy, Mail, Phone, Edit, Trash2, Ban } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
+import { BentoStatCard } from './dashboard/BentoStatCard';
 import {
   Select,
   SelectContent,
@@ -446,8 +447,7 @@ export function CompanyManagement() {
       />
 
       {/* Filter Section (compact row) */}
-      <Card className="card-premium gap-4 p-4 sm:p-5">
-        <CardContent className="p-0 pt-0">
+      <div className="card-bento p-4 sm:p-5">
           <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
             <CompanyFilter value={selectedCompanyId} onChange={setSelectedCompanyId} hideIfCompanyAdmin={true} />
 
@@ -495,8 +495,7 @@ export function CompanyManagement() {
               <Button variant="outline" onClick={resetFilters}>Reset Filters</Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Stats Cards (company + lead aggregates) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -508,90 +507,53 @@ export function CompanyManagement() {
             : getUsersByCompany(selectedCompanyId).filter(u => !u.isActive).length;
           return (
             <>
-              <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm stat-surface-primary-muted">Total Leads</CardTitle>
-                  <Users className="h-4 w-4 stat-surface-primary-muted" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-display">{agg.totalLeads}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Leads in scope</p>
-                </CardContent>
-              </Card>
-
-              <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm stat-surface-converted-muted">Converted Leads</CardTitle>
-                  <CheckCircle className="h-4 w-4 stat-surface-converted-muted" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-display">{agg.convertedLeads}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Successfully closed</p>
-                </CardContent>
-              </Card>
-
-              <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm stat-surface-primary-muted">Conversion Rate</CardTitle>
-                  <BarChart3 className="h-4 w-4 stat-surface-primary-muted" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-display">{agg.conversionRate}%</div>
-                  <p className="text-xs text-muted-foreground mt-1">Converted / (Converted + Lost)</p>
-                </CardContent>
-              </Card>
-
-              <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm stat-surface-converted-muted">Active Users</CardTitle>
-                  <Users className="h-4 w-4 stat-surface-converted-muted" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-display">{agg.activeUsers}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Users active in scope</p>
-                </CardContent>
-              </Card>
-
-              <Card className="card-premium stat-card-premium stat-surface-cold gap-0">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm stat-surface-cold-muted">Inactive Users</CardTitle>
-                  <Users className="h-4 w-4 stat-surface-cold-muted" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-display">{inactiveUsersCount}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Users inactive in scope</p>
-                </CardContent>
-              </Card>
+              <BentoStatCard
+                label="Total Leads"
+                value={agg.totalLeads}
+                subtitle="Leads in scope"
+                icon={<Users className="h-4 w-4" />}
+              />
+              <BentoStatCard
+                label="Converted Leads"
+                value={agg.convertedLeads}
+                subtitle="Successfully closed"
+                icon={<CheckCircle className="h-4 w-4" />}
+              />
+              <BentoStatCard
+                label="Conversion Rate"
+                value={`${agg.conversionRate}%`}
+                subtitle="Converted / (Converted + Lost)"
+                icon={<BarChart3 className="h-4 w-4" />}
+              />
+              <BentoStatCard
+                label="Active Users"
+                value={agg.activeUsers}
+                subtitle="Users active in scope"
+                icon={<Users className="h-4 w-4" />}
+              />
+              <BentoStatCard
+                label="Inactive Users"
+                value={inactiveUsersCount}
+                subtitle="Users inactive in scope"
+                icon={<Users className="h-4 w-4" />}
+              />
             </>
           );
         })()}
 
         {/* Existing company count cards */}
-        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm stat-surface-primary-muted">Total</CardTitle>
-            <Building2 className="h-4 w-4 stat-surface-primary-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-display">{stats.total}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Companies
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm stat-surface-converted-muted">Active</CardTitle>
-            <Building2 className="h-4 w-4 stat-surface-converted-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-display">{stats.active}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Running
-            </p>
-          </CardContent>
-        </Card>
+        <BentoStatCard
+          label="Total Companies"
+          value={stats.total}
+          subtitle="Companies"
+          icon={<Building2 className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Active Companies"
+          value={stats.active}
+          subtitle="Running"
+          icon={<Building2 className="h-4 w-4" />}
+        />
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

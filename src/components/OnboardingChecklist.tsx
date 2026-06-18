@@ -109,8 +109,8 @@ export function OnboardingChecklist() {
   };
 
   return (
-    <Card className="border-primary/30 bg-primary/5">
-      <CardHeader className="pb-3">
+    <Card className="card-bento border border-primary/20 gap-0">
+      <CardHeader className="pb-3 px-5 pt-5">
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle className="text-base">Getting started</CardTitle>
@@ -140,7 +140,7 @@ export function OnboardingChecklist() {
         </div>
       </CardHeader>
       {!collapsed && (
-        <CardContent className="space-y-3 pt-0">
+        <CardContent className="space-y-3 pt-0 px-5 pb-5">
           {steps.map((step) => {
             const Icon = step.icon;
             const StatusIcon = step.complete ? CheckCircle2 : Circle;

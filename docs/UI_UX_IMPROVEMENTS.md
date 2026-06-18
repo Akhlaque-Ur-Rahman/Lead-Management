@@ -32,6 +32,7 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 7 | Premium mesh canvas, elevated cards, sidebar controls, Super Dashboard polish | Shipped |
 | Phase 8 | Surface consistency rollout, static cards (no hover glow) | Shipped |
 | Phase 9 | Bento dashboards, hero metric cards, light sidebar | Shipped |
+| Phase 10 | Bento admin rollout, tablet spans, collapsed nav indicator | Shipped |
 
 ---
 
@@ -354,6 +355,29 @@ Fixtures: [`e2e/fixtures/auth.ts`](../e2e/fixtures/auth.ts) mocks `/api/auth/me`
 
 - **Company dashboard** — hero Lead Pool (2 col) + Assigned + Follow-ups; pipeline chart spans 3 cols; follow-ups + quick actions row
 - **Super Dashboard** — compact filter strip; hero Total Users; white stat bento cards; clean table card
+
+---
+
+## 12d. Bento admin rollout (Phase 10)
+
+### Phase 9 polish
+
+- `.bento-span-2` activates at md (768px+), not only xl
+- Collapsed sidebar shows a small left-edge dot for the active nav item
+
+### Admin page migration
+
+Replaced Phase 8 `card-premium` tinted stat cards with white `BentoStatCard` / `card-bento`:
+
+| Page | Changes |
+|------|---------|
+| Reports | KPI stats + full `dashboard-bento` grid for charts and performance summary |
+| User Management | Stat cards + table container |
+| Company Management | Filter strip + top aggregate stat cards |
+| Settings | General Settings and Subscription Plans wrappers |
+| Onboarding checklist | `card-bento` with subtle primary border on dashboard |
+
+`.card-premium` utility retained in CSS for legacy/edge use but no longer used on admin or dashboard routes.
 
 ---
 

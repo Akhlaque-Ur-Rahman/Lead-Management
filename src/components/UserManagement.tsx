@@ -54,6 +54,7 @@ import FilterBadge from './ui/filter-badge';
 import { PaginationControls } from './ui/pagination-controls';
 import { EmptyState } from './layout/EmptyState';
 import { PageHeader } from './layout/PageHeader';
+import { BentoStatCard } from './dashboard/BentoStatCard';
 import { usePagination } from '../hooks/usePagination';
 
 // Helper function to normalize company IDs for comparison
@@ -471,80 +472,42 @@ export function UserManagement() {
         }
       />
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-primary-muted">
-              <Users className="h-4 w-4" />
-              Total Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold font-display">{filteredUsers.filter(u => u.role !== 'super_admin').length}</div>
-            <p className="text-xs text-muted-foreground">
-              {user.role === 'super_admin' ? 'Across all companies' : 'In your company'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-converted-muted">
-              <CheckCircle2 className="h-4 w-4" />
-              Active Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.activeUsers}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.inactiveUsers} inactive
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-warm gap-0">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-warm-muted">
-              <Shield className="h-4 w-4" />
-              Admins
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold font-display">{stats.adminsCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Platform & Company Admins
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-cold gap-0">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-cold-muted">
-              <UserIcon className="h-4 w-4" />
-              Team Members
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold font-display">
-              {stats.teamLeads + stats.salesUsers}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.teamLeads} team leads, {stats.salesUsers} sales users
-            </p>
-          </CardContent>
-        </Card>
+        <BentoStatCard
+          label="Total Users"
+          value={filteredUsers.filter(u => u.role !== 'super_admin').length}
+          subtitle={user.role === 'super_admin' ? 'Across all companies' : 'In your company'}
+          icon={<Users className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Active Users"
+          value={stats.activeUsers}
+          subtitle={`${stats.inactiveUsers} inactive`}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Admins"
+          value={stats.adminsCount}
+          subtitle="Platform & Company Admins"
+          icon={<Shield className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Team Members"
+          value={stats.teamLeads + stats.salesUsers}
+          subtitle={`${stats.teamLeads} team leads, ${stats.salesUsers} sales users`}
+          icon={<UserIcon className="h-4 w-4" />}
+        />
       </div>
 
       {/* User Table */}
-      <Card className="card-premium gap-0 overflow-hidden">
-        <CardHeader className="p-4 pb-2">
-          <CardDescription>
+      <div className="card-bento overflow-hidden">
+        <div className="p-4 pb-2">
+          <p className="text-sm text-muted-foreground">
             {stats.totalUsers} user{stats.totalUsers !== 1 ? 's' : ''} found
             {isFilterActive && ' (filtered)'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
+        </div>
+        <div className="px-4 pb-4">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex-1">
               <div className="relative">
@@ -838,8 +801,8 @@ export function UserManagement() {
               itemLabel="users"
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Add User Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

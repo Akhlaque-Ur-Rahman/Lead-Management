@@ -29,6 +29,10 @@ import { Download, TrendingUp, Users, Target, BarChart3 } from 'lucide-react';
 import { useLeads } from './LeadsContext';
 import CompanyFilter from './CompanyFilter';
 import { useAuth } from './AuthContext';
+import { BentoStatCard } from './dashboard/BentoStatCard';
+import { cn } from './ui/utils';
+import { toast } from 'sonner';
+import { toast } from 'sonner';
 import { toast } from 'sonner';
 
 export function Reports() {
@@ -144,70 +148,38 @@ export function Reports() {
         }
       />
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm stat-surface-primary-muted">Total Leads</CardTitle>
-            <Users className="h-4 w-4 stat-surface-primary-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-display">{totalLeads}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Active in system
-            </p>
-          </CardContent>
-        </Card>
+      <div className="dashboard-bento">
+        <BentoStatCard
+          label="Total Leads"
+          value={totalLeads}
+          subtitle="Active in system"
+          icon={<Users className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Conversion Rate"
+          value={`${conversionRate}%`}
+          subtitle={`${convertedCount} of ${totalProcessed} closed`}
+          icon={<Target className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Converted Leads"
+          value={convertedCount}
+          subtitle="Successfully closed"
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <BentoStatCard
+          label="Active Users"
+          value={getGlobalAggregates(selectedCompany === 'all' ? undefined : selectedCompany).activeUsers}
+          subtitle="Users active in selected scope"
+          icon={<Users className="h-4 w-4" />}
+        />
 
-        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm stat-surface-converted-muted">Conversion Rate</CardTitle>
-            <Target className="h-4 w-4 stat-surface-converted-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-display">{conversionRate}%</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {convertedCount} of {totalProcessed} closed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm stat-surface-converted-muted">Converted Leads</CardTitle>
-            <TrendingUp className="h-4 w-4 stat-surface-converted-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-display">{convertedCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Successfully closed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm stat-surface-primary-muted">Active Users</CardTitle>
-              <Users className="h-4 w-4 stat-surface-primary-muted" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-display">{getGlobalAggregates(selectedCompany === 'all' ? undefined : selectedCompany).activeUsers}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Users active in selected scope
-              </p>
-            </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Monthly Trend */}
-        <Card className="card-premium">
-          <CardHeader>
+        <Card className={cn('card-bento gap-0 border-0')}>
+          <CardHeader className="px-5 pt-5">
             <CardTitle>Monthly Lead Trend</CardTitle>
             <CardDescription>Lead acquisition and conversion over time</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -250,12 +222,12 @@ export function Reports() {
         </Card>
 
         {/* Status Distribution */}
-        <Card className="card-premium">
-          <CardHeader>
+        <Card className={cn('card-bento gap-0 border-0')}>
+          <CardHeader className="px-5 pt-5">
             <CardTitle>Lead Status Distribution</CardTitle>
             <CardDescription>Breakdown by current status</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5">
             {statusDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -291,12 +263,12 @@ export function Reports() {
         </Card>
 
         {/* User Performance */}
-        <Card className="card-premium">
-          <CardHeader>
+        <Card className={cn('card-bento gap-0 border-0')}>
+          <CardHeader className="px-5 pt-5">
             <CardTitle>Team Performance</CardTitle>
             <CardDescription>Leads assigned to each team member</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5">
             {userPerformance.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={userPerformance}>
@@ -332,12 +304,12 @@ export function Reports() {
         </Card>
 
         {/* Pipeline Funnel */}
-        <Card className="card-premium">
-          <CardHeader>
+        <Card className={cn('card-bento gap-0 border-0')}>
+          <CardHeader className="px-5 pt-5">
             <CardTitle>Lead Pipeline</CardTitle>
             <CardDescription>Funnel progression through stages</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stageData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -369,15 +341,12 @@ export function Reports() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Performance Summary */}
-      <Card className="card-premium">
-        <CardHeader>
-          <CardTitle>Performance Summary</CardTitle>
-          <CardDescription>Detailed breakdown by team members</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <Card className={cn('card-bento gap-0 border-0 bento-span-full')}>
+          <CardHeader className="px-5 pt-5">
+            <CardTitle>Performance Summary</CardTitle>
+            <CardDescription>Detailed breakdown by team members</CardDescription>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
           <div className="space-y-4">
             {userPerformance.length > 0 ? (
               userPerformance.map((user, index) => (
@@ -412,6 +381,7 @@ export function Reports() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
