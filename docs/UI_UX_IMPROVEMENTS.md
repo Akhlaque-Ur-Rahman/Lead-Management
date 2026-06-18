@@ -28,6 +28,9 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 3 fixes | Dashboard data load, local dates, onboarding/calendar edge cases | Shipped |
 | Phase 4 | Mobile cards (Assigned/Users), collapsible sidebar, sales bottom nav | Shipped |
 | Phase 5 | Accessibility CI (Playwright + axe, extended static checks) | Shipped |
+| Phase 6 | Brand theming, virtualized tables, LeadForm zod | Shipped |
+| Phase 7 | Premium mesh canvas, elevated cards, sidebar controls, Super Dashboard polish | Shipped |
+| Phase 8 | Surface consistency rollout, static cards (no hover glow) | Shipped |
 
 ---
 
@@ -249,7 +252,9 @@ Verifies `DialogTitle` in dialog files and `aria-label` on icon-only buttons (fe
 - [`src/components/layout/MobileBottomNav.tsx`](../src/components/layout/MobileBottomNav.tsx) — fixed bottom bar for `sales_user` on mobile
 - Tabs: Lead Pool, Assigned, Calendar, Lost
 - Main content gets `pb-16` padding so content is not hidden behind the bar
-- Sidebar collapse toggle is desktop-only (`lg+`); theme switcher remains available when collapsed
+- Sidebar collapse toggle is desktop-only (`lg+`); **theme switcher lives in AppShell header** (top-right, next to Help)
+- Collapse/expand control is in the **sidebar header** (replaces former theme toggle position)
+- Collapsed footer: avatar + 40px logout icon only (no cramped multi-button stack)
 
 ---
 
@@ -283,7 +288,52 @@ Fixtures: [`e2e/fixtures/auth.ts`](../e2e/fixtures/auth.ts) mocks `/api/auth/me`
 
 ---
 
-## 12. Enterprise depth (Phase 6)
+## 12. Premium visual refresh (Phase 7)
+
+### App canvas mesh background
+
+- [`AppShell.tsx`](../src/components/layout/AppShell.tsx) scroll area uses `.app-surface` + `.app-mesh` blobs (login-inspired aurora, adapted for in-app pages)
+- Richer `--background` / `--card` tokens in [`globals.css`](../src/styles/globals.css) (less flat gray slabs)
+
+### Elevated cards + stat surfaces
+
+- `.card-premium` — gradient fill, subtle border, static shadow, radial highlight overlay (no hover glow)
+- Stat cards on Dashboard and Super Dashboard use semantic tinted surfaces (cold/warm/hot/converted/primary)
+- `.badge-success` variant for vibrant Active status chips
+
+### Sidebar control relocation
+
+- Theme toggle moved to AppShell header (Search → Theme → Help)
+- Collapse toggle moved to sidebar header top
+- Collapsed logout fixed: dedicated 40×40px icon button with tooltip
+
+### Super Dashboard alignment
+
+- `PageHeader` replaces raw `<h1>`
+- Filters wrapped in premium `Card`
+- User table uses design tokens (no hardcoded `gray-*` classes)
+
+---
+
+## 12b. Surface consistency (Phase 8)
+
+### Static card treatment (no hover glow)
+
+- Removed `.card-premium:hover` and `--shadow-card-hover` — cards keep depth at rest without animated glow on hover
+- Toned down static `--shadow-card`, `--card-border-glow`, and radial overlay opacity for a professional look
+
+### Page rollout
+
+| Page | Changes |
+|------|---------|
+| Reports | KPI stat cards + chart/table wrappers use `card-premium` + semantic stat surfaces |
+| User Management | Stat cards + user table container |
+| Company Management | Filter card + top aggregate stat cards |
+| Settings | General Settings and Subscription Plans section wrappers |
+
+---
+
+## 13. Enterprise depth (Phase 6)
 
 ### 12a. Brand theming / logo upload
 
@@ -304,7 +354,7 @@ Fixtures: [`e2e/fixtures/auth.ts`](../e2e/fixtures/auth.ts) mocks `/api/auth/me`
 
 ---
 
-## 13. Known limitations (deferred)
+## 14. Known limitations (deferred)
 
 - Full shadcn `ui/sidebar.tsx` migration
 - Company-level logo (tenant branding separate from global super-admin logo)
@@ -314,7 +364,7 @@ Fixtures: [`e2e/fixtures/auth.ts`](../e2e/fixtures/auth.ts) mocks `/api/auth/me`
 
 ---
 
-## 13. Related documentation
+## 15. Related documentation
 
 - [Page index](pages/README.md)
 - [Lead Pool](pages/leads.md)

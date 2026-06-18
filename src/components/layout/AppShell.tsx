@@ -8,6 +8,7 @@ import {
   BreadcrumbSeparator,
 } from '../ui/breadcrumb';
 import { Button } from '../ui/button';
+import { ThemeSwitcher } from '../ThemeSwitcher';
 import { HelpCircle, Menu, Search } from 'lucide-react';
 
 const TAB_LABELS: Record<string, string> = {
@@ -90,6 +91,7 @@ export function AppShell({ activeTab, onMenuClick, onCommandPalette, children }:
           >
             <Search className="h-5 w-5" />
           </Button>
+          <ThemeSwitcher variant="ghost" className="h-9 w-9 border-transparent bg-transparent" />
           <Button variant="ghost" size="icon" asChild aria-label="Help documentation">
             <Link to="/help">
               <HelpCircle className="h-5 w-5" />
@@ -98,8 +100,13 @@ export function AppShell({ activeTab, onMenuClick, onCommandPalette, children }:
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain page-enter">
-        {children}
+      <div className="app-surface flex-1 min-h-0 overflow-y-auto overscroll-contain page-enter">
+        <div className="app-mesh" aria-hidden>
+          <div className="app-mesh-blob app-mesh-blob--primary" />
+          <div className="app-mesh-blob app-mesh-blob--accent" />
+          <div className="app-mesh-blob app-mesh-blob--teal" />
+        </div>
+        <div className="relative z-10 min-h-full">{children}</div>
       </div>
     </div>
   );

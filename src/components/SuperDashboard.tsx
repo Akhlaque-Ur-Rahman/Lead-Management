@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Loader2 } from 'lucide-react';
+import { PageHeader } from './layout/PageHeader';
 
 const normalizeCompanyId = (value: string | number | null | undefined) => {
   if (value === null || value === undefined) {
@@ -235,20 +236,20 @@ export function SuperDashboard() {
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Super Dashboard</h1>
-        <Button
-          variant="outline"
-          onClick={resetFilters}
-          className="flex items-center gap-2"
-        >
-          Reset Filters
-        </Button>
-      </div>
+    <div className="p-4 sm:p-6 space-y-6">
+      <PageHeader
+        title="Super Dashboard"
+        description="Platform-wide user overview across all companies"
+        actions={
+          <Button variant="outline" onClick={resetFilters} className="gap-2">
+            Reset Filters
+          </Button>
+        }
+      />
 
       {/* Filter Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="card-premium gap-4 p-4 sm:p-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Status</label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -335,73 +336,74 @@ export function SuperDashboard() {
             )}
           </div>
         </div>
-      </div>
+        </div>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
           <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <CardTitle className="text-sm font-medium stat-surface-primary-muted">Total Users</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <div className="text-2xl font-bold font-display">{stats.totalUsers}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
           <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <CardTitle className="text-sm font-medium stat-surface-converted-muted">Active Users</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold">{stats.activeUsers}</div>
+            <div className="text-2xl font-bold font-display">{stats.activeUsers}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-hot gap-0">
           <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium">Inactive Users</CardTitle>
+            <CardTitle className="text-sm font-medium stat-surface-hot-muted">Inactive Users</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold">{stats.inactiveUsers}</div>
+            <div className="text-2xl font-bold font-display">{stats.inactiveUsers}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-warm gap-0">
           <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium">Admins</CardTitle>
+            <CardTitle className="text-sm font-medium stat-surface-warm-muted">Admins</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold">{stats.adminsCount}</div>
+            <div className="text-2xl font-bold font-display">{stats.adminsCount}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-cold gap-0">
           <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium">Team Leads</CardTitle>
+            <CardTitle className="text-sm font-medium stat-surface-cold-muted">Team Leads</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold">{stats.teamLeads}</div>
+            <div className="text-2xl font-bold font-display">{stats.teamLeads}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
           <CardHeader className="p-3 pb-0">
-            <CardTitle className="text-sm font-medium">Sales Users</CardTitle>
+            <CardTitle className="text-sm font-medium stat-surface-primary-muted">Sales Users</CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-2xl font-bold">{stats.salesUsers}</div>
+            <div className="text-2xl font-bold font-display">{stats.salesUsers}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* User Table */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow">
-        <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800 text-sm text-muted-foreground">
+      <Card className="card-premium gap-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border text-sm text-muted-foreground bg-muted/30">
           {companyFilterLabel}
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-muted/40">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
@@ -410,10 +412,10 @@ export function SuperDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-border bg-card/50">
               {filteredUsers.length > 0 ? (
                 filteredUsers.map(user => (
-                  <tr key={user.id}>
+                  <tr key={user.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -423,7 +425,7 @@ export function SuperDashboard() {
                       {getCompanyName(user.companyId)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                      <Badge variant={user.isActive ? 'success' : 'secondary'}>
                         {user.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
@@ -439,7 +441,7 @@ export function SuperDashboard() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

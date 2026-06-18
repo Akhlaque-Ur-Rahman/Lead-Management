@@ -146,52 +146,52 @@ export function Reports() {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Total Leads</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm stat-surface-primary-muted">Total Leads</CardTitle>
+            <Users className="h-4 w-4 stat-surface-primary-muted" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{totalLeads}</div>
+            <div className="text-2xl font-bold font-display">{totalLeads}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Active in system
             </p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Conversion Rate</CardTitle>
-            <Target className="h-4 w-4 text-icon-success" />
+            <CardTitle className="text-sm stat-surface-converted-muted">Conversion Rate</CardTitle>
+            <Target className="h-4 w-4 stat-surface-converted-muted" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{conversionRate}%</div>
+            <div className="text-2xl font-bold font-display">{conversionRate}%</div>
             <p className="text-xs text-muted-foreground mt-1">
               {convertedCount} of {totalProcessed} closed
             </p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Converted Leads</CardTitle>
-            <TrendingUp className="h-4 w-4 text-icon-success" />
+            <CardTitle className="text-sm stat-surface-converted-muted">Converted Leads</CardTitle>
+            <TrendingUp className="h-4 w-4 stat-surface-converted-muted" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{convertedCount}</div>
+            <div className="text-2xl font-bold font-display">{convertedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Successfully closed
             </p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm">Active Users</CardTitle>
-              <Users className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm stat-surface-primary-muted">Active Users</CardTitle>
+              <Users className="h-4 w-4 stat-surface-primary-muted" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl">{getGlobalAggregates(selectedCompany === 'all' ? undefined : selectedCompany).activeUsers}</div>
+              <div className="text-2xl font-bold font-display">{getGlobalAggregates(selectedCompany === 'all' ? undefined : selectedCompany).activeUsers}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Users active in selected scope
               </p>
@@ -202,7 +202,7 @@ export function Reports() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Monthly Trend */}
-        <Card>
+        <Card className="card-premium">
           <CardHeader>
             <CardTitle>Monthly Lead Trend</CardTitle>
             <CardDescription>Lead acquisition and conversion over time</CardDescription>
@@ -250,7 +250,7 @@ export function Reports() {
         </Card>
 
         {/* Status Distribution */}
-        <Card>
+        <Card className="card-premium">
           <CardHeader>
             <CardTitle>Lead Status Distribution</CardTitle>
             <CardDescription>Breakdown by current status</CardDescription>
@@ -291,7 +291,7 @@ export function Reports() {
         </Card>
 
         {/* User Performance */}
-        <Card>
+        <Card className="card-premium">
           <CardHeader>
             <CardTitle>Team Performance</CardTitle>
             <CardDescription>Leads assigned to each team member</CardDescription>
@@ -332,7 +332,7 @@ export function Reports() {
         </Card>
 
         {/* Pipeline Funnel */}
-        <Card>
+        <Card className="card-premium">
           <CardHeader>
             <CardTitle>Lead Pipeline</CardTitle>
             <CardDescription>Funnel progression through stages</CardDescription>
@@ -372,7 +372,7 @@ export function Reports() {
       </div>
 
       {/* Performance Summary */}
-      <Card>
+      <Card className="card-premium">
         <CardHeader>
           <CardTitle>Performance Summary</CardTitle>
           <CardDescription>Detailed breakdown by team members</CardDescription>

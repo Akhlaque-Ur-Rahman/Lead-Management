@@ -202,7 +202,7 @@ export function Settings() {
   const renderGeneralSettings = () => {
     return (
       <div className="space-y-6">
-        <Card>
+        <Card className="card-premium">
           <CardHeader>
             <CardTitle>General Settings</CardTitle>
             <CardDescription>Configure general application settings</CardDescription>
@@ -457,7 +457,7 @@ export function Settings() {
 
     return (
       <div className="space-y-6">
-        <Card>
+        <Card className="card-premium">
           <CardHeader>
             <CardTitle>Subscription Plans</CardTitle>
             <CardDescription>Configure pricing for different tiers</CardDescription>

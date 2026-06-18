@@ -2,7 +2,7 @@
 
 :root {
   --font-size: 16px;
-  --background: #f8f9fc;
+  --background: #eef1f8;
   --foreground: #1e293b;
   --card: #ffffff;
   --card-foreground: #1e293b;
@@ -42,7 +42,24 @@
   --sidebar-ring: #6366f1;
   --sidebar-foreground-muted: #94a3b8;
   --sidebar-foreground-subtle: #cbd5e1;
-  --sidebar-width-collapsed: 3rem;
+  --sidebar-width-collapsed: 3.5rem;
+  --card-elevated: #ffffff;
+  --card-border-glow: color-mix(in srgb, var(--primary) 12%, var(--border));
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+  --mesh-primary: color-mix(in srgb, var(--primary) 28%, transparent);
+  --mesh-accent: color-mix(in srgb, var(--chart-2) 22%, transparent);
+  --mesh-teal: color-mix(in srgb, var(--chart-4) 18%, transparent);
+  --badge-success-bg: #dcfce7;
+  --badge-success-fg: #14532d;
+  --badge-success-border: #86efac;
+  --stat-converted-surface: #ecfdf5;
+  --stat-converted-surface-fg: #14532d;
+  --stat-converted-surface-muted: #15803d;
+  --stat-converted-surface-border: #a7f3d0;
+  --stat-primary-surface: #eef2ff;
+  --stat-primary-surface-fg: #312e81;
+  --stat-primary-surface-muted: #4338ca;
+  --stat-primary-surface-border: #c7d2fe;
   /* Semantic icon colors */
   --icon-success: #15803d;
   --icon-warning: #b45309;
@@ -99,9 +116,9 @@
 }
 
 .dark {
-  --background: #0f172a;
+  --background: #0b1120;
   --foreground: #f8fafc;
-  --card: #1e293b;
+  --card: #151f32;
   --card-foreground: #f8fafc;
   --popover: #1e293b;
   --popover-foreground: #f8fafc;
@@ -136,7 +153,24 @@
   --sidebar-ring: #818cf8;
   --sidebar-foreground-muted: #94a3b8;
   --sidebar-foreground-subtle: #cbd5e1;
-  --sidebar-width-collapsed: 3rem;
+  --sidebar-width-collapsed: 3.5rem;
+  --card-elevated: #1a2740;
+  --card-border-glow: color-mix(in srgb, var(--primary) 18%, var(--border));
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.28);
+  --mesh-primary: color-mix(in srgb, var(--primary) 32%, transparent);
+  --mesh-accent: color-mix(in srgb, var(--chart-2) 26%, transparent);
+  --mesh-teal: color-mix(in srgb, var(--chart-4) 20%, transparent);
+  --badge-success-bg: #14532d;
+  --badge-success-fg: #bbf7d0;
+  --badge-success-border: #166534;
+  --stat-converted-surface: #052e16;
+  --stat-converted-surface-fg: #bbf7d0;
+  --stat-converted-surface-muted: #86efac;
+  --stat-converted-surface-border: #166534;
+  --stat-primary-surface: #1e1b4b;
+  --stat-primary-surface-fg: #e0e7ff;
+  --stat-primary-surface-muted: #a5b4fc;
+  --stat-primary-surface-border: #4338ca;
   --icon-success: #4ade80;
   --icon-warning: #fbbf24;
   --icon-info: #60a5fa;
@@ -332,6 +366,18 @@ html {
 .stat-surface-hot-muted { color: var(--stat-hot-surface-muted); }
 .stat-surface-warm-muted { color: var(--stat-warm-surface-muted); }
 .stat-surface-cold-muted { color: var(--stat-cold-surface-muted); }
+.stat-surface-converted {
+  background-color: var(--stat-converted-surface);
+  color: var(--stat-converted-surface-fg);
+  border-color: var(--stat-converted-surface-border);
+}
+.stat-surface-converted-muted { color: var(--stat-converted-surface-muted); }
+.stat-surface-primary {
+  background-color: var(--stat-primary-surface);
+  color: var(--stat-primary-surface-fg);
+  border-color: var(--stat-primary-surface-border);
+}
+.stat-surface-primary-muted { color: var(--stat-primary-surface-muted); }
 
 /* Badge & icon utilities */
 .badge-neutral {
@@ -339,6 +385,93 @@ html {
   color: var(--badge-neutral-fg);
   border: 1px solid var(--badge-neutral-border);
 }
+.badge-success {
+  background-color: var(--badge-success-bg);
+  color: var(--badge-success-fg);
+  border: 1px solid var(--badge-success-border);
+}
+
+/* Premium app canvas + mesh (login-inspired) */
+.app-surface {
+  position: relative;
+  background: var(--background);
+}
+.app-mesh {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.app-mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+}
+.dark .app-mesh-blob {
+  opacity: 0.28;
+}
+.app-mesh-blob--primary {
+  top: -6rem;
+  right: -4rem;
+  width: 26rem;
+  height: 26rem;
+  background: var(--mesh-primary);
+}
+.app-mesh-blob--accent {
+  bottom: 10%;
+  left: -8rem;
+  width: 30rem;
+  height: 30rem;
+  background: var(--mesh-accent);
+}
+.app-mesh-blob--teal {
+  top: 35%;
+  left: 45%;
+  width: 22rem;
+  height: 22rem;
+  background: var(--mesh-teal);
+}
+
+/* Premium elevated cards */
+.card-premium {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--card-elevated) 92%, var(--primary) 8%) 0%,
+    var(--card) 55%,
+    color-mix(in srgb, var(--card) 88%, var(--chart-4) 12%) 100%
+  );
+  border: 1px solid var(--card-border-glow);
+  box-shadow: var(--shadow-card);
+}
+.card-premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 100% 0%,
+    color-mix(in srgb, var(--primary) 8%, transparent),
+    transparent 65%
+  );
+  pointer-events: none;
+}
+.card-premium > * {
+  position: relative;
+  z-index: 1;
+}
+.stat-card-premium .text-muted-foreground,
+.stat-card-premium .stat-surface-hot-muted,
+.stat-card-premium .stat-surface-warm-muted,
+.stat-card-premium .stat-surface-cold-muted,
+.stat-card-premium .stat-surface-converted-muted,
+.stat-card-premium .stat-surface-primary-muted {
+  opacity: 0.9;
+}
+
+/* Badge & icon utilities (continued) */
 .text-icon-success { color: var(--icon-success); }
 .text-icon-warning { color: var(--icon-warning); }
 .text-icon-info { color: var(--icon-info); }

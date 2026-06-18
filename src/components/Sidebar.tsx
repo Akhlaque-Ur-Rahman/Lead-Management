@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Calendar,
+  BarChart3,
   FileSpreadsheet,
   Settings,
   UserCog,
@@ -20,7 +20,6 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { getRoleLabel, getRoleBadgeVariant } from '../types/roles';
-import { ThemeSwitcher } from './ThemeSwitcher';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const SIDEBAR_COLLAPSED_KEY = 'lms-sidebar-collapsed';
@@ -113,6 +112,21 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
   const nameToShow = user.role === 'super_admin' ? systemName : (companyDisplayName || 'Dashboard');
   const initials = user.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
 
+  const CollapseToggle = ({ className }: { className?: string }) => (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        'hidden lg:inline-flex h-9 w-9 shrink-0 text-sidebar-foreground-subtle hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        className
+      )}
+      onClick={() => setCollapsed(!collapsed)}
+      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+    >
+      <PanelLeft className={cn('h-4 w-4', collapsed && 'rotate-180')} />
+    </Button>
+  );
+
   const NavButton = ({ item, isActive }: { item: MenuItem; isActive: boolean }) => {
     const Icon = item.icon;
     const button = (
@@ -167,125 +181,114 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
     );
   };
 
+  const brandLogo =
+    user.role === 'super_admin' && systemLogoUrl ? (
+      <img
+        src={systemLogoUrl}
+        alt=""
+        className="h-9 w-9 rounded-lg object-cover border border-sidebar-border flex-shrink-0"
+      />
+    ) : (
+      <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
+        <FileSpreadsheet className="h-5 w-5 text-sidebar-primary-foreground" />
+      </div>
+    );
+
   return (
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col h-full transition-[width] duration-300',
+          'bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col h-full min-h-0 transition-[width] duration-300',
           collapsed ? 'w-[var(--sidebar-width-collapsed)]' : 'w-64'
         )}
       >
         <div
           className={cn(
-            'border-b border-sidebar-border flex items-center gap-2',
-            collapsed ? 'p-3 justify-center' : 'p-5 justify-between'
+            'border-b border-sidebar-border shrink-0',
+            collapsed ? 'flex flex-col items-center gap-2 p-3' : 'flex items-center gap-2 p-4 pr-3'
           )}
         >
-          <div className={cn('flex items-center gap-3 min-w-0', collapsed && 'justify-center')}>
-            {user.role === 'super_admin' && systemLogoUrl ? (
-              <img
-                src={systemLogoUrl}
-                alt=""
-                className="h-9 w-9 rounded-lg object-cover border border-sidebar-border flex-shrink-0"
-              />
-            ) : (
-              <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
-                <FileSpreadsheet className="h-5 w-5 text-sidebar-primary-foreground" />
+          {collapsed ? (
+            <>
+              <CollapseToggle />
+              {brandLogo}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {brandLogo}
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm leading-tight line-clamp-2" title={nameToShow}>
+                    {nameToShow}
+                  </p>
+                  <p className="text-[11px] text-sidebar-foreground-muted truncate">Multi-Tenant LMS</p>
+                </div>
               </div>
-            )}
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="font-semibold text-sm leading-tight line-clamp-2" title={nameToShow}>
-                  {nameToShow}
-                </p>
-                <p className="text-[11px] text-sidebar-foreground-muted truncate">Multi-Tenant LMS</p>
-              </div>
-            )}
-          </div>
-          {!collapsed && <ThemeSwitcher />}
+              <CollapseToggle />
+            </>
+          )}
         </div>
 
-        <nav className="flex-1 p-3 overflow-y-auto" aria-label="Main navigation">
+        <nav className="flex-1 min-h-0 p-3 overflow-y-auto" aria-label="Main navigation">
           <NavGroup label="Overview" items={overview} />
           <NavGroup label="Pipeline" items={pipeline} />
           <NavGroup label="Administration" items={admin} />
         </nav>
 
-        <div className="p-3 border-t border-sidebar-border space-y-2">
+        <div className="shrink-0 p-3 border-t border-sidebar-border space-y-2">
           {!collapsed ? (
-            <div className="flex items-center gap-3 px-2">
-              <Avatar className="h-9 w-9 border border-sidebar-border">
-                <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <Badge variant={getRoleBadgeVariant(user.role)} className="mt-0.5 text-[10px] px-1.5 py-0">
-                  {getRoleLabel(user.role)}
-                </Badge>
-              </div>
-            </div>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex justify-center">
-                  <Avatar className="h-9 w-9 border border-sidebar-border">
-                    <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
+            <>
+              <div className="flex items-center gap-3 px-2">
+                <Avatar className="h-9 w-9 border border-sidebar-border">
+                  <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{user.name}</p>
+                  <Badge variant={getRoleBadgeVariant(user.role)} className="mt-0.5 text-[10px] px-1.5 py-0">
+                    {getRoleLabel(user.role)}
+                  </Badge>
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">{user.name}</TooltipContent>
-            </Tooltip>
-          )}
-
-          {collapsed && (
-            <div className="hidden lg:flex justify-center">
-              <ThemeSwitcher />
-            </div>
-          )}
-
-          <div className={cn('gap-1', collapsed ? 'hidden lg:flex flex-col items-center' : 'flex flex-row')}>
-            <Button
-              variant="ghost"
-              size={collapsed ? 'icon' : 'sm'}
-              className={cn(
-                'text-sidebar-foreground-subtle hover:bg-sidebar-accent hidden lg:inline-flex',
-                !collapsed && 'flex-1'
-              )}
-              onClick={() => setCollapsed(!collapsed)}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              <PanelLeft className={cn('h-4 w-4', collapsed && 'rotate-180')} />
-              {!collapsed && <span className="ml-2">Collapse</span>}
-            </Button>
-            {!collapsed && (
+              </div>
               <button
                 type="button"
                 onClick={logout}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-sidebar-foreground-subtle hover:bg-destructive/20 hover:text-destructive transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground-subtle hover:bg-destructive/20 hover:text-destructive transition-colors"
               >
                 <LogOut className="h-4 w-4" />
                 Logout
               </button>
-            )}
-          </div>
-          {collapsed && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="w-full flex items-center justify-center p-2.5 rounded-lg text-sidebar-foreground-subtle hover:bg-destructive/20 hover:text-destructive transition-colors"
-                  aria-label="Logout"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Logout</TooltipContent>
-            </Tooltip>
+            </>
+          ) : (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex justify-center">
+                    <Avatar className="h-9 w-9 border border-sidebar-border">
+                      <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">{user.name}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={logout}
+                    aria-label="Logout"
+                    className="mx-auto flex h-10 w-10 min-h-10 min-w-10 text-sidebar-foreground-subtle hover:bg-destructive/20 hover:text-destructive"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Logout</TooltipContent>
+              </Tooltip>
+            </>
           )}
         </div>
       </aside>

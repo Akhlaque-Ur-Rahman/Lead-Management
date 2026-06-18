@@ -473,60 +473,60 @@ export function UserManagement() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-primary gap-0">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-primary-muted">
+              <Users className="h-4 w-4" />
               Total Users
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{filteredUsers.filter(u => u.role !== 'super_admin').length}</div>
+            <div className="text-2xl font-bold font-display">{filteredUsers.filter(u => u.role !== 'super_admin').length}</div>
             <p className="text-xs text-muted-foreground">
               {user.role === 'super_admin' ? 'Across all companies' : 'In your company'}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-converted gap-0">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-icon-success" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-converted-muted">
+              <CheckCircle2 className="h-4 w-4" />
               Active Users
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{stats.activeUsers}</div>
+            <div className="text-2xl font-bold font-display">{stats.activeUsers}</div>
             <p className="text-xs text-muted-foreground">
               {stats.inactiveUsers} inactive
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-warm gap-0">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Shield className="h-4 w-4 text-icon-warning" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-warm-muted">
+              <Shield className="h-4 w-4" />
               Admins
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{stats.adminsCount}</div>
+            <div className="text-2xl font-bold font-display">{stats.adminsCount}</div>
             <p className="text-xs text-muted-foreground">
               Platform & Company Admins
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium stat-card-premium stat-surface-cold gap-0">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <UserIcon className="h-4 w-4 text-icon-info" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-cold-muted">
+              <UserIcon className="h-4 w-4" />
               Team Members
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold font-display">
               {stats.teamLeads + stats.salesUsers}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -537,7 +537,7 @@ export function UserManagement() {
       </div>
 
       {/* User Table */}
-      <Card>
+      <Card className="card-premium gap-0 overflow-hidden">
         <CardHeader className="p-4 pb-2">
           <CardDescription>
             {stats.totalUsers} user{stats.totalUsers !== 1 ? 's' : ''} found

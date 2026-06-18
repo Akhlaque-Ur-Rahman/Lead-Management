@@ -109,9 +109,9 @@ export function Dashboard() {
       <OnboardingChecklist />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="stat-card-pool shadow-sm hover:shadow-md transition-shadow">
+        <Card className="card-premium stat-card-premium stat-card-pool stat-surface-cold gap-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-cold-muted">
               <ClipboardList className="h-4 w-4" />
               Lead Pool
             </CardTitle>
@@ -120,9 +120,9 @@ export function Dashboard() {
             <div className="text-3xl font-bold font-display">{stats.pool}</div>
           </CardContent>
         </Card>
-        <Card className="stat-card-assigned shadow-sm hover:shadow-md transition-shadow">
+        <Card className="card-premium stat-card-premium stat-card-assigned stat-surface-warm gap-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-warm-muted">
               <UserCheck className="h-4 w-4" />
               Assigned
             </CardTitle>
@@ -132,9 +132,9 @@ export function Dashboard() {
           </CardContent>
         </Card>
         {hasPermission(user.role, 'VIEW_CONVERTED_LEADS') && (
-          <Card className="stat-card-converted shadow-sm hover:shadow-md transition-shadow">
+          <Card className="card-premium stat-card-premium stat-card-converted stat-surface-converted gap-0">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+              <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-converted-muted">
                 <CheckCircle className="h-4 w-4" />
                 Converted
               </CardTitle>
@@ -144,9 +144,9 @@ export function Dashboard() {
             </CardContent>
           </Card>
         )}
-        <Card className="stat-card-followups shadow-sm hover:shadow-md transition-shadow">
+        <Card className="card-premium stat-card-premium stat-card-followups stat-surface-warm gap-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 stat-surface-warm-muted">
               <Calendar className="h-4 w-4" />
               Follow-ups Today
             </CardTitle>
@@ -161,7 +161,7 @@ export function Dashboard() {
       <PipelineTrendChart leads={leads} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="card-premium">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">Follow-ups due today</CardTitle>
             <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate('/calendar')}>
@@ -194,7 +194,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-premium">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold">Quick actions</CardTitle>
           </CardHeader>
