@@ -1,5 +1,6 @@
 import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { BentoTable } from './BentoTable';
 
 interface LoadingTableProps {
   columns: number;
@@ -8,10 +9,10 @@ interface LoadingTableProps {
 
 export function LoadingTable({ columns, rows = 5 }: LoadingTableProps) {
   return (
-    <div className="rounded-md border overflow-x-auto">
+    <BentoTable>
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="hover:bg-transparent even:bg-transparent">
             {Array.from({ length: columns }).map((_, i) => (
               <TableHead key={i}>
                 <Skeleton className="h-4 w-20" />
@@ -31,6 +32,6 @@ export function LoadingTable({ columns, rows = 5 }: LoadingTableProps) {
           ))}
         </TableBody>
       </Table>
-    </div>
+    </BentoTable>
   );
 }

@@ -14,6 +14,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from './ui/accordion';
+import { BentoTable } from './layout/BentoTable';
 import { 
   Table, 
   TableBody, 
@@ -1238,9 +1239,12 @@ export function LeadManagement() {
               </Card>
             ))}
           </div>
-          <div
-            ref={tableScrollRef}
-            className="hidden md:block rounded-md border overflow-auto max-h-[calc(100vh-280px)]"
+          <BentoTable
+            scrollRef={tableScrollRef}
+            scrollable
+            maxHeight="calc(100vh - 280px)"
+            stickyHeader
+            className="hidden md:block"
           >
             <Table className="table-fixed w-full">
               <colgroup>
@@ -1253,8 +1257,8 @@ export function LeadManagement() {
                 <col style={{ width: '10%' }} />
                 <col style={{ width: '6%' }} />
               </colgroup>
-              <TableHeader className="sticky top-0 z-10 bg-background">
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent even:bg-transparent">
                   <TableHead>Company Name</TableHead>
                   <TableHead className="hidden md:table-cell">Director</TableHead>
                   <TableHead>CIN</TableHead>
@@ -1277,7 +1281,7 @@ export function LeadManagement() {
                   return (
                     <>
                       {paddingTop > 0 && (
-                        <TableRow aria-hidden className="hover:bg-transparent border-0">
+                        <TableRow aria-hidden className="border-0 hover:bg-transparent even:bg-transparent">
                           <TableCell
                             colSpan={LEAD_POOL_COLUMN_COUNT}
                             className="p-0 border-0"
@@ -1292,7 +1296,7 @@ export function LeadManagement() {
                         })
                       )}
                       {paddingBottom > 0 && (
-                        <TableRow aria-hidden className="hover:bg-transparent border-0">
+                        <TableRow aria-hidden className="border-0 hover:bg-transparent even:bg-transparent">
                           <TableCell
                             colSpan={LEAD_POOL_COLUMN_COUNT}
                             className="p-0 border-0"
@@ -1305,7 +1309,7 @@ export function LeadManagement() {
                 })()}
               </TableBody>
             </Table>
-          </div>
+          </BentoTable>
           <p className="hidden md:block text-xs text-muted-foreground mt-2">
             Showing {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} — scroll the table to browse all rows
           </p>

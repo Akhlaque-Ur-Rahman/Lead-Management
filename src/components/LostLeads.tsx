@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
+import { BentoTable } from './layout/BentoTable';
 import {
   Table,
   TableBody,
@@ -207,7 +208,7 @@ export function LostLeads() {
               <p className="text-muted-foreground">No lost leads found</p>
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
+            <BentoTable>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -287,7 +288,7 @@ export function LostLeads() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </BentoTable>
           )}
         </CardContent>
       </Card>

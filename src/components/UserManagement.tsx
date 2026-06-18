@@ -8,6 +8,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
+import { BentoTable } from './layout/BentoTable';
 import {
   Table,
   TableBody,
@@ -506,13 +507,7 @@ export function UserManagement() {
 
       {/* User Table */}
       <div className="card-bento overflow-hidden">
-        <div className="p-4 pb-2">
-          <p className="text-sm text-muted-foreground">
-            {stats.totalUsers} user{stats.totalUsers !== 1 ? 's' : ''} found
-            {isFilterActive && ' (filtered)'}
-          </p>
-        </div>
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 pt-4">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex-1">
               <div className="relative">
@@ -689,7 +684,10 @@ export function UserManagement() {
               ))
             )}
           </div>
-          <div className="hidden md:block overflow-x-auto">
+          <BentoTable
+            className="hidden md:block"
+            caption={`${stats.totalUsers} user${stats.totalUsers !== 1 ? 's' : ''} found${isFilterActive ? ' (filtered)' : ''}`}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -794,7 +792,7 @@ export function UserManagement() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </BentoTable>
           {displayUsers.length > 0 && (
             <PaginationControls
               currentPage={currentPage}

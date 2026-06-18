@@ -511,6 +511,55 @@ Grid day badges use **deduped-per-lead** counts (same rule as day panel). `aria-
 
 ---
 
+## 12j. Reports Shadcn charts (Phase 15)
+
+### Analytics layer
+
+[`src/utils/reports/analytics.ts`](../src/utils/reports/analytics.ts) — pure data builders:
+
+- `filterLeadsByPeriod` / `filterLostLeadsByPeriod` — **Period** dropdown now filters all KPIs and charts
+- `buildMonthlyTrend` — real `createdAt` / `convertedAt` aggregation (replaces random simulation)
+- `buildStatusDistribution`, `buildTeamPerformance`, `buildPipelineStages`, `buildPerformanceSummary`
+
+### Shadcn chart components
+
+[`src/components/reports/`](../src/components/reports/) — each uses [`ChartContainer`](../src/components/ui/chart.tsx) + theme-aware `--color-*` tokens:
+
+| Component | Chart |
+|-----------|-------|
+| `MonthlyTrendChart` | Dual-line trend |
+| `StatusDistributionChart` | Donut + center total + legend |
+| `TeamPerformanceChart` | Grouped bars + skew note when one user dominates |
+| `PipelineFunnelChart` | Horizontal pipeline bars with stage colors |
+
+### Performance Summary table
+
+[`PerformanceSummaryTable.tsx`](../src/components/reports/PerformanceSummaryTable.tsx) — Shadcn `Table` on desktop, stacked cards on mobile, inline conversion progress bars.
+
+[`Reports.tsx`](../src/components/Reports.tsx) slimmed to orchestration + KPI bento strip.
+
+---
+
+## 12k. Unified table design (Phase 16)
+
+### Design tokens
+
+Table-specific tokens in [`globals.css`](../src/styles/globals.css): `--table-header-bg`, `--table-row-hover`, `--table-row-stripe`, `--table-border`, `--table-radius`.
+
+### Enhanced primitives
+
+[`ui/table.tsx`](../src/components/ui/table.tsx) — muted header bar, `px-4 py-3` cells, zebra striping, primary-tinted hover, `TableRow variant="interactive"` for clickable rows.
+
+### BentoTable wrapper
+
+[`layout/BentoTable.tsx`](../src/components/layout/BentoTable.tsx) — shared caption strip, scroll container, sticky header support. Used inside existing `card-bento` panels (no double borders).
+
+### Rollout
+
+Lead Pool, Assigned, Converted, Lost, User Management, Company Management, Super Dashboard, Reports Performance Summary, and `LoadingTable` skeleton.
+
+---
+
 ## 13. Enterprise depth (Phase 6)
 
 ### 12a. Brand theming / logo upload

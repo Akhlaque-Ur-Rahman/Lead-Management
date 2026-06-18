@@ -148,6 +148,13 @@
   --stat-trend-up-fg: #14532d;
   --stat-trend-down-bg: #fee2e2;
   --stat-trend-down-fg: #991b1b;
+  /* Table design tokens */
+  --table-header-bg: color-mix(in srgb, var(--muted) 55%, transparent);
+  --table-header-fg: var(--muted-foreground);
+  --table-row-hover: color-mix(in srgb, var(--primary) 6%, var(--muted));
+  --table-row-stripe: color-mix(in srgb, var(--muted) 25%, transparent);
+  --table-border: color-mix(in srgb, var(--border) 70%, transparent);
+  --table-radius: 0.75rem;
 }
 
 .dark {
@@ -287,6 +294,13 @@
   --stat-trend-up-fg: #bbf7d0;
   --stat-trend-down-bg: #7f1d1d;
   --stat-trend-down-fg: #fecaca;
+  /* Table design tokens */
+  --table-header-bg: color-mix(in srgb, var(--muted) 65%, transparent);
+  --table-header-fg: var(--muted-foreground);
+  --table-row-hover: color-mix(in srgb, var(--primary) 10%, var(--muted));
+  --table-row-stripe: color-mix(in srgb, var(--muted) 35%, transparent);
+  --table-border: color-mix(in srgb, var(--border) 80%, transparent);
+  --table-radius: 0.75rem;
 }
 
 @theme inline {
@@ -588,6 +602,33 @@ html {
 }
 .dark .card-bento {
   box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* Bento table shell — inner scroll area inside card-bento (no double border) */
+.table-bento-shell {
+  position: relative;
+  width: 100%;
+  border-radius: var(--table-radius);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-bento-shell[data-sticky-header='true'] [data-slot='table-header'] {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table-bento-shell[data-sticky-header='true'] [data-slot='table-head'] {
+  background-color: var(--table-header-bg);
+}
+
+.table-row-interactive {
+  cursor: pointer;
+}
+
+.table-row-interactive:hover {
+  background-color: var(--table-row-hover) !important;
 }
 
 /* Stat card variants — distinct accents, not hero circles */

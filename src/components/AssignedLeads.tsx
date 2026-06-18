@@ -9,6 +9,7 @@ import { Input } from './ui/input';
 import { canAssignToUser } from '../types/roles';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { cn } from './ui/utils';
+import { BentoTable } from './layout/BentoTable';
 import {
   Table,
   TableBody,
@@ -390,7 +391,7 @@ export function AssignedLeads() {
                 );
               })}
             </div>
-            <div className="hidden md:block overflow-x-auto">
+            <BentoTable className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -408,9 +409,9 @@ export function AssignedLeads() {
                   {paginatedLeads.map((lead) => {
                     const nextFollowUp = getNextFollowUpDate(lead);
                     return (
-                      <TableRow 
-                        key={lead.id} 
-                        className="cursor-pointer hover:bg-muted/50"
+                      <TableRow
+                        key={lead.id}
+                        variant="interactive"
                         onClick={() => setSelectedLead(lead)}
                       >
                         <TableCell>
@@ -510,7 +511,7 @@ export function AssignedLeads() {
                   })}
                 </TableBody>
               </Table>
-            </div>
+            </BentoTable>
             </>
           )}
           {displayLeads.length > 0 && (

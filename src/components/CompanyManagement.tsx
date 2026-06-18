@@ -10,6 +10,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
+import { BentoTable } from './layout/BentoTable';
 import {
   Table,
   TableBody,
@@ -616,15 +617,14 @@ export function CompanyManagement() {
       </div>
 
       {/* Companies Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Companies</CardTitle>
-          <CardDescription>
-            {filteredCompanies.length} compan{filteredCompanies.length !== 1 ? 'ies' : 'y'} found
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+      <div className="card-bento overflow-hidden">
+        <div className="px-5 pt-5 pb-2">
+          <h2 className="text-lg font-semibold leading-none tracking-tight">All Companies</h2>
+        </div>
+        <BentoTable
+          caption={`${filteredCompanies.length} compan${filteredCompanies.length !== 1 ? 'ies' : 'y'} found`}
+        >
+          <div className="px-5 pb-5">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -755,8 +755,8 @@ export function CompanyManagement() {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </BentoTable>
+      </div>
 
       {/* Add Company Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

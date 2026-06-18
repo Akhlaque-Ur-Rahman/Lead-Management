@@ -18,19 +18,22 @@ Charts and KPIs for lead pipeline performance. All analytics are computed client
 ### What You See
 
 - **Company filter** — All companies or specific company (platform roles)
-- **KPI cards** — Total leads, conversion rate, lost rate, active pipeline
+- **Period filter** — All Time, This Month, This Quarter, This Year (filters all KPIs and charts)
+- **KPI cards** — Total leads, conversion rate, converted count, active users
 - **Charts:**
-  - Status distribution (pie chart)
-  - Team performance (bar chart)
-  - Monthly conversion trends (line chart)
-  - Pipeline by status (bar chart)
-- **Export button** — Download report summary as Excel
+  - Monthly lead trend (Shadcn line chart, real `createdAt` data)
+  - Status distribution (Shadcn donut chart)
+  - Team performance (Shadcn grouped bar chart)
+  - Lead pipeline (Shadcn horizontal bar chart)
+- **Performance Summary** — Shadcn table (desktop) / stacked cards (mobile) with conversion progress bars
+- **Export button** — Download report summary
 
 ### Key Actions
 
 1. **Filter by company** — Use company dropdown (platform admins see all companies)
-2. **Review charts** — Hover for tooltips with exact values
-3. **Export report** — Download Excel with current filter applied
+2. **Filter by period** — All Time, This Month, This Quarter, or This Year
+3. **Review charts** — Hover for Shadcn tooltips with exact values
+4. **Export report** — Download report with current filters applied
 
 ### Role-Based Differences
 
@@ -65,7 +68,13 @@ Charts and KPIs for lead pipeline performance. All analytics are computed client
 ```
 Reports.tsx
 ├── CompanyFilter.tsx (platform roles)
-├── Recharts (PieChart, BarChart, LineChart)
+├── reports/ (Shadcn ChartContainer components)
+│   ├── MonthlyTrendChart.tsx
+│   ├── StatusDistributionChart.tsx
+│   ├── TeamPerformanceChart.tsx
+│   ├── PipelineFunnelChart.tsx
+│   └── PerformanceSummaryTable.tsx
+├── utils/reports/analytics.ts
 ├── LeadsContext (leads, lostLeads)
 └── AuthContext (users, user)
 ```
@@ -80,9 +89,9 @@ Reports.tsx
 
 ### Client-Side Logic
 
-- `useMemo` aggregations for conversion rate, status counts, monthly trends
-- XLSX export of computed metrics
-- Recharts for visualization
+- `useMemo` aggregations via [`src/utils/reports/analytics.ts`](../../src/utils/reports/analytics.ts)
+- Period filter applied to leads (`createdAt`) and lost leads (`lostDate`)
+- Shadcn `ChartContainer` + Recharts for visualization
 
 ### Event Bus
 

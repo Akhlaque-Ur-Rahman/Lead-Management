@@ -10,7 +10,17 @@ import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { usePageMeta } from './layout/PageMetaContext';
+import { BentoTable } from './layout/BentoTable';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
 import { BentoStatCard } from './dashboard/BentoStatCard';
+import { getRoleLabel } from '../types/roles';
 
 const normalizeCompanyId = (value: string | number | null | undefined) => {
   if (value === null || value === undefined) {
@@ -388,49 +398,44 @@ export function SuperDashboard() {
 
         {/* User Table */}
         <div className="card-bento bento-span-full overflow-hidden">
-        <div className="px-5 py-3 border-b border-border text-sm text-muted-foreground">
-          {companyFilterLabel}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border bg-card">
+        <BentoTable caption={companyFilterLabel}>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent even:bg-transparent">
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredUsers.length > 0 ? (
-                filteredUsers.map(user => (
-                  <tr key={user.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant="outline">{user.role}</Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getCompanyName(user.companyId)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={user.isActive ? 'success' : 'secondary'}>
-                        {user.isActive ? 'Active' : 'Inactive'}
+                filteredUsers.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.name}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{getRoleLabel(u.role)}</Badge>
+                    </TableCell>
+                    <TableCell>{getCompanyName(u.companyId)}</TableCell>
+                    <TableCell>
+                      <Badge variant={u.isActive ? 'success' : 'secondary'}>
+                        {u.isActive ? 'Active' : 'Inactive'}
                       </Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                     {allUsers.length === 0 ? 'Loading users...' : 'No users match the selected filters'}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </BentoTable>
         </div>
       </div>
     </div>

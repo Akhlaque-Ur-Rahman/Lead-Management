@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 
 import { Input } from './ui/input';
+import { BentoTable } from './layout/BentoTable';
 import {
   Table,
   TableBody,
@@ -284,7 +285,7 @@ export function ConvertedLeads() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <BentoTable>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -309,9 +310,9 @@ export function ConvertedLeads() {
                 </TableHeader>
                 <TableBody>
                   {sortedLeads.map((lead) => (
-                    <TableRow 
+                    <TableRow
                       key={lead.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      variant="interactive"
                       onClick={() => setSelectedLead(lead)}
                     >
                       <TableCell>
@@ -378,7 +379,7 @@ export function ConvertedLeads() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </BentoTable>
           )}
         </CardContent>
       </Card>
