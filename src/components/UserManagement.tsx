@@ -33,6 +33,7 @@ import {
 } from './ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Separator } from './ui/separator';
+import { cn } from './ui/utils';
 import { 
   Users, 
   Plus, 
@@ -50,6 +51,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import FilterBadge from './ui/filter-badge';
+import { PaginationControls } from './ui/pagination-controls';
+import { EmptyState } from './layout/EmptyState';
+import { PageHeader } from './layout/PageHeader';
+import { usePagination } from '../hooks/usePagination';
 
 // Helper function to normalize company IDs for comparison
 const normalizeCompanyId = (value: string | number | null | undefined): string => {
@@ -209,6 +214,17 @@ export function UserManagement() {
 
   // Alias for display
   const displayUsers = filteredUsers || [];
+
+  const {
+    paginatedItems: paginatedUsers,
+    currentPage,
+    pageSize,
+    totalCount,
+    totalPages,
+    setPage,
+    setPageSize,
+    resetPage,
+  } = usePagination(displayUsers);
 
   // Get available companies for user creation
   const availableCompanies = useMemo(() => {
@@ -440,6 +456,21 @@ export function UserManagement() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
+      <PageHeader
+        title="User Management"
+        description={
+          user.role === 'super_admin'
+            ? 'Manage users across all companies'
+            : 'Manage users in your company'
+        }
+        actions={
+          <Button onClick={() => setShowAddDialog(true)} size="sm" className="gap-1">
+            <Plus className="h-4 w-4" />
+            <span>Add User</span>
+          </Button>
+        }
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -460,7 +491,7 @@ export function UserManagement() {
         <Card>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <CheckCircle2 className="h-4 w-4 text-icon-success" />
               Active Users
             </CardTitle>
           </CardHeader>
@@ -475,7 +506,7 @@ export function UserManagement() {
         <Card>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Shield className="h-4 w-4 text-amber-500" />
+              <Shield className="h-4 w-4 text-icon-warning" />
               Admins
             </CardTitle>
           </CardHeader>
@@ -490,7 +521,7 @@ export function UserManagement() {
         <Card>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <UserIcon className="h-4 w-4 text-blue-500" />
+              <UserIcon className="h-4 w-4 text-icon-info" />
               Team Members
             </CardTitle>
           </CardHeader>
@@ -508,25 +539,10 @@ export function UserManagement() {
       {/* User Table */}
       <Card>
         <CardHeader className="p-4 pb-2">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription className="mt-1">
-                {stats.totalUsers} user{stats.totalUsers !== 1 ? 's' : ''} found
-                {isFilterActive && ' (filtered)'}
-              </CardDescription>
-            </div>
-            <div className="w-full sm:w-auto">
-              <Button 
-                onClick={() => setShowAddDialog(true)} 
-                size="sm"
-                className="gap-1 w-full sm:w-auto"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add User</span>
-              </Button>
-            </div>
-          </div>
+          <CardDescription>
+            {stats.totalUsers} user{stats.totalUsers !== 1 ? 's' : ''} found
+            {isFilterActive && ' (filtered)'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -537,7 +553,7 @@ export function UserManagement() {
                   placeholder="Search by name or email..."
                   className="w-full h-10 px-4 py-2 text-sm bg-background/95 backdrop-blur-sm rounded-md border border-border transition-colors duration-200 ease-in-out
                     hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-ring focus:ring-offset-1
-                    placeholder:text-muted-foreground/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                    placeholder:text-placeholder-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                   value={filters.search}
                   onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 />
@@ -553,7 +569,7 @@ export function UserManagement() {
                   <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Filters</span>
                   {isFilterActive && <FilterBadge count={filtersAppliedCount} />}
-                  <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80 p-4" align="end">
@@ -645,7 +661,67 @@ export function UserManagement() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="overflow-x-auto">
+          <div className="md:hidden space-y-3">
+            {paginatedUsers.length === 0 ? (
+              <EmptyState
+                icon={<Users className="h-6 w-6" />}
+                title="No users found"
+                description="Adjust filters or add a new user to get started."
+                action={canManageUsers ? { label: 'Add User', onClick: () => setShowAddDialog(true) } : undefined}
+              />
+            ) : (
+              paginatedUsers.map((u) => (
+                <Card key={u.id} className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-medium text-primary">
+                          {u.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{u.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      </div>
+                    </div>
+                    <Badge variant={getRoleBadgeVariant(u.role)} className="shrink-0 text-xs">
+                      {getRoleLabel(u.role)}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                    <p>Company: {u.companyId ? getCompanyName(u.companyId) : 'Platform'}</p>
+                    <p className="flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          'h-2 w-2 rounded-full',
+                          u.isActive ? 'bg-green-500' : 'bg-gray-400'
+                        )}
+                      />
+                      {u.isActive ? 'Active' : 'Inactive'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(u)}>
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    {u.id !== user?.id && !(user?.role === 'platform_admin' && u.role === 'super_admin') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(u)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -658,7 +734,18 @@ export function UserManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayUsers.map((u) => (
+                {paginatedUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      <EmptyState
+                        icon={<Users className="h-6 w-6" />}
+                        title="No users found"
+                        description="Adjust filters or add a new user to get started."
+                        action={canManageUsers ? { label: 'Add User', onClick: () => setShowAddDialog(true) } : undefined}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedUsers.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -719,6 +806,7 @@ export function UserManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(u)}
+                          aria-label={`Edit ${u.name}`}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -727,6 +815,7 @@ export function UserManagement() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(u)}
+                            aria-label={`Delete ${u.name}`}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -738,6 +827,17 @@ export function UserManagement() {
               </TableBody>
             </Table>
           </div>
+          {displayUsers.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="users"
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -745,6 +845,7 @@ export function UserManagement() {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
               Add a new user to the system. Required fields are marked with *
             </DialogDescription>

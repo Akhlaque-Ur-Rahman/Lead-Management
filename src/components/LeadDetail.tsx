@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead, type Director } from './LeadsContext';
+import { toLocalDateKey } from '../utils/dates';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -264,7 +265,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
       const defaultTalkedToName = defaultTalkedTo;
 
       const followUpData = {
-        date: followUpDate || new Date().toISOString().split('T')[0],
+        date: followUpDate || toLocalDateKey(new Date()),
         time: followUpTime || new Date().toTimeString().slice(0, 5),
         remark: followUpRemark || 'Lead Lost',
         talkedTo: talkedTo || defaultTalkedTo,
@@ -317,7 +318,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
 
       // Create the follow-up AND update lead status atomically
       const followUpData = {
-        date: followUpDate || new Date().toISOString().split('T')[0],
+        date: followUpDate || toLocalDateKey(new Date()),
         time: followUpTime || new Date().toTimeString().slice(0, 5),
         remark: followUpRemark || 'Lead Converted',
         talkedTo: talkedTo || defaultTalkedTo,
@@ -531,7 +532,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                         <div className="flex items-center gap-2 text-left">
                           <span>{director.firstName} {director.lastName}</span>
                           {followUpCount > 0 && (
-                            <Badge className="text-xs bg-slate-200 text-slate-800 border border-slate-300">
+                            <Badge className="text-xs badge-neutral">
                               {followUpCount} follow-ups
                             </Badge>
                           )}
@@ -655,7 +656,7 @@ export function LeadDetail({ lead, onClose, onEdit }: LeadDetailProps) {
                                               <span className="font-medium">{formatDateTime(followUp.date, followUp.time)}</span>
                                             </p>
                                             {!isPast && (
-                                              <Badge className="text-xs bg-blue-100 text-blue-800 border border-blue-200">Upcoming</Badge>
+                                              <Badge className="text-xs status-badge status-info">Upcoming</Badge>
                                             )}
                                             <Badge className={cn("text-xs", lifecycleStatusColors.active)}>Active</Badge>
                                           </div>

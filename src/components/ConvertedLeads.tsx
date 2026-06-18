@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { PageHeader } from './layout/PageHeader';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -184,21 +185,16 @@ export function ConvertedLeads() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="flex items-center gap-2">
-            <CheckCircle className="h-6 w-6 text-green-600" />
-            Converted Leads
-          </h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Successfully converted opportunities with financial details
-          </p>
-        </div>
-        <Button onClick={handleExport} className="gap-2 w-full sm:w-auto">
-          <Download className="h-4 w-4" />
-          Export to Excel
-        </Button>
-      </div>
+      <PageHeader
+        title="Converted Leads"
+        description="Successfully converted opportunities with financial details"
+        actions={
+          <Button onClick={handleExport} className="gap-2 w-full sm:w-auto">
+            <Download className="h-4 w-4" />
+            Export to Excel
+          </Button>
+        }
+      />
 
       <Alert>
         <Info className="h-4 w-4" />
@@ -213,7 +209,7 @@ export function ConvertedLeads() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Total Converted</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CheckCircle className="h-4 w-4 text-icon-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{convertedLeads.length}</div>
@@ -296,7 +292,7 @@ export function ConvertedLeads() {
         <CardContent>
           {sortedLeads.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium">No converted leads yet</p>
               {searchTerm && (
                 <p className="text-sm mt-2">Try adjusting your search</p>
@@ -367,7 +363,7 @@ export function ConvertedLeads() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <IndianRupee className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-semibold text-green-600">
+                          <span className="font-semibold text-icon-success">
                             {canViewFinancialData ? formatCurrency(lead.projectValue) : 'Access Restricted'}
                           </span>
                         </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { PageHeader } from './layout/PageHeader';
 import { useAuth } from './AuthContext';
 import { useLeads } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -141,14 +142,10 @@ export function LostLeads() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1>Lost Leads</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage leads marked as lost
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Lost Leads"
+        description="Manage leads marked as lost"
+      />
 
       <Alert>
         <Info className="h-4 w-4" />
@@ -159,7 +156,7 @@ export function LostLeads() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lost Leads ({filteredLostLeads.length})</CardTitle>
+          <CardTitle>All lost leads ({filteredLostLeads.length})</CardTitle>
           <CardDescription>
             View and manage leads that have been marked as lost
           </CardDescription>
@@ -297,6 +294,11 @@ export function LostLeads() {
       {/* Lead Detail Dialog */}
       <Dialog open={showLeadDetail} onOpenChange={setShowLeadDetail}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="sr-only">
+              {selectedLostLead ? `Lead details: ${selectedLostLead.companyName}` : 'Lead details'}
+            </DialogTitle>
+          </DialogHeader>
           {selectedLostLead && (
             <LeadDetail
               lead={selectedLostLead}

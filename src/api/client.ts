@@ -129,9 +129,12 @@ export const api = {
       request('/events', { method: 'POST', body: JSON.stringify({ type, payload }) }),
   },
   config: {
-    getBranding: () => request<{ systemName: string }>('/config/branding'),
-    setBranding: (systemName: string) =>
-      request('/config/branding', { method: 'PUT', body: JSON.stringify({ systemName }) }),
+    getPublicBranding: () =>
+      request<{ systemName: string; logoUrl: string | null }>('/config/branding/public'),
+    getBranding: () =>
+      request<{ systemName: string; logoUrl: string | null }>('/config/branding'),
+    setBranding: (data: { systemName?: string; logoUrl?: string | null }) =>
+      request('/config/branding', { method: 'PUT', body: JSON.stringify(data) }),
     getFieldConfig: (companyId: string) =>
       request<{ fieldConfigs: any[] | null }>(`/config/field-config/${companyId}`),
     setFieldConfig: (companyId: string, fieldConfigs: any[]) =>

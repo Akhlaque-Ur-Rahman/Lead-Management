@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap');
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -8,15 +10,16 @@
   --card-foreground: #1e293b;
   --popover: #ffffff;
   --popover-foreground: #1e293b;
-  --primary: #6366f1;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #1e293b;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted-foreground: #475569;
+  --placeholder-foreground: #64748b;
   --accent: #e0e7ff;
-  --accent-foreground: #4338ca;
-  --destructive: #ef4444;
+  --accent-foreground: #3730a3;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
   --input: transparent;
@@ -39,6 +42,62 @@
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: #334155;
   --sidebar-ring: #6366f1;
+  --sidebar-foreground-muted: #94a3b8;
+  --sidebar-foreground-subtle: #cbd5e1;
+  --sidebar-width-collapsed: 3rem;
+  /* Semantic icon colors */
+  --icon-success: #15803d;
+  --icon-warning: #b45309;
+  --icon-info: #1d4ed8;
+  --icon-muted: #64748b;
+  /* Neutral badge */
+  --badge-neutral-bg: #e2e8f0;
+  --badge-neutral-fg: #1e293b;
+  --badge-neutral-border: #cbd5e1;
+  /* Info status chip */
+  --status-info-bg: #dbeafe;
+  --status-info-fg: #1e3a8a;
+  --status-info-border: #93c5fd;
+  /* Stat card surfaces */
+  --stat-hot-surface: #fef2f2;
+  --stat-hot-surface-fg: #7f1d1d;
+  --stat-hot-surface-muted: #991b1b;
+  --stat-hot-surface-border: #fecaca;
+  --stat-warm-surface: #fffbeb;
+  --stat-warm-surface-fg: #78350f;
+  --stat-warm-surface-muted: #92400e;
+  --stat-warm-surface-border: #fde68a;
+  --stat-cold-surface: #eff6ff;
+  --stat-cold-surface-fg: #1e3a8a;
+  --stat-cold-surface-muted: #1d4ed8;
+  --stat-cold-surface-border: #bfdbfe;
+  /* Calendar heat-map */
+  --calendar-heat-0: transparent;
+  --calendar-heat-1: color-mix(in srgb, var(--primary) 12%, var(--card));
+  --calendar-heat-2: color-mix(in srgb, var(--primary) 24%, var(--card));
+  --calendar-heat-3: color-mix(in srgb, var(--primary) 40%, var(--card));
+  /* Lead status semantic tokens */
+  --status-hot-bg: #dc2626;
+  --status-hot-fg: #ffffff;
+  --status-hot-border: #b91c1c;
+  --status-warm-bg: #b45309;
+  --status-warm-fg: #ffffff;
+  --status-warm-border: #b45309;
+  --status-cold-bg: #2563eb;
+  --status-cold-fg: #ffffff;
+  --status-cold-border: #1d4ed8;
+  --status-converted-bg: #15803d;
+  --status-converted-fg: #ffffff;
+  --status-converted-border: #15803d;
+  --status-lost-bg: #475569;
+  --status-lost-fg: #ffffff;
+  --status-lost-border: #334155;
+  --status-active-bg: #4f46e5;
+  --status-active-fg: #ffffff;
+  --status-active-border: #4338ca;
+  --status-updated-bg: #64748b;
+  --status-updated-fg: #ffffff;
+  --status-updated-border: #475569;
 }
 
 .dark {
@@ -53,10 +112,11 @@
   --secondary: #334155;
   --secondary-foreground: #f8fafc;
   --muted: #334155;
-  --muted-foreground: #94a3b8;
+  --muted-foreground: #cbd5e1;
+  --placeholder-foreground: #94a3b8;
   --accent: #312e81;
-  --accent-foreground: #c7d2fe;
-  --destructive: #ef4444;
+  --accent-foreground: #e0e7ff;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #334155;
   --input: #334155;
@@ -76,6 +136,56 @@
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: #1e293b;
   --sidebar-ring: #818cf8;
+  --sidebar-foreground-muted: #94a3b8;
+  --sidebar-foreground-subtle: #cbd5e1;
+  --sidebar-width-collapsed: 3rem;
+  --icon-success: #4ade80;
+  --icon-warning: #fbbf24;
+  --icon-info: #60a5fa;
+  --icon-muted: #94a3b8;
+  --badge-neutral-bg: #334155;
+  --badge-neutral-fg: #f1f5f9;
+  --badge-neutral-border: #475569;
+  --status-info-bg: #1e3a8a;
+  --status-info-fg: #dbeafe;
+  --status-info-border: #2563eb;
+  --stat-hot-surface: #450a0a;
+  --stat-hot-surface-fg: #fecaca;
+  --stat-hot-surface-muted: #fca5a5;
+  --stat-hot-surface-border: #7f1d1d;
+  --stat-warm-surface: #451a03;
+  --stat-warm-surface-fg: #fde68a;
+  --stat-warm-surface-muted: #fcd34d;
+  --stat-warm-surface-border: #92400e;
+  --stat-cold-surface: #172554;
+  --stat-cold-surface-fg: #bfdbfe;
+  --stat-cold-surface-muted: #93c5fd;
+  --stat-cold-surface-border: #1e40af;
+  --calendar-heat-0: transparent;
+  --calendar-heat-1: color-mix(in srgb, var(--primary) 15%, var(--card));
+  --calendar-heat-2: color-mix(in srgb, var(--primary) 30%, var(--card));
+  --calendar-heat-3: color-mix(in srgb, var(--primary) 45%, var(--card));
+  --status-hot-bg: #dc2626;
+  --status-hot-fg: #ffffff;
+  --status-hot-border: #b91c1c;
+  --status-warm-bg: #b45309;
+  --status-warm-fg: #ffffff;
+  --status-warm-border: #92400e;
+  --status-cold-bg: #2563eb;
+  --status-cold-fg: #ffffff;
+  --status-cold-border: #1d4ed8;
+  --status-converted-bg: #15803d;
+  --status-converted-fg: #ffffff;
+  --status-converted-border: #166534;
+  --status-lost-bg: #64748b;
+  --status-lost-fg: #ffffff;
+  --status-lost-border: #475569;
+  --status-active-bg: #4f46e5;
+  --status-active-fg: #ffffff;
+  --status-active-border: #4338ca;
+  --status-updated-bg: #64748b;
+  --status-updated-fg: #ffffff;
+  --status-updated-border: #64748b;
 }
 
 @theme inline {
@@ -91,6 +201,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-placeholder-foreground: var(--placeholder-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -188,6 +299,109 @@ html {
   font-size: var(--font-size);
   transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Status badge utilities — semantic tokens, no !important */
+.status-badge {
+  border-width: 1px;
+  border-style: solid;
+}
+.status-hot { background-color: var(--status-hot-bg); color: var(--status-hot-fg); border-color: var(--status-hot-border); }
+.status-warm { background-color: var(--status-warm-bg); color: var(--status-warm-fg); border-color: var(--status-warm-border); }
+.status-cold { background-color: var(--status-cold-bg); color: var(--status-cold-fg); border-color: var(--status-cold-border); }
+.status-converted { background-color: var(--status-converted-bg); color: var(--status-converted-fg); border-color: var(--status-converted-border); }
+.status-lost { background-color: var(--status-lost-bg); color: var(--status-lost-fg); border-color: var(--status-lost-border); }
+.status-active { background-color: var(--status-active-bg); color: var(--status-active-fg); border-color: var(--status-active-border); }
+.status-updated { background-color: var(--status-updated-bg); color: var(--status-updated-fg); border-color: var(--status-updated-border); }
+.status-default { background-color: var(--status-updated-bg); color: var(--status-updated-fg); border-color: var(--status-updated-border); }
+.status-info { background-color: var(--status-info-bg); color: var(--status-info-fg); border-color: var(--status-info-border); }
+
+/* Stat card tinted surfaces */
+.stat-surface-hot {
+  background-color: var(--stat-hot-surface);
+  color: var(--stat-hot-surface-fg);
+  border-color: var(--stat-hot-surface-border);
+}
+.stat-surface-warm {
+  background-color: var(--stat-warm-surface);
+  color: var(--stat-warm-surface-fg);
+  border-color: var(--stat-warm-surface-border);
+}
+.stat-surface-cold {
+  background-color: var(--stat-cold-surface);
+  color: var(--stat-cold-surface-fg);
+  border-color: var(--stat-cold-surface-border);
+}
+.stat-surface-hot-muted { color: var(--stat-hot-surface-muted); }
+.stat-surface-warm-muted { color: var(--stat-warm-surface-muted); }
+.stat-surface-cold-muted { color: var(--stat-cold-surface-muted); }
+
+/* Badge & icon utilities */
+.badge-neutral {
+  background-color: var(--badge-neutral-bg);
+  color: var(--badge-neutral-fg);
+  border: 1px solid var(--badge-neutral-border);
+}
+.text-icon-success { color: var(--icon-success); }
+.text-icon-warning { color: var(--icon-warning); }
+.text-icon-info { color: var(--icon-info); }
+.text-icon-muted { color: var(--icon-muted); }
+
+/* Calendar heat levels */
+.calendar-heat-0 { background-color: var(--calendar-heat-0); }
+.calendar-heat-1 { background-color: var(--calendar-heat-1); }
+.calendar-heat-2 { background-color: var(--calendar-heat-2); }
+.calendar-heat-3 { background-color: var(--calendar-heat-3); }
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+h1, h2, h3, .font-display {
+  font-family: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Page transitions */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Stat card accent stripes */
+.stat-card-pool { border-left: 3px solid var(--primary); }
+.stat-card-assigned { border-left: 3px solid var(--status-cold-bg); }
+.stat-card-converted { border-left: 3px solid var(--status-converted-bg); }
+.stat-card-lost { border-left: 3px solid var(--status-lost-bg); }
+.stat-card-followups { border-left: 3px solid var(--status-warm-bg); }
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: var(--radius);
+}
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+}
+
+/* Sidebar utilities (tokens exist in index.css; explicit classes for compiled bundle) */
+.bg-sidebar { background-color: var(--sidebar); }
+.text-sidebar-foreground { color: var(--sidebar-foreground); }
+.text-sidebar-foreground-muted { color: var(--sidebar-foreground-muted); }
+.text-sidebar-foreground-subtle { color: var(--sidebar-foreground-subtle); }
+.border-sidebar-border { border-color: var(--sidebar-border); }
+.bg-sidebar-primary { background-color: var(--sidebar-primary); }
+.text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+.bg-sidebar-accent { background-color: var(--sidebar-accent); }
+.text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+.hover\:bg-sidebar-accent:hover { background-color: var(--sidebar-accent); }
+.hover\:text-sidebar-accent-foreground:hover { color: var(--sidebar-accent-foreground); }
 
 /* Mobile App-like Responsive Theme */
 @media (max-width: 768px) {

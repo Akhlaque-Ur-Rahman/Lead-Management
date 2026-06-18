@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PageHeader } from './layout/PageHeader';
 import CompanyFilter from './CompanyFilter';
 import { useLeads } from './LeadsContext';
 import { useAuth } from './AuthContext';
@@ -433,18 +434,16 @@ export function CompanyManagement() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1>Company Management</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Manage all companies in the multi-tenant system
-          </p>
-        </div>
-        <Button onClick={() => setShowAddDialog(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Company
-        </Button>
-      </div>
+      <PageHeader
+        title="Company Management"
+        description="Manage all companies in the multi-tenant system"
+        actions={
+          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Company
+          </Button>
+        }
+      />
 
       {/* Filter Section (compact row) */}
       <Card>
@@ -523,7 +522,7 @@ export function CompanyManagement() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm">Converted Leads</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <CheckCircle className="h-4 w-4 text-icon-success" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl">{agg.convertedLeads}</div>
@@ -556,7 +555,7 @@ export function CompanyManagement() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm">Inactive Users</CardTitle>
-                  <Users className="h-4 w-4 text-gray-400" />
+                  <Users className="h-4 w-4 text-icon-muted" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl">{inactiveUsersCount}</div>
@@ -584,7 +583,7 @@ export function CompanyManagement() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Active</CardTitle>
-            <Building2 className="h-4 w-4 text-green-600" />
+            <Building2 className="h-4 w-4 text-icon-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl">{stats.active}</div>
@@ -597,7 +596,7 @@ export function CompanyManagement() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Inactive</CardTitle>
-            <Building2 className="h-4 w-4 text-gray-400" />
+            <Building2 className="h-4 w-4 text-icon-muted" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl">{stats.inactive}</div>
@@ -1085,7 +1084,7 @@ export function CompanyManagement() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Ban className="h-5 w-5 text-orange-600" />
+              <Ban className="h-5 w-5 text-icon-warning" />
               Mark Company Inactive
             </DialogTitle>
             <DialogDescription>
@@ -1146,7 +1145,7 @@ export function CompanyManagement() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-icon-success" />
               Company Created Successfully!
             </DialogTitle>
             <DialogDescription>

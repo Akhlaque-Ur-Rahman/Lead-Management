@@ -170,6 +170,7 @@ interface LeadsContextValue {
     limitOverride?: number,
     sortOption?: "latest" | "oldest"
   ) => Promise<Lead[]>;
+  loadLeadsForDashboard: () => Promise<Lead[]>;
 }
 
 // -------------------- Helpers --------------------
@@ -362,6 +363,39 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
   };
+
+  const loadLeadsForDashboard = useCallback(async (): Promise<Lead[]> => {
+    if (!user) return [];
+
+    const cacheKey = `dashboard-${user.id}`;
+    const now = Date.now();
+    const cached = cache.current.get(cacheKey);
+
+    if (cached && now - cached.timestamp < CACHE_TTL) {
+      setLeads(cached.data);
+      return cached.data;
+    }
+
+    setIsLoading(true);
+    try {
+      const { leads: fetchedLeads } = await api.leads.list();
+
+      const sorted = [...fetchedLeads].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setLeads(sorted);
+      cache.current.set(cacheKey, { data: sorted, timestamp: now });
+      setIsLoading(false);
+      return sorted;
+    } catch (error) {
+      console.error('[loadLeadsForDashboard] Error:', error);
+      setIsLoading(false);
+      return [];
+    }
+  }, [user]);
 
   // -------------------- CRUD --------------------
 
@@ -611,6 +645,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         calculateNextFollowUpDate,
         getLatestActiveFollowUpForCompany,
         loadLeadsAll,
+        loadLeadsForDashboard,
       }}
     >
       {children}

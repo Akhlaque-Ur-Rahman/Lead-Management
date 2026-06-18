@@ -5,6 +5,9 @@ import { hasPermission } from './types/roles';
 import { Login } from './components/Login';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/Sidebar';
+import { AppShell } from './components/layout/AppShell';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
+import { CommandPalette } from './components/CommandPalette';
 import { Dashboard } from './components/Dashboard';
 import { LeadManagement } from './components/LeadManagement';
 import { AssignedLeads } from './components/AssignedLeads';
@@ -15,17 +18,30 @@ import { CompanyManagement } from './components/CompanyManagement';
 import { LostLeads } from './components/LostLeads';
 import { ConvertedLeads } from './components/ConvertedLeads';
 import { Settings } from './components/Settings';
+import { HelpPage } from './components/HelpPage';
+import { NotFound } from './components/NotFound';
 import { Toaster } from './components/ui/sonner';
+import { useIsMobile } from './components/ui/use-mobile';
+import { cn } from './components/ui/utils';
 
 
 function DashboardLayout() {
   const { user } = useAuth();
   const { activeTab } = useParams();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('lms-sidebar-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   
-  // Default to dashboard if no tab specified (though route config handles this)
   const currentTab = activeTab || 'dashboard';
+  const showSalesBottomNav = isMobile && user?.role === 'sales_user';
 
   const handleTabChange = (tab: string) => {
     navigate(`/${tab}`);
@@ -58,51 +74,59 @@ function DashboardLayout() {
       case 'subscription':
         if (!user || !hasPermission(user.role, 'MANAGE_SETTINGS')) return <Navigate to="/dashboard" replace />;
         return <Settings />;
+      case 'help':
+        return <HelpPage />;
       default:
-        // If tab not found, redirect to dashboard
-        return <Navigate to="/dashboard" replace />;
+        return <NotFound />;
     }
   };
 
   return (
     <div className="h-screen bg-background flex overflow-hidden">
-      {/* Mobile sidebar backdrop */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 lg:hidden" 
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
       
-      {/* Sidebar */}
       <div className={`
         fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <Sidebar activeTab={currentTab} setActiveTab={handleTabChange} />
+        <Sidebar
+          activeTab={currentTab}
+          setActiveTab={handleTabChange}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
       </div>
       
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto w-full relative">
-        {renderContent()}
-      </main>
-      
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 right-4 z-50 bg-primary text-primary-foreground p-2 rounded-md shadow-lg hover:bg-primary/90 transition-colors"
-        aria-label="Toggle menu"
+      <div
+        id="main-content"
+        className={cn(
+          'flex flex-col flex-1 min-w-0',
+          showSalesBottomNav && 'pb-16'
+        )}
       >
-        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          {sidebarOpen ? (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          )}
-        </svg>
-      </button>
-      
+        <AppShell
+          activeTab={currentTab}
+          onMenuClick={() => setSidebarOpen(true)}
+          onCommandPalette={() => setCommandOpen(true)}
+        >
+          {renderContent()}
+        </AppShell>
+      </div>
+
+      <MobileBottomNav />
+
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       <Toaster />
     </div>
   );
@@ -112,9 +136,8 @@ function LoginWrapper() {
   const { user } = useAuth();
   const location = useLocation();
   
-  // Redirect to dashboard if already logged in
   if (user) {
-    const from = (location.state as any)?.from?.pathname || '/dashboard';
+    const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
     return <Navigate to={from} replace />;
   }
 
@@ -139,6 +162,7 @@ export default function App() {
           </ProtectedRoute>
         } 
       />
+      <Route path="*" element={<Navigate to="/not-found" replace />} />
     </Routes>
   );
 }

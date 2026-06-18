@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, Lead, Director, FollowUp } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -15,6 +16,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from './ui/dialog';
 import { 
   Calendar as CalendarIcon, 
@@ -27,10 +30,11 @@ import {
   Filter,
   X
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
+import { toLocalDateKey } from '../utils/dates';
 import { LeadDetail } from './LeadDetail';
+import { PageHeader } from './layout/PageHeader';
 
 interface FollowUpEntry {
   lead: Lead;
@@ -40,7 +44,8 @@ interface FollowUpEntry {
 
 export function Calendar() {
   const { user } = useAuth();
-  const { 
+  const navigate = useNavigate();
+  const {
     getDirectorFollowUpsForDate,
     leads,
     loadLeadsAll,
@@ -62,13 +67,6 @@ export function Calendar() {
   const [detailLead, setDetailLead] = useState<Lead | null>(null);
 
   if (!user) return null;
-
-  const getLocalDateString = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -94,7 +92,7 @@ export function Calendar() {
   };
 
   const getFollowUpsForDay = (date: Date) => {
-    const dateString = getLocalDateString(date);
+    const dateString = toLocalDateKey(date);
     let followUps = getDirectorFollowUpsForDate(
       dateString,
       user.companyId || undefined
@@ -117,7 +115,7 @@ export function Calendar() {
   };
 
   const handleDateClick = (date: Date) => {
-    const dateString = getLocalDateString(date);
+    const dateString = toLocalDateKey(date);
     setSelectedDate(dateString);
     setFilterHour('all');
   };
@@ -128,8 +126,17 @@ export function Calendar() {
   };
 
   const handleEditLead = () => {
-    setShowLeadDetail(false);
-    toast.info("Editing from calendar is not yet supported. Please use the Lead List view.");
+    if (detailLead) {
+      setShowLeadDetail(false);
+      navigate(`/leads?leadId=${detailLead.id}`);
+    }
+  };
+
+  const getHeatLevel = (count: number): 0 | 1 | 2 | 3 => {
+    if (count === 0) return 0;
+    if (count <= 2) return 1;
+    if (count <= 5) return 2;
+    return 3;
   };
 
   const days = getDaysInMonth(currentDate);
@@ -194,15 +201,10 @@ export function Calendar() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2">
-          <CalendarIcon className="h-6 w-6" />
-          Follow-up Calendar
-        </h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Schedule and manage follow-ups with leads
-        </p>
-      </div>
+      <PageHeader
+        title="Follow-up Calendar"
+        description="Schedule and manage follow-ups with leads"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Calendar Section */}
@@ -247,22 +249,40 @@ export function Calendar() {
                     return <div key={`empty-${index}`} className="aspect-square" />;
                   }
 
-                  const dateString = getLocalDateString(day);
+                  const dateString = toLocalDateKey(day);
                   const followUpsForDay = getFollowUpsForDay(day);
-                  const isToday = getLocalDateString(new Date()) === dateString;
+                  const isToday = toLocalDateKey(new Date()) === dateString;
                   const isSelected = selectedDate === dateString;
                   const hasFollowUps = followUpsForDay.length > 0;
+
+                  const formattedDate = day.toLocaleDateString('en-IN', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  });
+                  const followUpLabel =
+                    followUpsForDay.length === 0
+                      ? 'no follow-ups scheduled'
+                      : followUpsForDay.length === 1
+                        ? '1 follow-up'
+                        : `${followUpsForDay.length} follow-ups`;
+
+                  const heatLevel = getHeatLevel(followUpsForDay.length);
 
                   return (
                     <button
                       key={dateString}
+                      type="button"
                       onClick={() => handleDateClick(day)}
+                      aria-label={`${formattedDate}, ${followUpLabel}`}
+                      aria-pressed={isSelected}
                       className={cn(
                         'aspect-square p-1 sm:p-2 rounded-lg border transition-all relative',
                         'hover:bg-accent hover:border-primary cursor-pointer',
-                        isToday && 'border-primary border-2 bg-primary/5',
+                        isToday && !isSelected && 'border-primary border-2',
                         isSelected && 'bg-primary text-primary-foreground border-primary',
-                        !isToday && !isSelected && 'border-border'
+                        !isToday && !isSelected && 'border-border',
+                        !isSelected && `calendar-heat-${heatLevel}`
                       )}
                     >
                       <div className="flex flex-col h-full">
@@ -273,15 +293,10 @@ export function Calendar() {
                           {day.getDate()}
                         </span>
                         {hasFollowUps && (
-                          <div className="flex-1 flex items-center justify-center">
-                            <div className={cn(
-                              'w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full',
-                              isSelected ? 'bg-primary-foreground' : 'bg-primary'
-                            )} />
-                          </div>
-                        )}
-                        {hasFollowUps && (
-                          <span className="text-[10px] sm:text-xs opacity-75">
+                          <span className={cn(
+                            'text-[10px] sm:text-xs font-medium mt-auto',
+                            isSelected ? 'text-primary-foreground' : 'text-foreground'
+                          )}>
                             {followUpsForDay.length}
                           </span>
                         )}
@@ -289,6 +304,21 @@ export function Calendar() {
                     </button>
                   );
                 })}
+              </div>
+              <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Activity:</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded calendar-heat-1 border border-border" aria-hidden />
+                  Low (1–2)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded calendar-heat-2 border border-border" aria-hidden />
+                  Medium (3–5)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded calendar-heat-3 border border-border" aria-hidden />
+                  High (6+)
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -313,6 +343,7 @@ export function Calendar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedDate(null)}
+                    aria-label="Clear selected date"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -327,12 +358,12 @@ export function Calendar() {
             <CardContent>
               {!selectedDate ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <CalendarIcon className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-sm">Click on a date to view follow-ups</p>
                 </div>
               ) : latestActiveFollowUps.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <Clock className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-sm">No follow-ups scheduled</p>
                 </div>
               ) : (
@@ -444,6 +475,11 @@ export function Calendar() {
       {/* Lead Detail Dialog */}
       <Dialog open={showLeadDetail} onOpenChange={setShowLeadDetail}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="sr-only">
+              {detailLead ? `Lead details: ${detailLead.companyName}` : 'Lead details'}
+            </DialogTitle>
+          </DialogHeader>
           {detailLead && (
             <LeadDetail
               lead={detailLead}

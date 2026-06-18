@@ -30,7 +30,9 @@ interface AuthContextType {
   getUserCountForCompany: (companyId: string | null) => number;
   isLoading: boolean;
   systemName: string;
+  systemLogoUrl: string | null;
   companyDisplayName: string;
+  refreshBranding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,6 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [systemName, setSystemName] = useState('Lead Management');
+  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(null);
   const [companyDisplayName, setCompanyDisplayName] = useState('');
 
   useEffect(() => {
@@ -69,12 +72,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshBranding = useCallback(async () => {
     try {
-      const { systemName: name } = await api.config.getBranding();
-      setSystemName(name || 'Lead Management');
+      const data = user
+        ? await api.config.getBranding()
+        : await api.config.getPublicBranding();
+      setSystemName(data.systemName || 'Lead Management');
+      setSystemLogoUrl(data.logoUrl || null);
     } catch {
-      /* not logged in yet */
+      /* fallback to defaults */
     }
-  }, []);
+  }, [user]);
 
   const refreshCompanyDisplay = useCallback(async (companyId: string) => {
     try {
@@ -106,12 +112,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    refreshBranding();
+  }, [refreshBranding]);
+
+  useEffect(() => {
     if (!user) return;
     refreshUsers();
-    refreshBranding();
     const interval = setInterval(refreshUsers, 10000);
     return () => clearInterval(interval);
-  }, [user, refreshUsers, refreshBranding]);
+  }, [user, refreshUsers]);
 
   useEffect(() => {
     if (!user?.companyId) {
@@ -231,7 +240,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider value={{
       user, users, login, logout, addUser, updateUser, deleteUser,
       deleteUsersByCompanyId, getUsersByCompany, getAllUsers,
-      getUserCountForCompany, isLoading, systemName, companyDisplayName,
+      getUserCountForCompany, isLoading, systemName, systemLogoUrl, companyDisplayName,
+      refreshBranding,
     }}>
       {children}
     </AuthContext.Provider>

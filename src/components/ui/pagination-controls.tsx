@@ -16,6 +16,7 @@ interface PaginationControlsProps {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   isLoading?: boolean;
+  itemLabel?: string;
 }
 
 export function PaginationControls({
@@ -26,6 +27,7 @@ export function PaginationControls({
   onPageChange,
   onPageSizeChange,
   isLoading = false,
+  itemLabel = 'items',
 }: PaginationControlsProps) {
   const start = currentPage * pageSize + 1;
   const end = Math.min((currentPage + 1) * pageSize, totalCount);
@@ -49,7 +51,7 @@ export function PaginationControls({
           </SelectContent>
         </Select>
         <span>
-          entries. Showing {totalCount > 0 ? start : 0} – {end} of {totalCount} leads
+          entries. Showing {totalCount > 0 ? start : 0} – {end} of {totalCount} {itemLabel}
         </span>
       </div>
 

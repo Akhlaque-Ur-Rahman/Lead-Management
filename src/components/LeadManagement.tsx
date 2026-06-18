@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead } from './LeadsContext';
 import { calculateNextFollowUpDate } from '../utils/followups/calculations';
@@ -6,7 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from './ui/accordion';
 import { 
   Table, 
   TableBody, 
@@ -29,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { Plus, Search, Filter, Download, Upload, Eye, Edit, FileDown, Info } from 'lucide-react';
+import { Plus, Search, Filter, Download, Upload, Eye, Edit, FileDown, Info, ClipboardList } from 'lucide-react';
 import { LeadForm } from './LeadForm';
 import { LeadDetail } from './LeadDetail';
 
@@ -39,11 +46,15 @@ import { hasPermission, canAssignToUser } from '../types/roles';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { cn } from './ui/utils';
 import { api } from '../api/client';
+import { PageHeader } from './layout/PageHeader';
+import { EmptyState } from './layout/EmptyState';
+import { LoadingTable } from './layout/LoadingTable';
+import { PaginationControls } from './ui/pagination-controls';
+import { usePagination } from '../hooks/usePagination';
 
 export function LeadManagement() {
   const { user, users } = useAuth();
   const { 
- 
     leads,
     loadLeadsAll,
     fieldConfigs, 
@@ -51,7 +62,8 @@ export function LeadManagement() {
     updateLead, 
     assignLead, 
     batchAddLeads,
-    refreshFlag
+    refreshFlag,
+    isLoading,
   } = useLeads();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,6 +74,7 @@ export function LeadManagement() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editMode, setEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Load leads on mount and when filters change
   useEffect(() => {
@@ -89,6 +102,42 @@ export function LeadManagement() {
 
     return true;
   });
+
+  const {
+    paginatedItems: paginatedLeads,
+    currentPage,
+    pageSize,
+    totalCount,
+    totalPages,
+    setPage,
+    setPageSize,
+    resetPage,
+  } = usePagination(filteredLeads);
+
+  useEffect(() => {
+    resetPage();
+  }, [searchTerm, statusFilter, sortOption, leads.length, resetPage]);
+
+  const leadIdParam = searchParams.get('leadId');
+
+  useEffect(() => {
+    if (!leadIdParam || leads.length === 0) return;
+    const lead = leads.find((l) => l.id === leadIdParam);
+    if (lead) {
+      setSelectedLead(lead);
+      setShowLeadDetail(true);
+    }
+  }, [leadIdParam, leads]);
+
+  const clearLeadIdParam = () => {
+    if (searchParams.has('leadId')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('leadId');
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  const pageTitle = user?.role === 'sales_user' ? 'My Pending Leads' : 'Leads Needing Follow-Up';
 
   const handleAddLead = async (leadData: Omit<Lead, 'id' | 'createdAt' | 'isAssigned' | 'assignedTo'>) => {
     // Ensure tenant and uploader info
@@ -128,6 +177,15 @@ export function LeadManagement() {
   const handleViewLead = (lead: Lead) => {
     setSelectedLead(lead);
     setShowLeadDetail(true);
+    const next = new URLSearchParams(searchParams);
+    next.set('leadId', lead.id);
+    setSearchParams(next, { replace: true });
+  };
+
+  const closeLeadDetail = () => {
+    setShowLeadDetail(false);
+    setSelectedLead(null);
+    clearLeadIdParam();
   };
 
   const handleEditClick = (lead: Lead) => {
@@ -181,6 +239,126 @@ export function LeadManagement() {
     const assignedUser = users.find(user => user.id === userId);
     return assignedUser ? assignedUser.name : 'Not Assigned';
   };
+
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredLeads.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 80,
+    overscan: 10,
+  });
+
+  const renderDesktopLeadRow = useCallback(
+    (lead: Lead, style?: React.CSSProperties) => (
+      <TableRow key={lead.id} style={style}>
+        <TableCell className="font-medium">{lead.companyName}</TableCell>
+        <TableCell className="hidden md:table-cell">
+          {lead.directors && lead.directors.length > 0 ? (
+            <div className="space-y-2">
+              {lead.directors.map((director, idx) => (
+                <div key={director.id} className={idx > 0 ? 'pt-2 border-t border-border' : ''}>
+                  <div>{director.firstName} {director.lastName}</div>
+                  <div className="text-sm text-muted-foreground">{director.email}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">N/A</span>
+          )}
+        </TableCell>
+        <TableCell className="font-mono text-sm">{lead.cin}</TableCell>
+        <TableCell className="hidden lg:table-cell">
+          {lead.directors && lead.directors.length > 0 ? (
+            <div className="space-y-2">
+              {lead.directors.map((director, idx) => (
+                <div key={director.id} className={idx > 0 ? 'pt-2 border-t border-border' : ''}>
+                  {director.mobile || 'N/A'}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">N/A</span>
+          )}
+        </TableCell>
+        <TableCell>
+          <Badge className={cn('text-xs', getFollowUpStatusClasses(lead.status))}>
+            {lead.status}
+          </Badge>
+        </TableCell>
+        <TableCell className="hidden sm:table-cell">
+          <div className="flex flex-col gap-2">
+            {lead.isAssigned ? (
+              <Badge variant="secondary" className="w-fit">
+                Assigned
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="w-fit text-muted-foreground">
+                Unassigned
+              </Badge>
+            )}
+
+            {user?.role && hasPermission(user.role, 'ASSIGN_LEADS') ? (
+              <Select
+                value={lead.assignedTo || undefined}
+                onValueChange={(value: string) => handleAssignLead(lead.id, value)}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Assign to..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {users
+                    .filter((u) => u.isActive && user.role && canAssignToUser(user.role, u.role))
+                    .filter((u) => {
+                      if (user.role === 'super_admin') return true;
+                      return u.companyId === user.companyId;
+                    })
+                    .map((targetUser) => (
+                      <SelectItem key={targetUser.id} value={targetUser.id}>
+                        {targetUser.name} ({targetUser.role})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-sm">{getAssignedUserName(lead.assignedTo)}</span>
+            )}
+          </div>
+        </TableCell>
+        <TableCell className="hidden lg:table-cell">
+          {calculateNextFollowUpDate(lead) ? (
+            <span className="text-sm">
+              {new Date(calculateNextFollowUpDate(lead)!).toLocaleDateString()}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </TableCell>
+        <TableCell className="text-right">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleViewLead(lead)}
+              aria-label={`View ${lead.companyName}`}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {(user?.role === 'company_admin' || user?.role === 'team_lead') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleEditClick(lead)}
+                aria-label={`Edit ${lead.companyName}`}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+    ),
+    [user, users, getAssignedUserName, handleAssignLead, handleViewLead, handleEditClick]
+  );
 
   const handleImportExcel = () => {
     // Check permission before allowing import
@@ -863,67 +1041,61 @@ export function LeadManagement() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1>{user?.role === 'sales_user' ? 'My Pending Leads' : 'Leads Needing Follow-Up'}</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            {user?.role === 'sales_user' || user?.role === 'super_admin'
-              ? `Showing: ${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`
-              : `Available for assignment: ${filteredLeads.length}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleDownloadTemplate}>
-            <FileDown className="h-4 w-4" />
-            <span className="hidden sm:inline">Template</span>
-          </Button>
-          {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
-            <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleImportExcel}>
-              <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Import</span>
+      <PageHeader
+        title={pageTitle}
+        description={
+          user?.role === 'sales_user' || user?.role === 'super_admin'
+            ? `Showing ${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`
+            : `Available for assignment: ${filteredLeads.length}`
+        }
+        actions={
+          <>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+              <FileDown className="h-4 w-4" />
+              <span className="hidden sm:inline">Template</span>
             </Button>
-          )}
-          {['company_admin', 'super_admin'].includes(user?.role || '') && (
-            <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleExportExcel}>
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export</span>
+            {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleImportExcel}>
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Import</span>
+              </Button>
+            )}
+            {['company_admin', 'super_admin'].includes(user?.role || '') && (
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleExportExcel}>
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            )}
+            <Button onClick={() => setShowLeadForm(true)} size="sm" className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Lead</span>
             </Button>
-          )}
-          <Button onClick={() => setShowLeadForm(true)} size="sm" className="gap-2 flex-1 sm:flex-none">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Lead</span>
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {/* Import Instructions - Only for roles that can import */}
       {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Import Tips:</strong> Download the template first to see the correct format. Your Excel file must have a "Company Name" column. 
-            <br/>
-            <strong>Multiple Directors:</strong> For companies with multiple directors, put the CIN in the first director's row, then leave the CIN column empty in subsequent director rows. All rows with empty CINs will be grouped with the previous CIN automatically.
-            <br/>
-            <strong>Example:</strong> Row 1: CIN=U12345, Director A | Row 2: CIN=(empty), Director B | Row 3: CIN=U67890, Director C - This creates 2 companies: First with Directors A & B, Second with Director C.
-            <br/>
-            Supported columns: CIN, Company Name, Authorised Capital, Paid up Capital, Date of Incorporation, Registered Address, Company Email, DIN, F Name, L Name, Mobile, Director Email.
-          </AlertDescription>
-        </Alert>
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="import-tips" className="border rounded-lg px-4 bg-muted/30">
+            <AccordionTrigger className="text-sm font-medium hover:no-underline py-3">
+              <span className="flex items-center gap-2">
+                <Info className="h-4 w-4" />
+                Excel import guide
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="text-sm text-muted-foreground pb-4">
+              <strong>Import Tips:</strong> Download the template first to see the correct format. Your Excel file must have a &quot;Company Name&quot; column.
+              <br /><br />
+              <strong>Multiple Directors:</strong> Put the CIN in the first director&apos;s row, then leave CIN empty in subsequent rows — they group with the previous CIN.
+              <br /><br />
+              Supported columns: CIN, Company Name, Authorised Capital, Paid up Capital, Date of Incorporation, Registered Address, Company Email, DIN, F Name, L Name, Mobile, Director Email.
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>{user?.role === 'sales_user' ? 'My Pending Leads' : 'Leads Needing Follow-Up'}</CardTitle>
-          <CardDescription>
-            {user?.role === 'sales_user' 
-              ? 'Your assigned leads' 
-              : user?.role === 'super_admin'
-              ? 'Leads assigned to you'
-              : 'Unassigned leads available for assignment'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
             <div className="relative flex-1">
@@ -961,132 +1133,107 @@ export function LeadManagement() {
           </div>
 
           {/* Table */}
-          <div className="rounded-md border overflow-x-auto">
+          {isLoading ? (
+            <LoadingTable columns={8} rows={6} />
+          ) : filteredLeads.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardList className="h-6 w-6" />}
+              title="No leads found"
+              description={searchTerm ? 'Try adjusting your search or filters.' : 'Add a lead or import from Excel to get started.'}
+              action={
+                user?.role && hasPermission(user.role, 'IMPORT_LEADS')
+                  ? { label: 'Add Lead', onClick: () => setShowLeadForm(true) }
+                  : undefined
+              }
+            />
+          ) : (
+          <>
+          <div className="md:hidden space-y-3">
+            {paginatedLeads.map((lead) => (
+              <Card key={lead.id} className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{lead.companyName}</p>
+                    <p className="text-xs font-mono text-muted-foreground mt-0.5">{lead.cin}</p>
+                  </div>
+                  <Badge className={cn('text-xs shrink-0', getFollowUpStatusClasses(lead.status))}>
+                    {lead.status}
+                  </Badge>
+                </div>
+                <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                  <p>Assignee: {getAssignedUserName(lead.assignedTo)}</p>
+                  {calculateNextFollowUpDate(lead) && (
+                    <p>Follow-up: {new Date(calculateNextFollowUpDate(lead)!).toLocaleDateString()}</p>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewLead(lead)}>
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                  {(user?.role === 'company_admin' || user?.role === 'team_lead') && (
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEditClick(lead)}>
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <div
+            ref={tableScrollRef}
+            className="hidden md:block rounded-md border overflow-auto max-h-[calc(100vh-280px)]"
+          >
             <Table>
-              <TableHeader>
-                <TableRow>
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableHead>Company Name</TableHead>
-                  <TableHead>Director</TableHead>
+                  <TableHead className="hidden md:table-cell">Director</TableHead>
                   <TableHead>CIN</TableHead>
-                  <TableHead>Mobile</TableHead>
+                  <TableHead className="hidden lg:table-cell">Mobile</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Follow-up Date</TableHead>
+                  <TableHead className="hidden sm:table-cell">Assigned To</TableHead>
+                  <TableHead className="hidden lg:table-cell">Follow-up Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {filteredLeads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.companyName}</TableCell>
-                    <TableCell>
-                      {lead.directors && lead.directors.length > 0 ? (
-                        <div className="space-y-2">
-                          {lead.directors.map((director, idx) => (
-                            <div key={director.id} className={idx > 0 ? 'pt-2 border-t border-border' : ''}>
-                              <div>{director.firstName} {director.lastName}</div>
-                              <div className="text-sm text-muted-foreground">{director.email}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">N/A</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{lead.cin}</TableCell>
-                    <TableCell>
-                      {lead.directors && lead.directors.length > 0 ? (
-                        <div className="space-y-2">
-                          {lead.directors.map((director, idx) => (
-                            <div key={director.id} className={idx > 0 ? 'pt-2 border-t border-border' : ''}>
-                              {director.mobile || 'N/A'}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">N/A</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn('text-xs', getFollowUpStatusClasses(lead.status))}>
-                        {lead.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-2">
-                        {/* FIX C: Assignment Status Icon */}
-                        {lead.isAssigned ? (
-                          <Badge variant="secondary" className="w-fit bg-blue-100 text-blue-800 hover:bg-blue-200">
-                            Assigned
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="w-fit text-gray-500">
-                            Unassigned
-                          </Badge>
-                        )}
-                        
-                        {(user?.role && hasPermission(user.role, 'ASSIGN_LEADS')) ? (
-                          <Select 
-                            value={lead.assignedTo || undefined} 
-                            onValueChange={(value: string) => handleAssignLead(lead.id, value)}
-                          >
-                            <SelectTrigger className="w-40">
-                              <SelectValue placeholder="Assign to..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {users
-                                .filter(u => u.isActive && user.role && canAssignToUser(user.role, u.role))
-                                .filter(u => {
-                                  // For non-super admins, only show users from same company
-                                  if (user.role === 'super_admin') return true;
-                                  return u.companyId === user.companyId;
-                                })
-                                .map(targetUser => (
-                                  <SelectItem key={targetUser.id} value={targetUser.id}>
-                                    {targetUser.name} ({targetUser.role})
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <span className="text-sm">{getAssignedUserName(lead.assignedTo)}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {calculateNextFollowUpDate(lead) ? (
-                        <span className="text-sm">
-                          {new Date(calculateNextFollowUpDate(lead)!).toLocaleDateString()}
-                        </span>
-                      ) : (
-                         <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewLead(lead)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {(user?.role === 'company_admin' || user?.role === 'team_lead') && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditClick(lead)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+              <TableBody
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  position: 'relative',
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const lead = filteredLeads[virtualRow.index];
+                  return renderDesktopLeadRow(lead, {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  });
+                })}
               </TableBody>
             </Table>
           </div>
+          <p className="hidden md:block text-xs text-muted-foreground mt-2">
+            Showing {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} — scroll the table to browse all rows
+          </p>
+          <div className="md:hidden">
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            isLoading={isLoading}
+            itemLabel="leads"
+          />
+          </div>
+          </>
+          )}
         </CardContent>
       </Card>
 
@@ -1094,7 +1241,7 @@ export function LeadManagement() {
 
       {/* Lead Form Dialog */}
       <Dialog open={showLeadForm} onOpenChange={setShowLeadForm}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editMode ? 'Edit Lead' : 'Add New Lead'}</DialogTitle>
             <DialogDescription>
@@ -1114,17 +1261,18 @@ export function LeadManagement() {
       </Dialog>
 
       {/* Lead Detail Dialog */}
-      <Dialog open={showLeadDetail} onOpenChange={setShowLeadDetail}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={showLeadDetail} onOpenChange={(open) => !open && closeLeadDetail()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Lead Details</DialogTitle>
+            <DialogDescription>View and manage lead information</DialogDescription>
+          </DialogHeader>
           {selectedLead && (
             <LeadDetail
               lead={selectedLead}
-              onClose={() => {
-                setShowLeadDetail(false);
-                setSelectedLead(null);
-              }}
+              onClose={closeLeadDetail}
               onEdit={() => {
-                setShowLeadDetail(false);
+                closeLeadDetail();
                 handleEditClick(selectedLead);
               }}
             />

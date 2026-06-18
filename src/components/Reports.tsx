@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PageHeader } from './layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -55,10 +56,10 @@ export function Reports() {
 
   // Status distribution with real data
   const statusDistribution = [
-    { name: 'Hot', value: reportLeads.filter(l => l.status === 'Hot').length, color: '#ef4444' },
-    { name: 'Warm', value: reportLeads.filter(l => l.status === 'Warm').length, color: '#f97316' },
-    { name: 'Cold', value: reportLeads.filter(l => l.status === 'Cold').length, color: '#6366f1' },
-    { name: 'Converted', value: convertedCount, color: '#10b981' },
+    { name: 'Hot', value: reportLeads.filter(l => l.status === 'Hot').length, color: '#dc2626' },
+    { name: 'Warm', value: reportLeads.filter(l => l.status === 'Warm').length, color: '#d97706' },
+    { name: 'Cold', value: reportLeads.filter(l => l.status === 'Cold').length, color: '#2563eb' },
+    { name: 'Converted', value: convertedCount, color: '#16a34a' },
     { name: 'Lost', value: lostCount, color: '#64748b' }
   ].filter(item => item.value > 0); // Only show non-zero values
 
@@ -114,36 +115,34 @@ export function Reports() {
     // In real implementation, this would generate and download a PDF/Excel report
   };
 
-  const COLORS = ['#ef4444', '#f97316', '#6366f1', '#10b981', '#64748b'];
+  const COLORS = ['#dc2626', '#d97706', '#2563eb', '#16a34a', '#64748b'];
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1>Reports & Analytics</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Comprehensive insights into your lead management performance
-          </p>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <CompanyFilter value={selectedCompany} onChange={setSelectedCompany} hideIfCompanyAdmin={true} />
-          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Time period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="quarter">This Quarter</SelectItem>
-              <SelectItem value="year">This Year</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleExportReport} className="gap-2">
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Reports & Analytics"
+        description="Comprehensive insights into your lead management performance"
+        actions={
+          <>
+            <CompanyFilter value={selectedCompany} onChange={setSelectedCompany} hideIfCompanyAdmin={true} />
+            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Time period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="month">This Month</SelectItem>
+                <SelectItem value="quarter">This Quarter</SelectItem>
+                <SelectItem value="year">This Year</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={handleExportReport} className="gap-2">
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -163,7 +162,7 @@ export function Reports() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Conversion Rate</CardTitle>
-            <Target className="h-4 w-4 text-green-600" />
+            <Target className="h-4 w-4 text-icon-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl">{conversionRate}%</div>
@@ -176,7 +175,7 @@ export function Reports() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm">Converted Leads</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <TrendingUp className="h-4 w-4 text-icon-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl">{convertedCount}</div>
@@ -240,10 +239,10 @@ export function Reports() {
                 <Line 
                   type="monotone" 
                   dataKey="converted" 
-                  stroke="#10b981" 
+                  stroke="#16a34a" 
                   strokeWidth={2}
                   name="Converted"
-                  dot={{ fill: '#10b981' }}
+                  dot={{ fill: '#16a34a' }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -320,7 +319,7 @@ export function Reports() {
                   />
                   <Legend />
                   <Bar dataKey="leads" fill="hsl(var(--primary))" name="Total Leads" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="converted" fill="#10b981" name="Converted" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="converted" fill="#16a34a" name="Converted" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="lost" fill="#64748b" name="Lost" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -387,7 +386,7 @@ export function Reports() {
                     <p className="font-medium">{user.name}</p>
                     <div className="flex gap-4 text-sm text-muted-foreground">
                       <span>{user.leads} leads</span>
-                      <span className="text-green-600">{user.converted} converted</span>
+                      <span className="text-icon-success">{user.converted} converted</span>
                       <span className="text-muted-foreground">{user.lost} lost</span>
                     </div>
                   </div>
@@ -406,7 +405,7 @@ export function Reports() {
               ))
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <BarChart3 className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                 <p>No performance data available</p>
               </div>
             )}

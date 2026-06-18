@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type FieldConfig } from './LeadsContext';
 import { useCompanies, type PlanPricing } from './CompanyContext';
+import { PageHeader } from './layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,7 +11,7 @@ import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Separator } from './ui/separator';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
-import { Settings as SettingsIcon, Save, AlertCircle, FileSpreadsheet, FormInput, CreditCard, FileText } from 'lucide-react';
+import { Save, AlertCircle, FileSpreadsheet, FormInput, CreditCard, FileText, Upload, X } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -25,9 +27,11 @@ interface PlanPricingState {
 type SettingsTab = 'general' | 'fields' | 'subscription' | 'billing';
 
 export function Settings() {
-  const { user, isLoading, systemName, companyDisplayName } = useAuth();
+  const { user, isLoading, systemName, systemLogoUrl, companyDisplayName, refreshBranding } = useAuth();
   const { fieldConfigs, setFieldConfigs } = useLeads();
   const { planPricing, updatePlanPricing } = useCompanies();
+  const { activeTab: routeTab } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [localConfigs, setLocalConfigs] = useState<FieldConfig[]>([...fieldConfigs]);
   const [prices, setPrices] = useState<PlanPricingState>({
@@ -42,6 +46,25 @@ export function Settings() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+
+  const validTabs: SettingsTab[] = ['general', 'fields', 'subscription', 'billing'];
+
+  useEffect(() => {
+    if (routeTab === 'subscription') {
+      setActiveTab('subscription');
+      return;
+    }
+    const tabParam = searchParams.get('tab');
+    if (tabParam && validTabs.includes(tabParam as SettingsTab)) {
+      setActiveTab(tabParam as SettingsTab);
+    }
+  }, [routeTab, searchParams]);
+
+  const handleTabChange = (value: string) => {
+    const tab = value as SettingsTab;
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
 
   // Loading guard - check this BEFORE user check
   if (isLoading) {
@@ -194,26 +217,13 @@ export function Settings() {
             
             <div className="space-y-4">
               {user.role === 'super_admin' && (
+                <>
                 <div className="space-y-2">
                   <Label>System Name (Visible on Login Page & Super Admin Sidebar)</Label>
                   <div className="flex gap-2">
                     <Input 
                       placeholder="Lead Management System" 
                       defaultValue={systemName}
-                      onChange={(e) => {
-                        // Debounce or just update on blur/save? 
-                        // For simplicity, we'll just store in a local state if we were doing full form, 
-                        // but here we might want a direct update or a separate save.
-                        // Let's use a local ref or state if we want to save on "Save Changes".
-                        // Actually, the existing code has a "Save Changes" button but no logic connected to these inputs yet.
-                        // I will implement a separate small component or just handle it here.
-                        // Since I can't easily add state without re-reading the whole file to find where to put it,
-                        // I will assume I can add a handleSystemNameChange function if I had state.
-                        // But wait, I can just use the updateDoc directly on a separate button or hook into the existing Save.
-                        // The existing "Save Changes" button is generic.
-                        // Let's add a specific save button for this or hook it up.
-                        // I'll add a local state for systemNameInput and companyNameInput.
-                      }}
                       id="system-name-input"
                     />
                     <Button 
@@ -222,9 +232,10 @@ export function Settings() {
                         const input = document.getElementById('system-name-input') as HTMLInputElement;
                         if (input) {
                           try {
-                            await api.config.setBranding(input.value);
+                            await api.config.setBranding({ systemName: input.value });
+                            await refreshBranding();
                             toast.success('System name updated');
-                          } catch (e) {
+                          } catch {
                             toast.error('Failed to update system name');
                           }
                         }
@@ -234,6 +245,82 @@ export function Settings() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>System Logo (Login page & sidebar)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    PNG or JPG, max 512KB. Shown on the login page and super admin sidebar.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    {systemLogoUrl ? (
+                      <img
+                        src={systemLogoUrl}
+                        alt="Current system logo"
+                        className="h-14 w-14 rounded-lg object-cover border border-border"
+                      />
+                    ) : (
+                      <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center border border-dashed border-border">
+                        <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-2">
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="sr-only"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 512 * 1024) {
+                              toast.error('Logo must be under 512KB');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                              try {
+                                await api.config.setBranding({ logoUrl: reader.result as string });
+                                await refreshBranding();
+                                toast.success('Logo updated');
+                              } catch {
+                                toast.error('Failed to upload logo');
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                            e.target.value = '';
+                          }}
+                        />
+                        <Button type="button" variant="outline" size="sm" asChild>
+                          <span>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload logo
+                          </span>
+                        </Button>
+                      </label>
+                      {systemLogoUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={async () => {
+                            try {
+                              await api.config.setBranding({ logoUrl: null });
+                              await refreshBranding();
+                              toast.success('Logo removed');
+                            } catch {
+                              toast.error('Failed to remove logo');
+                            }
+                          }}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                </>
               )}
 
               {(user.role === 'company_admin') && (
@@ -573,20 +660,15 @@ export function Settings() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <SettingsIcon className="h-6 w-6" />
-            Settings
-          </h1>
-          <p className="text-muted-foreground text-sm">Configure application settings and subscription plans</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Configure application settings and subscription plans"
+      />
 
       <div className="flex flex-col space-y-4">
         <Tabs 
           value={activeTab} 
-          onValueChange={(value: string) => setActiveTab(value as SettingsTab)}
+          onValueChange={handleTabChange}
           className="w-full"
         >
           <div className="border-b">

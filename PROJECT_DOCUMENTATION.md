@@ -2,7 +2,27 @@
 
 **Version**: 3.0.0
 **Last Updated**: 2025-11-28
-**Architecture**: Hybrid Event-Based (Firestore + React)
+**Architecture**: Hybrid Event-Based (PostgreSQL REST API + React)
+
+---
+
+## Page Documentation
+
+Per-page documentation for developers and end users is available in [`docs/pages/README.md`](docs/pages/README.md). Each page doc includes:
+
+- User guide (UI elements, workflows, role differences)
+- Developer reference (components, contexts, data flow)
+- APIs used on the page
+
+**Quick links:**
+
+| Resource | Path |
+|----------|------|
+| Page index (12 routes + 3 modals) | [`docs/pages/README.md`](docs/pages/README.md) |
+| REST API reference (39 endpoints) | [`docs/api-reference.md`](docs/api-reference.md) |
+| UI/UX improvements guide | [`docs/UI_UX_IMPROVEMENTS.md`](docs/UI_UX_IMPROVEMENTS.md) |
+
+> **Note:** The primary backend is now the Express REST API in [`apps/api/`](apps/api/) with PostgreSQL. Sections below referencing Firestore describe the original architecture; the event bus pattern is preserved via `POST/GET /api/events`.
 
 ---
 

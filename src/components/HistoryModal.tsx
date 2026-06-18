@@ -146,6 +146,7 @@ export function HistoryModal({
                 size="icon"
                 onClick={toggleSort}
                 title={sortOrder === "asc" ? "Oldest First" : "Newest First"}
+                aria-label={sortOrder === "asc" ? "Sort oldest first" : "Sort newest first"}
               >
                 <ArrowUpDown className="h-4 w-4" />
               </Button>
