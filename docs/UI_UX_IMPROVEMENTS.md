@@ -36,6 +36,7 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 11 | Contrast hardening + pipeline bento rollout | Shipped |
 | Phase 12 | Premium card depth — stat variants + elevated panels | Shipped |
 | Phase 13 | Unified chrome — bento hero KPIs, canvas background, page meta header | Shipped |
+| Phase 14 | Follow-up Calendar UX — KPIs, week view, mobile sheet, agenda cards | Shipped |
 
 ---
 
@@ -477,6 +478,36 @@ Token-driven app canvas in [`globals.css`](../src/styles/globals.css):
 
 1. Breadcrumb (`Home / {title}`) + search pill + theme + help
 2. Page title, description, and actions
+
+---
+
+## 12i. Follow-up Calendar UX (Phase 14)
+
+### KPI strip
+
+Four [`BentoStatCard`](../src/components/dashboard/BentoStatCard.tsx) metrics: Today, This week, This month, Overdue — computed in [`src/utils/followups/calendar.ts`](../src/utils/followups/calendar.ts).
+
+### Consistent counts
+
+Grid day badges use **deduped-per-lead** counts (same rule as day panel). `aria-label` includes both company and total counts when they differ.
+
+### Day agenda
+
+- [`FollowUpAgendaCard`](../src/components/calendar/FollowUpAgendaCard.tsx) — premium `card-bento` rows with time pill, status badge, overdue accent, `tel:` links
+- Hour filter as horizontal chip tabs (`role="tablist"`)
+- Auto-selects today on load
+
+### Week view + mobile
+
+- Month / Week toggle; optional Sun/Mon week start
+- Week view: 7-day strip with larger cells
+- Mobile (`<lg`): bottom [`Sheet`](../src/components/ui/sheet.tsx) for day agenda after date tap
+- Keyboard: arrows move selection, Home → today, PageUp/PageDown → prev/next period
+
+### Layout
+
+- Desktop day panel: `sticky top-[calc(var(--app-header-offset)+0.5rem)]`
+- `--app-header-offset` token in [`globals.css`](../src/styles/globals.css)
 
 ---
 

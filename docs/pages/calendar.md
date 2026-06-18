@@ -9,7 +9,7 @@
 | **Sidebar label** | Follow-up Calendar |
 | **Page heading** | **Follow-up Calendar** |
 
-A monthly calendar view of scheduled follow-ups extracted from assigned leads. Users can navigate months, select days, filter by hour, and open lead details for follow-up actions.
+A monthly or weekly calendar view of scheduled follow-ups from assigned leads. KPI summary, heat-map grid, day agenda with hour chips, and lead detail dialog.
 
 ---
 
@@ -17,35 +17,38 @@ A monthly calendar view of scheduled follow-ups extracted from assigned leads. U
 
 ### What You See
 
-- **Month navigation** — Previous/next month buttons
-- **Calendar grid** — Days with heat-map tint by follow-up density and numeric count
-- **Activity legend** — Low (1–2), Medium (3–5), High (6+) follow-ups per day
-- **Day panel** — Selected day's follow-ups grouped by hour
-- **Follow-up cards** — Time, company name, status color, talked-to, remark
-- **Hour filter** — Narrow day view to specific hours
+- **KPI strip** — Today, This week, This month, Overdue (deduped per company/lead)
+- **Month / Week toggle** — Switch between full month grid and 7-day week strip
+- **Week start** — Sun start or Mon start (toggle in calendar header)
+- **Calendar grid** — Heat-map tint by deduped follow-up count; dot when raw count exceeds deduped
+- **Activity legend** — Low (1–2), Medium (3–5), High (6+) companies per day
+- **Day agenda** — Selected day's follow-ups with hour chip filter
+- **Agenda cards** — Time, company, director, status, phone (`tel:` link), remark; overdue badge on past dates
+- **Mobile sheet** — Tap a day to open bottom sheet with the same agenda (desktop shows side panel)
 
 ### Key Actions
 
-1. **Navigate months** — Use arrow buttons to change month
-2. **Select a day** — Click a calendar day to see follow-ups
-3. **View lead details** — Click a follow-up card → [Lead Detail modal](modals/lead-detail.md)
-4. **Filter by hour** — Select hour tab in day panel
+1. **Navigate** — Previous/next month or week; **Today** jumps to current date
+2. **Select a day** — Click a calendar day (today selected by default)
+3. **Filter by hour** — Use chip tabs (All, 09:00, …)
+4. **View lead details** — Click an agenda card → [Lead Detail modal](modals/lead-detail.md)
+5. **Keyboard** — Focus calendar grid: arrows move day, Home = today, PageUp/PageDown = prev/next period
 
 ### Role-Based Differences
 
 | Role | Behavior |
 |------|----------|
 | sales_user | Only sees follow-ups for leads assigned to themselves |
-| company_admin, team_lead | Sees all company assigned lead follow-ups |
-| platform roles | Cross-company view |
+| team_lead | Only sees follow-ups for leads assigned to themselves |
+| company_admin, platform roles | Sees all company assigned lead follow-ups |
 
 ### Tips & Constraints
 
 - Follow-ups are extracted client-side from lead `directors[].followUps` data
 - Only **active** follow-ups shown (status `active` or unset)
-- One active follow-up per director enforced by backend on add
+- Day panel shows one active follow-up per lead (latest by `createdAt`)
+- Grid count matches panel dedupe rule; aria-label notes total when higher
 - Direct editing from calendar navigates to Lead Pool with `?leadId=` deep link
-- Day buttons expose follow-up count via `aria-label` for screen readers
 
 ---
 
@@ -55,7 +58,7 @@ A monthly calendar view of scheduled follow-ups extracted from assigned leads. U
 |------------|----------|
 | `VIEW_CALENDAR` | Page access (all roles) |
 
-**Data scoping:** Sales users filtered to `assignedTo === user.id`.
+**Data scoping:** Sales users and team leads filtered to `assignedTo === user.id`.
 
 ---
 
@@ -65,40 +68,22 @@ A monthly calendar view of scheduled follow-ups extracted from assigned leads. U
 
 ```
 CalendarView.tsx
+├── BentoStatCard (KPI strip)
+├── FollowUpAgendaCard
+├── DayAgendaPanel (internal)
+├── Sheet (mobile agenda)
 ├── LeadDetail.tsx (dialog)
-├── LeadsContext (leads)
-├── AuthContext (user)
-└── getDirectorFollowUpsForDate utility
+├── utils/followups/calendar.ts
+└── LeadsContext
 ```
 
 ### Context Dependencies
 
 | Context | Methods |
 |---------|---------|
-| `LeadsContext` | `leads`, `loadLeadsAll('assigned')` |
+| `LeadsContext` | `leads`, `isLoading`, `loadLeadsAll('assigned')`, `getDirectorFollowUpsForDate` |
 | `AuthContext` | `user` |
-
-### Client-Side Logic
-
-- [`src/utils/followups/`](../../src/utils/followups/) — date extraction and grouping
-- [`src/utils/followUpStatusColors.ts`](../../src/utils/followUpStatusColors.ts) — status badge colors
-- `useMemo` for follow-ups by hour and latest active deduplication
-
-### Event Bus
-
-Reads from context; mutations via Lead Detail trigger events.
-
----
-
-## APIs Used on This Page
-
-| Method | Endpoint | Triggered By | Context/Caller |
-|--------|----------|--------------|----------------|
-| `GET` | `/api/leads?view=assigned` | Page load / refresh | `LeadsContext.loadLeadsAll` |
-| `POST` | `/api/leads/:id/follow-up` | Via Lead Detail | `LeadsContext.addFollowUp` |
-| `PATCH` | `/api/leads/:id` | Via Lead Detail | `LeadsContext.updateLead` |
-
-No direct API calls from the calendar component itself.
+| `PageMetaContext` | `usePageMeta` (dynamic month count in description) |
 
 ---
 
@@ -106,4 +91,3 @@ No direct API calls from the calendar component itself.
 
 - [Assigned Leads](assigned.md) — table view of same leads
 - [Lead Detail modal](modals/lead-detail.md) — add/edit follow-ups
-- [History modal](modals/history-modal.md) — follow-up timeline
