@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { api } from '../api/client';
+import { useAuth } from './AuthContext';
 
 interface PlanPricingBase {
   basic: number;
@@ -58,6 +59,7 @@ export const useCompanies = () => {
 };
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [planPricing, setPlanPricing] = useState<PlanPricing>(DEFAULT_PLAN_PRICES);
@@ -74,18 +76,24 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    if (!user) {
+      setCompanies([]);
+      setIsLoading(false);
+      return;
+    }
     refreshCompanies();
     const interval = setInterval(refreshCompanies, 10000);
     return () => clearInterval(interval);
-  }, [refreshCompanies]);
+  }, [user, refreshCompanies]);
 
   useEffect(() => {
+    if (!user) return;
     api.config.getPlanPricing()
       .then(({ planPricing: saved }) => {
         if (saved) setPlanPricing(saved);
       })
       .catch(() => {});
-  }, []);
+  }, [user]);
 
   const addCompany = async (companyData: Omit<Company, 'id' | 'companyId' | 'createdAt' | 'updatedAt' | 'isDeleted'>): Promise<Company> => {
     const trimmedName = (companyData.name || '').trim();

@@ -5,9 +5,16 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 type SessionExpiredHandler = () => void;
 let onSessionExpired: SessionExpiredHandler | null = null;
+let sessionExpiredNotified = false;
 
 export function setSessionExpiredHandler(handler: SessionExpiredHandler) {
   onSessionExpired = handler;
+}
+
+function notifySessionExpiredOnce() {
+  if (sessionExpiredNotified) return;
+  sessionExpiredNotified = true;
+  onSessionExpired?.();
 }
 
 function getToken(): string | null {
@@ -15,6 +22,7 @@ function getToken(): string | null {
 }
 
 export function setAuth(token: string, user: object) {
+  sessionExpiredNotified = false;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(SESSION_KEY, JSON.stringify(user));
 }
@@ -34,24 +42,37 @@ export function getStoredUser() {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestInit & { skipSessionExpired?: boolean } = {},
+): Promise<T> {
+  const { skipSessionExpired, ...fetchOptions } = options;
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
+    ...(fetchOptions.headers as Record<string, string> || {}),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
     credentials: 'include',
   });
 
   if (res.status === 401) {
+    const body = await res.json().catch(() => ({}));
+    const hadToken = !!token;
+    const isLogin = path === '/auth/login';
     clearAuth();
-    onSessionExpired?.();
-    throw new Error('Session expired. Please log in again.');
+    if (hadToken && !isLogin && !skipSessionExpired) {
+      notifySessionExpiredOnce();
+    }
+    throw new Error(
+      isLogin
+        ? (body.error || 'Invalid email or password')
+        : 'Session expired. Please log in again.',
+    );
   }
 
   if (!res.ok) {
@@ -68,7 +89,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
-    me: () => request<{ user: any }>('/auth/me'),
+    me: (options?: { skipSessionExpired?: boolean }) =>
+      request<{ user: any }>('/auth/me', options),
     logout: () => request('/auth/logout', { method: 'POST' }),
   },
   users: {

@@ -77,7 +77,7 @@ function DashboardLayout() {
       case 'help':
         return <HelpPage />;
       default:
-        return <NotFound />;
+        return <Navigate to="/not-found" replace />;
     }
   };
 
@@ -153,6 +153,15 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginWrapper />} />
+      <Route
+        path="/not-found"
+        element={
+          <ProtectedRoute>
+            <NotFound />
+            <Toaster />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route 
         path="/:activeTab" 

@@ -14,13 +14,13 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="lms_theme">
-        <CompanyProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <CompanyProvider>
             <LeadsProvider>
               <App />
             </LeadsProvider>
-          </AuthProvider>
-        </CompanyProvider>
+          </CompanyProvider>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   </StrictMode>

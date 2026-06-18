@@ -57,7 +57,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSessionExpiredHandler(() => {
       setUser(null);
       setUsers([]);
-      toast.error('Session expired. Please log in again.');
+      if (!window.location.pathname.startsWith('/login')) {
+        toast.error('Session expired. Please log in again.');
+      }
     });
   }, []);
 
@@ -96,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const stored = getStoredUser();
       if (stored) {
         try {
-          const { user: me } = await api.auth.me();
+          const { user: me } = await api.auth.me({ skipSessionExpired: true });
           if (me.isActive !== false) {
             setUser(me);
           } else {
