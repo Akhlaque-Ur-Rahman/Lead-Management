@@ -574,6 +574,22 @@ Wide charts use `h-[280px] md:h-[300px]`. New utility: `.bento-span-2-xl` (span 
 
 ---
 
+## 12m. Lead Pool pagination + shimmer loading (Phase 18)
+
+### Pagination
+
+- **Lead Pool** — Desktop virtual scroll removed; table and mobile cards both use `paginatedLeads` from [`usePagination`](../../src/hooks/usePagination.ts). [`PaginationControls`](../../src/components/ui/pagination-controls.tsx) shown on all breakpoints.
+- **Converted Leads, Lost Leads, Company Management** — Same client-side pagination pattern; page resets when search/sort/filters change.
+
+### Shimmer skeleton loading
+
+- [`globals.css`](../src/styles/globals.css) — `@keyframes shimmer` + `.skeleton-shimmer` (theme-aware)
+- [`Skeleton`](../src/components/ui/skeleton.tsx) — `variant="shimmer"` (default) or `"pulse"`
+- Primitives: [`LoadingTable`](../src/components/layout/LoadingTable.tsx), [`LoadingCardList`](../src/components/layout/LoadingCardList.tsx), [`LoadingStatCards`](../src/components/layout/LoadingStatCards.tsx)
+- Rolled out on Lead Pool, Assigned, Converted, Lost, User Management, and Company Management (replaces full-page spinners)
+
+---
+
 ## 13. Enterprise depth (Phase 6)
 
 ### 12a. Brand theming / logo upload
@@ -583,10 +599,15 @@ Wide charts use `h-[280px] md:h-[300px]`. New utility: `.bento-span-2-xl` (span 
 - **Login** — `LoginBrandPanel` + mobile header show custom logo when set
 - **Sidebar** — Super admin sidebar shows uploaded logo instead of default icon
 
-### 12b. Virtualized lead tables
+### 12b. Virtualized lead tables (superseded on Lead Pool by Phase 18)
 
-- Lead Pool desktop table uses `@tanstack/react-virtual` over `filteredLeads` (scroll container `max-h-[calc(100vh-280px)]`)
-- Mobile card view unchanged; pagination remains mobile-only
+- Lead Pool previously used `@tanstack/react-virtual` on desktop; **Phase 18** replaced this with client-side pagination on all breakpoints (see §12m)
+- Mobile card view unchanged
+
+### 12b-alt. Lead Pool pagination (Phase 18)
+
+- Desktop table maps `paginatedLeads` (same slice as mobile cards); no scroll container or sticky virtual rows
+- Loading: `LoadingTable` (desktop) + `LoadingCardList` (mobile) while `LeadsContext.isLoading`
 
 ### 12c. react-hook-form + zod (LeadForm)
 

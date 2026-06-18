@@ -5,11 +5,12 @@ import { BentoTable } from './BentoTable';
 interface LoadingTableProps {
   columns: number;
   rows?: number;
+  className?: string;
 }
 
-export function LoadingTable({ columns, rows = 5 }: LoadingTableProps) {
+export function LoadingTable({ columns, rows = 5, className }: LoadingTableProps) {
   return (
-    <BentoTable>
+    <BentoTable className={className}>
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent even:bg-transparent">

@@ -39,6 +39,8 @@ import { PaginationControls } from './ui/pagination-controls';
 import { usePagination } from '../hooks/usePagination';
 import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
+import { LoadingCardList } from './layout/LoadingCardList';
+import { LoadingTable } from './layout/LoadingTable';
 
 import { toast } from 'sonner';
 
@@ -52,6 +54,7 @@ export function AssignedLeads() {
     leads,
     loadLeadsAll,
     refreshFlag,
+    isLoading,
     getLatestActiveFollowUpForCompany
   } = useLeads();
   
@@ -68,14 +71,12 @@ export function AssignedLeads() {
     description: 'View and manage leads assigned to team members',
   });
 
-  if (!user) return null;
-
   // 1. Load Leads (Server-Side)
   useEffect(() => {
     if (user) {
       loadLeadsAll('assigned', { status: statusFilter }, undefined, sortOption);
     }
-  }, [user, statusFilter, sortOption, refreshFlag]);
+  }, [user, statusFilter, sortOption, refreshFlag, loadLeadsAll]);
 
   // 2. Client-Side Search & Sort
   const displayLeads = useMemo(() => {
@@ -115,7 +116,14 @@ export function AssignedLeads() {
     totalPages,
     setPage,
     setPageSize,
+    resetPage,
   } = usePagination(displayLeads);
+
+  useEffect(() => {
+    resetPage();
+  }, [searchQuery, selectedUser, sortOption, resetPage]);
+
+  if (!user) return null;
 
   // 3. Stats Logic (Kept using full list for accurate counts)
   // Get leads based on user role for STATS ONLY
@@ -327,7 +335,12 @@ export function AssignedLeads() {
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5">
-          {displayLeads.length === 0 ? (
+          {isLoading ? (
+            <>
+              <LoadingCardList className="md:hidden" />
+              <LoadingTable columns={6} rows={6} className="hidden md:block" />
+            </>
+          ) : displayLeads.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p>No assigned leads found</p>
@@ -514,15 +527,16 @@ export function AssignedLeads() {
             </BentoTable>
             </>
           )}
-          {displayLeads.length > 0 && (
+          {totalCount > 0 && (
             <PaginationControls
               currentPage={currentPage}
               totalPages={totalPages}
               pageSize={pageSize}
               totalCount={totalCount}
               onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-              itemLabel="leads"
+            onPageSizeChange={setPageSize}
+            isLoading={isLoading}
+            itemLabel="leads"
             />
           )}
         </CardContent>

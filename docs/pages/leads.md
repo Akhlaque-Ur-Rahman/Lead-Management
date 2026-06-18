@@ -23,7 +23,8 @@ The Lead Pool is the primary workspace for viewing, creating, importing, exporti
 - **Status filter** — All, Hot, Warm, Cold
 - **Sort** — Latest or Oldest
 - **Lead table** (desktop) or **card list** (mobile, below `md`) — Company name, CIN, status, assigned user, actions
-- **Pagination** — Client-side paging of filtered results
+- **Pagination** — Client-side paging of filtered results on **all breakpoints** (desktop table no longer uses virtual scroll)
+- **Loading** — Shimmer skeleton table (desktop) and card list (mobile) while leads load
 - **Deep link** — `/leads?leadId=<id>` opens Lead Detail when the lead is loaded
 
 ### Key Actions
@@ -87,6 +88,7 @@ LeadManagement.tsx
 
 ### Client-Side Logic
 
+- [`usePagination`](../../src/hooks/usePagination.ts) — paginates `filteredLeads` for table and mobile cards (default page size 25)
 - [`src/utils/filters/`](../../src/utils/filters/) — pool filtering
 - [`src/utils/imports/duplicateCheck.ts`](../../src/utils/imports/duplicateCheck.ts) — batch duplicate validation
 - XLSX library for Excel parse/export

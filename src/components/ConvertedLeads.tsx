@@ -6,9 +6,10 @@ import { useAuth } from './AuthContext';
 import { useLeads, Lead } from './LeadsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-
 import { Input } from './ui/input';
 import { BentoTable } from './layout/BentoTable';
+import { LoadingStatCards } from './layout/LoadingStatCards';
+import { LoadingTable } from './layout/LoadingTable';
 import {
   Table,
   TableBody,
@@ -27,17 +28,20 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { Building2, Search, CheckCircle, IndianRupee, Calendar, User, Info, Download, ArrowUpDown } from 'lucide-react';
 import { LeadDetail } from './LeadDetail';
-
+import { PaginationControls } from './ui/pagination-controls';
+import { usePagination } from '../hooks/usePagination';
 import { toast } from 'sonner';
 import { hasPermission } from '../types/roles';
 
 export function ConvertedLeads() {
-  const { user, users, isLoading } = useAuth();
-  const { getConvertedLeads, loadLeadsAll, refreshFlag } = useLeads();
+  const { user, users, isLoading: authLoading } = useAuth();
+  const { getConvertedLeads, loadLeadsAll, refreshFlag, isLoading: leadsLoading } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const isLoading = authLoading || leadsLoading;
 
   const handleExport = useCallback(() => {
     toast.success('Converted leads exported successfully!');
@@ -58,73 +62,62 @@ export function ConvertedLeads() {
     if (user) {
       loadLeadsAll('converted');
     }
-  }, [user, refreshFlag]);
+  }, [user, refreshFlag, loadLeadsAll]);
 
+  const convertedLeads = user?.companyId ? getConvertedLeads(user.companyId) : [];
 
-  // Loading guard - check this BEFORE permission check
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
-            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">Loading converted leads...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user?.role || !hasPermission(user.role, 'VIEW_CONVERTED_LEADS')) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground">Access denied. This page contains financial data and is only available to authorized administrators.</p>
-      </div>
-    );
-  }
-
-  // Check for financial data access
-  const canViewFinancialData = hasPermission(user.role, 'VIEW_FINANCIAL_DATA');
-
-  // Get converted leads for the company
-  const convertedLeads = user.companyId ? getConvertedLeads(user.companyId) : [];
   const filteredLeads = useMemo(() => {
-    return convertedLeads.filter(lead => {
+    return convertedLeads.filter((lead) => {
       if (lead.status !== 'Converted') return false;
 
-      const matchesSearch = !searchTerm ||
+      return (
+        !searchTerm ||
         lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.invoiceNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.convertedBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (lead.directors && lead.directors.some(d => 
-          d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.lastName.toLowerCase().includes(searchTerm.toLowerCase())
-        ));
-      
-      return matchesSearch;
+        (lead.directors &&
+          lead.directors.some(
+            (d) =>
+              d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              d.lastName.toLowerCase().includes(searchTerm.toLowerCase()),
+          ))
+      );
     });
   }, [convertedLeads, searchTerm]);
 
-  // Sort leads
-  const sortedLeads = [...filteredLeads].sort((a, b) => {
-    if (sortBy === 'date') {
-      const dateA = a.convertedAt || '';
-      const dateB = b.convertedAt || '';
-      return sortOrder === 'asc' 
-        ? dateA.localeCompare(dateB)
-        : dateB.localeCompare(dateA);
-    } else {
+  const sortedLeads = useMemo(() => {
+    return [...filteredLeads].sort((a, b) => {
+      if (sortBy === 'date') {
+        const dateA = a.convertedAt || '';
+        const dateB = b.convertedAt || '';
+        return sortOrder === 'asc' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+      }
       const valueA = parseFloat(a.projectValue?.replace(/,/g, '') || '0');
       const valueB = parseFloat(b.projectValue?.replace(/,/g, '') || '0');
-      return sortOrder === 'asc' 
-        ? valueA - valueB
-        : valueB - valueA;
-    }
-  });
+      return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+    });
+  }, [filteredLeads, sortBy, sortOrder]);
+
+  const {
+    paginatedItems: paginatedLeads,
+    currentPage,
+    pageSize,
+    totalCount,
+    totalPages,
+    setPage,
+    setPageSize,
+    resetPage,
+  } = usePagination(sortedLeads);
+
+  useEffect(() => {
+    resetPage();
+  }, [searchTerm, sortBy, sortOrder, resetPage]);
+
+  const canViewFinancialData = Boolean(user?.role && hasPermission(user.role, 'VIEW_FINANCIAL_DATA'));
 
   const getUserName = (userId: string | null | undefined) => {
     if (!userId) return 'Unknown';
-    const foundUser = users.find(u => u.id === userId);
+    const foundUser = users.find((u) => u.id === userId);
     return foundUser ? foundUser.name : 'Unknown';
   };
 
@@ -133,7 +126,7 @@ export function ConvertedLeads() {
     return new Date(dateString).toLocaleDateString('en-IN', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
   };
 
@@ -158,19 +151,6 @@ export function ConvertedLeads() {
     }
   };
 
-
-
-  // Reset to page 0 when filters change
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-  };
-
-  const handleSortChange = (value: 'date' | 'value') => {
-    setSortBy(value);
-  };
-
-
-
   if (selectedLead) {
     return (
       <div className="p-4 sm:p-6">
@@ -183,8 +163,8 @@ export function ConvertedLeads() {
         </Button>
         <Card className={cn('card-bento gap-0 border-0')}>
           <CardContent className="p-6">
-            <LeadDetail 
-              lead={selectedLead} 
+            <LeadDetail
+              lead={selectedLead}
               onClose={() => setSelectedLead(null)}
               onEdit={() => {
                 toast.info('Converted leads cannot be edited');
@@ -196,62 +176,69 @@ export function ConvertedLeads() {
     );
   }
 
+  if (!isLoading && (!user?.role || !hasPermission(user.role, 'VIEW_CONVERTED_LEADS'))) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-muted-foreground">
+          Access denied. This page contains financial data and is only available to authorized administrators.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Financial Data:</strong> This page contains sensitive financial information including invoice numbers and project values. 
-          Only Company Admins have access to this data.
+          <strong>Financial Data:</strong> This page contains sensitive financial information including invoice
+          numbers and project values. Only Company Admins have access to this data.
         </AlertDescription>
       </Alert>
 
-      {/* Summary Cards */}
-      <div className="dashboard-bento">
-        <BentoStatCard
-          label="Total Converted"
-          value={convertedLeads.length}
-          subtitle="Successful conversions"
-          icon={<CheckCircle className="h-4 w-4 text-icon-success" />}
-          variant="rose"
-        />
-        <BentoStatCard
-          label="Total Value"
-          value={
-            canViewFinancialData
-              ? `₹${calculateTotalValue().toLocaleString('en-IN')}`
-              : 'Restricted'
-          }
-          subtitle="Combined project value"
-          icon={<IndianRupee className="h-4 w-4" />}
-          variant="primary"
-        />
-        <BentoStatCard
-          label="Average Deal Size"
-          value={
-            canViewFinancialData
-              ? `₹${convertedLeads.length > 0
-                  ? Math.round(calculateTotalValue() / convertedLeads.length).toLocaleString('en-IN')
-                  : '0'}`
-              : 'Restricted'
-          }
-          subtitle="Per conversion"
-          icon={<IndianRupee className="h-4 w-4" />}
-          variant="teal"
-        />
-      </div>
+      {isLoading ? (
+        <LoadingStatCards count={3} />
+      ) : (
+        <div className="dashboard-bento">
+          <BentoStatCard
+            label="Total Converted"
+            value={convertedLeads.length}
+            subtitle="Successful conversions"
+            icon={<CheckCircle className="h-4 w-4 text-icon-success" />}
+            variant="rose"
+          />
+          <BentoStatCard
+            label="Total Value"
+            value={canViewFinancialData ? `₹${calculateTotalValue().toLocaleString('en-IN')}` : 'Restricted'}
+            subtitle="Combined project value"
+            icon={<IndianRupee className="h-4 w-4" />}
+            variant="primary"
+          />
+          <BentoStatCard
+            label="Average Deal Size"
+            value={
+              canViewFinancialData
+                ? `₹${convertedLeads.length > 0
+                    ? Math.round(calculateTotalValue() / convertedLeads.length).toLocaleString('en-IN')
+                    : '0'}`
+                : 'Restricted'
+            }
+            subtitle="Per conversion"
+            icon={<IndianRupee className="h-4 w-4" />}
+            variant="teal"
+          />
+        </div>
+      )}
 
       <Card className={cn('card-bento gap-0 border-0')}>
         <CardHeader className="px-5 pt-5">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <CardTitle>Converted Leads ({sortedLeads.length})</CardTitle>
-              <CardDescription>
-                Detailed view of all successfully converted opportunities
-              </CardDescription>
+              <CardDescription>Detailed view of all successfully converted opportunities</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Select value={sortBy} onValueChange={handleSortChange}>
+              <Select value={sortBy} onValueChange={(v: 'date' | 'value') => setSortBy(v)}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
@@ -265,7 +252,7 @@ export function ConvertedLeads() {
                 <Input
                   placeholder="Search leads..."
                   value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 w-full sm:w-[250px]"
                 />
               </div>
@@ -273,118 +260,130 @@ export function ConvertedLeads() {
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5">
-          {sortedLeads.length === 0 ? (
+          {isLoading ? (
+            <LoadingTable columns={7} rows={6} />
+          ) : sortedLeads.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <CheckCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium">No converted leads yet</p>
-              {searchTerm && (
-                <p className="text-sm mt-2">Try adjusting your search</p>
-              )}
+              {searchTerm && <p className="text-sm mt-2">Try adjusting your search</p>}
               {!searchTerm && (
-                <p className="text-sm mt-2">Converted leads will appear here when leads are marked as converted</p>
+                <p className="text-sm mt-2">
+                  Converted leads will appear here when leads are marked as converted
+                </p>
               )}
             </div>
           ) : (
-            <BentoTable>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Company Name</TableHead>
-                    <TableHead className="hidden md:table-cell">Contact Person</TableHead>
-                    <TableHead>Invoice No.</TableHead>
-                    <TableHead className="cursor-pointer" onClick={() => toggleSort('value')}>
-                      <div className="flex items-center gap-1">
-                        Project Value
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead className="cursor-pointer hidden lg:table-cell" onClick={() => toggleSort('date')}>
-                      <div className="flex items-center gap-1">
-                        Converted Date
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead className="hidden sm:table-cell">Converted By</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedLeads.map((lead) => (
-                    <TableRow
-                      key={lead.id}
-                      variant="interactive"
-                      onClick={() => setSelectedLead(lead)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div>
-                            <p className="font-medium">{lead.companyName}</p>
-                            <p className="text-xs text-muted-foreground">{lead.cin}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {lead.directors.length > 0 ? (
-                          <div>
-                            <p className="text-sm">
-                              {lead.directors[0].firstName} {lead.directors[0].lastName}
-                            </p>
-                            {lead.directors[0].mobile && (
-                              <p className="text-xs text-muted-foreground">{lead.directors[0].mobile}</p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">No contact</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-mono text-sm">
-                          {canViewFinancialData ? (lead.invoiceNo || 'N/A') : 'Access Restricted'}
-                        </p>
-                      </TableCell>
-                      <TableCell>
+            <>
+              <BentoTable>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent even:bg-transparent">
+                      <TableHead>Company Name</TableHead>
+                      <TableHead className="hidden md:table-cell">Contact Person</TableHead>
+                      <TableHead>Invoice No.</TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => toggleSort('value')}>
                         <div className="flex items-center gap-1">
-                          <IndianRupee className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-semibold text-icon-success">
-                            {canViewFinancialData ? formatCurrency(lead.projectValue) : 'Access Restricted'}
-                          </span>
+                          Project Value
+                          <ArrowUpDown className="h-3 w-3" />
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
+                      </TableHead>
+                      <TableHead className="cursor-pointer hidden lg:table-cell" onClick={() => toggleSort('date')}>
                         <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{formatDate(lead.convertedAt)}</span>
+                          Converted Date
+                          <ArrowUpDown className="h-3 w-3" />
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{getUserName(lead.convertedBy)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setSelectedLead(lead);
-                          }}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead className="hidden sm:table-cell">Converted By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </BentoTable>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedLeads.map((lead) => (
+                      <TableRow
+                        key={lead.id}
+                        variant="interactive"
+                        onClick={() => setSelectedLead(lead)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">{lead.companyName}</p>
+                              <p className="text-xs text-muted-foreground">{lead.cin}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {lead.directors.length > 0 ? (
+                            <div>
+                              <p className="text-sm">
+                                {lead.directors[0].firstName} {lead.directors[0].lastName}
+                              </p>
+                              {lead.directors[0].mobile && (
+                                <p className="text-xs text-muted-foreground">{lead.directors[0].mobile}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">No contact</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <p className="font-mono text-sm">
+                            {canViewFinancialData ? lead.invoiceNo || 'N/A' : 'Access Restricted'}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <IndianRupee className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-semibold text-icon-success">
+                              {canViewFinancialData ? formatCurrency(lead.projectValue) : 'Access Restricted'}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm">{formatDate(lead.convertedAt)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm">{getUserName(lead.convertedBy)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              setSelectedLead(lead);
+                            }}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </BentoTable>
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                isLoading={isLoading}
+                itemLabel="leads"
+              />
+            </>
           )}
         </CardContent>
       </Card>
-
-
     </div>
   );
 }

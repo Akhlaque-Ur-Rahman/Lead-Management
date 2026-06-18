@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { usePageMeta } from './layout/PageMetaContext';
 import CompanyFilter from './CompanyFilter';
 import { useLeads } from './LeadsContext';
@@ -11,6 +11,10 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { BentoTable } from './layout/BentoTable';
+import { LoadingStatCards } from './layout/LoadingStatCards';
+import { LoadingTable } from './layout/LoadingTable';
+import { PaginationControls } from './ui/pagination-controls';
+import { usePagination } from '../hooks/usePagination';
 import {
   Table,
   TableBody,
@@ -40,7 +44,7 @@ import {
 } from './ui/select';
 export function CompanyManagement() {
   const { user, getUsersByCompany, users, addUser, isLoading } = useAuth();
-  const { companies, addCompany, updateCompany, deleteCompany, planPricing } = useCompanies();
+  const { companies, addCompany, updateCompany, deleteCompany, planPricing, isLoading: companiesLoading } = useCompanies();
   const { getGlobalAggregates } = useLeads();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -119,15 +123,70 @@ export function CompanyManagement() {
   const [companyToBlock, setCompanyToBlock] = useState<Company | null>(null);
   const [blockReason, setBlockReason] = useState('');
 
+  const filteredCompanies = useMemo(
+    () =>
+      companies.filter((company) => {
+        if (statusFilter === 'active' && !company.isActive) return false;
+        if (statusFilter === 'inactive' && company.isActive) return false;
+        if (planFilter !== 'all' && company.subscriptionPlan !== planFilter) return false;
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          const matchesName = company.name.toLowerCase().includes(search);
+          const matchesEmail = company.email.toLowerCase().includes(search);
+          if (!matchesName && !matchesEmail) return false;
+        }
+        return true;
+      }),
+    [companies, statusFilter, planFilter, searchTerm],
+  );
+
+  const {
+    paginatedItems: paginatedCompanies,
+    currentPage,
+    pageSize,
+    totalCount,
+    totalPages,
+    setPage,
+    setPageSize,
+    resetPage,
+  } = usePagination(filteredCompanies);
+
+  useEffect(() => {
+    resetPage();
+  }, [statusFilter, planFilter, searchTerm, resetPage]);
+
+  const stats = useMemo(
+    () => ({
+      total: filteredCompanies.length,
+      active: filteredCompanies.filter((c) => c.isActive).length,
+      inactive: filteredCompanies.filter((c) => !c.isActive).length,
+      enterprise: filteredCompanies.filter((c) => c.subscriptionPlan === 'enterprise').length,
+      professional: filteredCompanies.filter((c) => c.subscriptionPlan === 'professional').length,
+      basic: filteredCompanies.filter((c) => c.subscriptionPlan === 'basic').length,
+    }),
+    [filteredCompanies],
+  );
+
+  const pageLoading = isLoading || companiesLoading;
+
+  usePageMeta({
+    title: 'Company Management',
+    description: 'Manage all companies in the multi-tenant system',
+    actions: (
+      <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+        <Plus className="h-4 w-4" />
+        Add Company
+      </Button>
+    ),
+  });
+
   // Loading guard - check this BEFORE permission check
-  if (isLoading) {
+  if (pageLoading) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
-            <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">Loading company management...</p>
+      <div className="p-4 sm:p-6 space-y-6">
+        <LoadingStatCards count={4} />
+        <div className="card-bento overflow-hidden p-4 pb-4">
+          <LoadingTable columns={7} rows={8} />
         </div>
       </div>
     );
@@ -395,35 +454,7 @@ export function CompanyManagement() {
     }
   };
 
-  // Filter companies based on search and filters
-  const filteredCompanies = companies.filter(company => {
-    // Status filter
-    if (statusFilter === 'active' && !company.isActive) return false;
-    if (statusFilter === 'inactive' && company.isActive) return false;
-
-    // Plan filter
-    if (planFilter !== 'all' && company.subscriptionPlan !== planFilter) return false;
-
-    // Search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      const matchesName = company.name.toLowerCase().includes(search);
-      const matchesEmail = company.email.toLowerCase().includes(search);
-      if (!matchesName && !matchesEmail) return false;
-    }
-
-    return true;
-  });
-
-  // Calculate stats from filtered companies
-  const stats = {
-    total: filteredCompanies.length,
-    active: filteredCompanies.filter(c => c.isActive).length,
-    inactive: filteredCompanies.filter(c => !c.isActive).length,
-    enterprise: filteredCompanies.filter(c => c.subscriptionPlan === 'enterprise').length,
-    professional: filteredCompanies.filter(c => c.subscriptionPlan === 'professional').length,
-    basic: filteredCompanies.filter(c => c.subscriptionPlan === 'basic').length,
-  };
+  // Filter companies based on search and filters — see filteredCompanies useMemo at top
 
   // Reset all filters
   const resetFilters = () => {
@@ -433,17 +464,6 @@ export function CompanyManagement() {
   };
 
   const deleteDialogUserCount = companyToDelete ? getUsersByCompany(companyToDelete.id).length : 0;
-
-  usePageMeta({
-    title: 'Company Management',
-    description: 'Manage all companies in the multi-tenant system',
-    actions: (
-      <Button onClick={() => setShowAddDialog(true)} className="gap-2">
-        <Plus className="h-4 w-4" />
-        Add Company
-      </Button>
-    ),
-  });
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -645,7 +665,7 @@ export function CompanyManagement() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCompanies.map((company) => {
+                  paginatedCompanies.map((company) => {
                   const companyUsers = getUsersByCompany(company.id);
                   return (
                     <TableRow key={company.id}>
@@ -756,6 +776,17 @@ export function CompanyManagement() {
             </Table>
           </div>
         </BentoTable>
+        {totalCount > 0 && (
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="companies"
+          />
+        )}
       </div>
 
       {/* Add Company Dialog */}

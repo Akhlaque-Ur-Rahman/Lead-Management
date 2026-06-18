@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead } from './LeadsContext';
@@ -51,24 +50,9 @@ import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { EmptyState } from './layout/EmptyState';
 import { LoadingTable } from './layout/LoadingTable';
+import { LoadingCardList } from './layout/LoadingCardList';
 import { PaginationControls } from './ui/pagination-controls';
 import { usePagination } from '../hooks/usePagination';
-
-function estimateLeadRowHeight(lead: Lead, canAssign: boolean): number {
-  const directorCount = lead.directors?.length ?? 0;
-  const directorBlock =
-    directorCount === 0 ? 28 : directorCount * 52 + Math.max(0, directorCount - 1) * 8;
-  const assignBlock = canAssign ? 88 : 32;
-  const companyBlock = 28;
-  return 16 + Math.max(directorBlock, assignBlock, companyBlock) + 16;
-}
-
-const LEAD_POOL_COLUMN_COUNT = 8;
-
-interface VirtualRowProps {
-  ref?: (node: HTMLTableRowElement | null) => void;
-  'data-index'?: number;
-}
 
 export function LeadManagement() {
   const { user, users } = useAuth();
@@ -258,28 +242,11 @@ export function LeadManagement() {
     return assignedUser ? assignedUser.name : 'Not Assigned';
   };
 
-  const tableScrollRef = useRef<HTMLDivElement>(null);
   const canAssignLeads = Boolean(user?.role && hasPermission(user.role, 'ASSIGN_LEADS'));
 
-  const rowVirtualizer = useVirtualizer({
-    count: filteredLeads.length,
-    getScrollElement: () => tableScrollRef.current,
-    estimateSize: (index) => estimateLeadRowHeight(filteredLeads[index], canAssignLeads),
-    getItemKey: (index) => filteredLeads[index]?.id ?? index,
-    overscan: 5,
-  });
-
-  useEffect(() => {
-    rowVirtualizer.measure();
-  }, [filteredLeads.length, statusFilter, sortOption, canAssignLeads, rowVirtualizer]);
-
   const renderDesktopLeadRow = useCallback(
-    (lead: Lead, virtualRowProps?: VirtualRowProps) => (
-      <TableRow
-        key={lead.id}
-        ref={virtualRowProps?.ref}
-        data-index={virtualRowProps?.['data-index']}
-      >
+    (lead: Lead) => (
+      <TableRow key={lead.id}>
         <TableCell className="font-medium whitespace-normal max-w-0">
           <span className="block truncate" title={lead.companyName}>{lead.companyName}</span>
         </TableCell>
@@ -1192,7 +1159,10 @@ export function LeadManagement() {
 
           {/* Table */}
           {isLoading ? (
-            <LoadingTable columns={8} rows={6} />
+            <>
+              <LoadingCardList className="md:hidden" />
+              <LoadingTable columns={8} rows={6} className="hidden md:block" />
+            </>
           ) : filteredLeads.length === 0 ? (
             <EmptyState
               icon={<ClipboardList className="h-6 w-6" />}
@@ -1239,13 +1209,7 @@ export function LeadManagement() {
               </Card>
             ))}
           </div>
-          <BentoTable
-            scrollRef={tableScrollRef}
-            scrollable
-            maxHeight="calc(100vh - 280px)"
-            stickyHeader
-            className="hidden md:block"
-          >
+          <BentoTable className="hidden md:block">
             <Table className="table-fixed w-full">
               <colgroup>
                 <col style={{ width: '16%' }} />
@@ -1270,50 +1234,10 @@ export function LeadManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(() => {
-                  const virtualRows = rowVirtualizer.getVirtualItems();
-                  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-                  const paddingBottom =
-                    virtualRows.length > 0
-                      ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
-                      : 0;
-
-                  return (
-                    <>
-                      {paddingTop > 0 && (
-                        <TableRow aria-hidden className="border-0 hover:bg-transparent even:bg-transparent">
-                          <TableCell
-                            colSpan={LEAD_POOL_COLUMN_COUNT}
-                            className="p-0 border-0"
-                            style={{ height: paddingTop }}
-                          />
-                        </TableRow>
-                      )}
-                      {virtualRows.map((virtualRow) =>
-                        renderDesktopLeadRow(filteredLeads[virtualRow.index], {
-                          ref: rowVirtualizer.measureElement,
-                          'data-index': virtualRow.index,
-                        })
-                      )}
-                      {paddingBottom > 0 && (
-                        <TableRow aria-hidden className="border-0 hover:bg-transparent even:bg-transparent">
-                          <TableCell
-                            colSpan={LEAD_POOL_COLUMN_COUNT}
-                            className="p-0 border-0"
-                            style={{ height: paddingBottom }}
-                          />
-                        </TableRow>
-                      )}
-                    </>
-                  );
-                })()}
+                {paginatedLeads.map((lead) => renderDesktopLeadRow(lead))}
               </TableBody>
             </Table>
           </BentoTable>
-          <p className="hidden md:block text-xs text-muted-foreground mt-2">
-            Showing {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} — scroll the table to browse all rows
-          </p>
-          <div className="md:hidden">
           <PaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
@@ -1324,7 +1248,6 @@ export function LeadManagement() {
             isLoading={isLoading}
             itemLabel="leads"
           />
-          </div>
           </>
           )}
         </CardContent>

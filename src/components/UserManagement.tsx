@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth, type User } from './AuthContext';
 import { useCompanies } from './CompanyContext';
 import { type RoleKey, getRoleLabel, getRoleBadgeVariant, hasPermission, getAssignableRoles } from '../types/roles';
@@ -56,6 +56,8 @@ import { PaginationControls } from './ui/pagination-controls';
 import { EmptyState } from './layout/EmptyState';
 import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
+import { LoadingStatCards } from './layout/LoadingStatCards';
+import { LoadingTable } from './layout/LoadingTable';
 import { usePagination } from '../hooks/usePagination';
 
 // Helper function to normalize company IDs for comparison
@@ -227,6 +229,10 @@ export function UserManagement() {
     setPageSize,
     resetPage,
   } = usePagination(displayUsers);
+
+  useEffect(() => {
+    resetPage();
+  }, [filters, resetPage]);
 
   // Get available companies for user creation
   const availableCompanies = useMemo(() => {
@@ -430,8 +436,6 @@ export function UserManagement() {
     return getAssignableRoles(user.role);
   }, [user]);
 
-  const deleteDialogUserCount = companyToDelete ? getUsersByCompany(companyToDelete.id).length : 0;
-
   usePageMeta({
     title: 'User Management',
     description:
@@ -448,10 +452,10 @@ export function UserManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading user management...</p>
+      <div className="p-4 sm:p-6 space-y-6">
+        <LoadingStatCards count={4} />
+        <div className="card-bento overflow-hidden p-4 pb-4">
+          <LoadingTable columns={6} rows={8} />
         </div>
       </div>
     );

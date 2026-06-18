@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { cn } from './ui/utils';
@@ -10,6 +10,10 @@ import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { BentoTable } from './layout/BentoTable';
+import { LoadingStatCards } from './layout/LoadingStatCards';
+import { LoadingTable } from './layout/LoadingTable';
+import { PaginationControls } from './ui/pagination-controls';
+import { usePagination } from '../hooks/usePagination';
 import {
   Table,
   TableBody,
@@ -34,8 +38,9 @@ import { hasPermission } from '../types/roles';
 
 
 export function LostLeads() {
-  const { user, users } = useAuth();
-  const { leads, loadLeadsAll, restoreLostLead, permanentlyDeleteLost, refreshFlag } = useLeads();
+  const { user, users, isLoading: authLoading } = useAuth();
+  const { leads, loadLeadsAll, restoreLostLead, permanentlyDeleteLost, refreshFlag, isLoading: leadsLoading } = useLeads();
+  const isLoading = authLoading || leadsLoading;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLostLead, setSelectedLostLead] = useState<any>(null);
   const [showLeadDetail, setShowLeadDetail] = useState(false);
@@ -45,10 +50,64 @@ export function LostLeads() {
     if (user) {
       loadLeadsAll('lost');
     }
-  }, [user, refreshFlag]);
+  }, [user, refreshFlag, loadLeadsAll]);
+
+  const filteredLostLeads = useMemo(
+    () =>
+      leads
+        .filter((lead) => {
+          const matchesSearch =
+            !searchTerm ||
+            lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (lead.cin || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (lead.directors &&
+              lead.directors.some(
+                (d) =>
+                  d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  d.mobile.includes(searchTerm) ||
+                  d.email.toLowerCase().includes(searchTerm.toLowerCase()),
+              ));
+
+          return matchesSearch;
+        })
+        .sort((a, b) => {
+          const dateA = a.lostAt ? new Date(a.lostAt).getTime() : 0;
+          const dateB = b.lostAt ? new Date(b.lostAt).getTime() : 0;
+          return dateB - dateA;
+        }),
+    [leads, searchTerm],
+  );
+
+  const {
+    paginatedItems: paginatedLostLeads,
+    currentPage,
+    pageSize,
+    totalCount,
+    totalPages,
+    setPage,
+    setPageSize,
+    resetPage,
+  } = usePagination(filteredLostLeads);
+
+  useEffect(() => {
+    resetPage();
+  }, [searchTerm, resetPage]);
+
+  usePageMeta({
+    title: 'Lost Leads',
+    description: 'Manage leads marked as lost',
+  });
+
+  const lostThisMonth = filteredLostLeads.filter((lead) => {
+    if (!lead.lostAt) return false;
+    const lostDate = new Date(lead.lostAt);
+    const now = new Date();
+    return lostDate.getMonth() === now.getMonth() && lostDate.getFullYear() === now.getFullYear();
+  }).length;
 
   // Check permission (now allows sales_user)
-  if (!user?.role || !hasPermission(user.role, 'VIEW_LOST_LEADS')) {
+  if (!isLoading && (!user?.role || !hasPermission(user.role, 'VIEW_LOST_LEADS'))) {
     return (
       <div className="p-6 text-center">
         <p className="text-muted-foreground">Access denied. You do not have permission to view lost leads.</p>
@@ -56,29 +115,6 @@ export function LostLeads() {
     );
   }
 
-  // Filter lost leads based on user role and search
-  const filteredLostLeads = leads.filter(lead => {
-    const matchesSearch = !searchTerm ||
-      lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.cin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (lead.directors && lead.directors.some(d => 
-        d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.mobile.includes(searchTerm) ||
-        d.email.toLowerCase().includes(searchTerm.toLowerCase())
-      ));
-
-    return matchesSearch;
-  }).sort((a, b) => {
-    // Sort by lostAt desc (newest first)
-    const dateA = a.lostAt ? new Date(a.lostAt).getTime() : 0;
-    const dateB = b.lostAt ? new Date(b.lostAt).getTime() : 0;
-    return dateB - dateA;
-  });
-
-
-
-  // Reset to page 0 when search changes
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
   };
@@ -143,18 +179,6 @@ export function LostLeads() {
     return foundUser ? foundUser.name : 'Unknown';
   };
 
-  const lostThisMonth = filteredLostLeads.filter((lead) => {
-    if (!lead.lostAt) return false;
-    const lostDate = new Date(lead.lostAt);
-    const now = new Date();
-    return lostDate.getMonth() === now.getMonth() && lostDate.getFullYear() === now.getFullYear();
-  }).length;
-
-  usePageMeta({
-    title: 'Lost Leads',
-    description: 'Manage leads marked as lost',
-  });
-
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <Alert>
@@ -165,20 +189,26 @@ export function LostLeads() {
       </Alert>
 
       <div className="dashboard-bento">
-        <BentoStatCard
-          label="Total Lost"
-          value={filteredLostLeads.length}
-          subtitle="All lost leads"
-          icon={<AlertCircle className="h-4 w-4" />}
-          variant="slate"
-        />
-        <BentoStatCard
-          label="Lost This Month"
-          value={lostThisMonth}
-          subtitle="Current calendar month"
-          icon={<AlertCircle className="h-4 w-4 text-icon-muted" />}
-          variant="rose"
-        />
+        {isLoading ? (
+          <LoadingStatCards count={2} />
+        ) : (
+          <>
+            <BentoStatCard
+              label="Total Lost"
+              value={filteredLostLeads.length}
+              subtitle="All lost leads"
+              icon={<AlertCircle className="h-4 w-4" />}
+              variant="slate"
+            />
+            <BentoStatCard
+              label="Lost This Month"
+              value={lostThisMonth}
+              subtitle="Current calendar month"
+              icon={<AlertCircle className="h-4 w-4 text-icon-muted" />}
+              variant="rose"
+            />
+          </>
+        )}
       </div>
 
       <Card className={cn('card-bento gap-0 border-0')}>
@@ -203,15 +233,18 @@ export function LostLeads() {
           </div>
 
           {/* Table */}
-          {filteredLostLeads.length === 0 ? (
+          {isLoading ? (
+            <LoadingTable columns={8} rows={6} />
+          ) : filteredLostLeads.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No lost leads found</p>
             </div>
           ) : (
+            <>
             <BentoTable>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-transparent even:bg-transparent">
                     <TableHead>Company Name</TableHead>
                     <TableHead>Director</TableHead>
                     <TableHead>CIN</TableHead>
@@ -223,7 +256,7 @@ export function LostLeads() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLostLeads.map((lead) => (
+                  {paginatedLostLeads.map((lead) => (
                     <TableRow key={lead.id}>
                       <TableCell className="font-medium">{lead.companyName}</TableCell>
                       <TableCell>
@@ -289,6 +322,17 @@ export function LostLeads() {
                 </TableBody>
               </Table>
             </BentoTable>
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              isLoading={isLoading}
+              itemLabel="leads"
+            />
+            </>
           )}
         </CardContent>
       </Card>

@@ -631,6 +631,27 @@ html {
   background-color: var(--table-row-hover) !important;
 }
 
+/* Shimmer skeleton loading */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--muted) 100%, transparent) 0%,
+    color-mix(in srgb, var(--muted-foreground) 12%, var(--muted)) 50%,
+    color-mix(in srgb, var(--muted) 100%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
 /* Stat card variants — distinct accents, not hero circles */
 .card-bento-v-primary {
   background: linear-gradient(
