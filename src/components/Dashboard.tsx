@@ -9,11 +9,10 @@ import { Button } from './ui/button';
 import { ClipboardList, UserCheck, CheckCircle, XCircle, Calendar, Plus, ArrowRight } from 'lucide-react';
 import { hasPermission } from '../types/roles';
 import { SuperDashboard } from './SuperDashboard';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { PipelineTrendChart } from './dashboard/PipelineTrendChart';
 import { BentoStatCard } from './dashboard/BentoStatCard';
-import { HeroMetricCard } from './dashboard/HeroMetricCard';
 import type { Lead } from './LeadsContext';
 
 function computeLeadTrend(leads: Lead[]): { value: string; positive: boolean } | undefined {
@@ -93,6 +92,32 @@ export function Dashboard() {
     };
   }, [leads, user, getDirectorFollowUpsForDate]);
 
+  const todayLabel = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+  const firstName = user?.name?.split(' ')[0] ?? 'User';
+
+  usePageMeta({
+    title: `Welcome back, ${firstName}`,
+    description: todayLabel,
+    actions: user ? (
+      <>
+        {hasPermission(user.role, 'IMPORT_LEADS') && (
+          <Button size="sm" className="gap-2" onClick={() => navigate('/leads')}>
+            <Plus className="h-4 w-4" />
+            Add Lead
+          </Button>
+        )}
+        <Button size="sm" variant="outline" className="gap-2" onClick={() => navigate('/calendar')}>
+          <Calendar className="h-4 w-4" />
+          Calendar
+        </Button>
+      </>
+    ) : undefined,
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[50vh] p-6">
@@ -112,13 +137,6 @@ export function Dashboard() {
     return <SuperDashboard />;
   }
 
-  const todayLabel = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  const firstName = user.name.split(' ')[0];
   const canViewConverted = hasPermission(user.role, 'VIEW_CONVERTED_LEADS');
   const heroSubtitle = canViewConverted
     ? `${stats.converted} converted · ${stats.lost} lost`
@@ -126,35 +144,18 @@ export function Dashboard() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <PageHeader
-        title={`Welcome back, ${firstName}`}
-        description={todayLabel}
-        actions={
-          <>
-            {hasPermission(user.role, 'IMPORT_LEADS') && (
-              <Button size="sm" className="gap-2" onClick={() => navigate('/leads')}>
-                <Plus className="h-4 w-4" />
-                Add Lead
-              </Button>
-            )}
-            <Button size="sm" variant="outline" className="gap-2" onClick={() => navigate('/calendar')}>
-              <Calendar className="h-4 w-4" />
-              Calendar
-            </Button>
-          </>
-        }
-      />
-
       <OnboardingChecklist />
 
       <div className="dashboard-bento">
-        <HeroMetricCard
+        <BentoStatCard
           className="bento-span-2"
-          greeting={`Hey, ${firstName}`}
+          eyebrow={`Hey, ${firstName}`}
           label="Lead Pool"
           value={stats.pool}
           subtitle={heroSubtitle}
           trend={leadTrend}
+          variant="primary"
+          featured
         />
         <BentoStatCard
           label="Assigned"

@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Keyboard, BookOpen, HelpCircle } from 'lucide-react';
 
 export function HelpPage() {
+  usePageMeta({
+    title: 'Help & Shortcuts',
+    description: 'Quick reference for navigating the Lead Management System',
+  });
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
-      <PageHeader
-        title="Help & Shortcuts"
-        description="Quick reference for navigating the Lead Management System"
-      />
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import CompanyFilter from './CompanyFilter';
 import { useLeads } from './LeadsContext';
 import { useAuth } from './AuthContext';
@@ -433,19 +433,19 @@ export function CompanyManagement() {
 
   const deleteDialogUserCount = companyToDelete ? getUsersByCompany(companyToDelete.id).length : 0;
 
+  usePageMeta({
+    title: 'Company Management',
+    description: 'Manage all companies in the multi-tenant system',
+    actions: (
+      <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+        <Plus className="h-4 w-4" />
+        Add Company
+      </Button>
+    ),
+  });
+
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
-        title="Company Management"
-        description="Manage all companies in the multi-tenant system"
-        actions={
-          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Company
-          </Button>
-        }
-      />
-
       {/* Filter Section (compact row) */}
       <div className="card-bento p-4 sm:p-5">
           <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">

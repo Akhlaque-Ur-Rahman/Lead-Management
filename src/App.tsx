@@ -6,6 +6,7 @@ import { Login } from './components/Login';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/Sidebar';
 import { AppShell } from './components/layout/AppShell';
+import { PageMetaProvider } from './components/layout/PageMetaContext';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { CommandPalette } from './components/CommandPalette';
 import { Dashboard } from './components/Dashboard';
@@ -115,13 +116,14 @@ function DashboardLayout() {
           showSalesBottomNav && 'pb-16'
         )}
       >
-        <AppShell
-          activeTab={currentTab}
-          onMenuClick={() => setSidebarOpen(true)}
-          onCommandPalette={() => setCommandOpen(true)}
-        >
-          {renderContent()}
-        </AppShell>
+        <PageMetaProvider>
+          <AppShell
+            onMenuClick={() => setSidebarOpen(true)}
+            onCommandPalette={() => setCommandOpen(true)}
+          >
+            {renderContent()}
+          </AppShell>
+        </PageMetaProvider>
       </div>
 
       <MobileBottomNav />

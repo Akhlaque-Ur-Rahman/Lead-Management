@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { PageHeader } from './layout/PageHeader';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
@@ -37,6 +37,21 @@ export function ConvertedLeads() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleExport = useCallback(() => {
+    toast.success('Converted leads exported successfully!');
+  }, []);
+
+  usePageMeta({
+    title: 'Converted Leads',
+    description: 'Successfully converted opportunities with financial details',
+    actions: (
+      <Button onClick={handleExport} className="gap-2 w-full sm:w-auto">
+        <Download className="h-4 w-4" />
+        Export to Excel
+      </Button>
+    ),
+  });
 
   useEffect(() => {
     if (user) {
@@ -133,11 +148,6 @@ export function ConvertedLeads() {
     }, 0);
   };
 
-  const handleExport = () => {
-    toast.success('Converted leads exported successfully!');
-    // In real implementation, this would generate and download an Excel file
-  };
-
   const toggleSort = (field: 'date' | 'value') => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -187,17 +197,6 @@ export function ConvertedLeads() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
-        title="Converted Leads"
-        description="Successfully converted opportunities with financial details"
-        actions={
-          <Button onClick={handleExport} className="gap-2 w-full sm:w-auto">
-            <Download className="h-4 w-4" />
-            Export to Excel
-          </Button>
-        }
-      />
-
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>

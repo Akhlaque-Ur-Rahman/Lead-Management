@@ -46,7 +46,7 @@ import { hasPermission, canAssignToUser } from '../types/roles';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { cn } from './ui/utils';
 import { api } from '../api/client';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { EmptyState } from './layout/EmptyState';
 import { LoadingTable } from './layout/LoadingTable';
@@ -1069,41 +1069,40 @@ export function LeadManagement() {
     }
   };
 
+  usePageMeta({
+    title: pageTitle,
+    description:
+      user?.role === 'sales_user' || user?.role === 'super_admin'
+        ? `Showing ${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`
+        : `Available for assignment: ${filteredLeads.length}`,
+    actions: (
+      <>
+        <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+          <FileDown className="h-4 w-4" />
+          <span className="hidden sm:inline">Template</span>
+        </Button>
+        {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleImportExcel}>
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Import</span>
+          </Button>
+        )}
+        {['company_admin', 'super_admin'].includes(user?.role || '') && (
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportExcel}>
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+        )}
+        <Button onClick={() => setShowLeadForm(true)} size="sm" className="gap-2">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Add Lead</span>
+        </Button>
+      </>
+    ),
+  });
+
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
-        title={pageTitle}
-        description={
-          user?.role === 'sales_user' || user?.role === 'super_admin'
-            ? `Showing ${filteredLeads.length} lead${filteredLeads.length !== 1 ? 's' : ''}`
-            : `Available for assignment: ${filteredLeads.length}`
-        }
-        actions={
-          <>
-            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
-              <FileDown className="h-4 w-4" />
-              <span className="hidden sm:inline">Template</span>
-            </Button>
-            {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
-              <Button variant="outline" size="sm" className="gap-2" onClick={handleImportExcel}>
-                <Upload className="h-4 w-4" />
-                <span className="hidden sm:inline">Import</span>
-              </Button>
-            )}
-            {['company_admin', 'super_admin'].includes(user?.role || '') && (
-              <Button variant="outline" size="sm" className="gap-2" onClick={handleExportExcel}>
-                <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Export</span>
-              </Button>
-            )}
-            <Button onClick={() => setShowLeadForm(true)} size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Lead</span>
-            </Button>
-          </>
-        }
-      />
-
       {user?.role && hasPermission(user.role, 'IMPORT_LEADS') && (
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="import-tips" className="border rounded-lg px-4 bg-muted/30">

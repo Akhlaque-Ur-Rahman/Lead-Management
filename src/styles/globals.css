@@ -46,9 +46,32 @@
   --card-elevated: #ffffff;
   --card-border-glow: color-mix(in srgb, var(--primary) 12%, var(--border));
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
-  --mesh-primary: color-mix(in srgb, var(--primary) 18%, transparent);
-  --mesh-accent: color-mix(in srgb, var(--chart-2) 14%, transparent);
-  --mesh-teal: color-mix(in srgb, var(--chart-4) 12%, transparent);
+  --mesh-primary: color-mix(in srgb, var(--primary) 14%, transparent);
+  --mesh-accent: color-mix(in srgb, var(--chart-2) 10%, transparent);
+  --mesh-teal: color-mix(in srgb, var(--chart-4) 8%, transparent);
+  --canvas-base: #eef2f7;
+  --canvas-gradient: linear-gradient(
+    180deg,
+    #eef2f7 0%,
+    #f4f7fa 45%,
+    #f8fafc 100%
+  );
+  --canvas-radial: radial-gradient(
+    ellipse 90% 60% at 50% -10%,
+    color-mix(in srgb, var(--primary) 6%, transparent),
+    transparent 70%
+  );
+  --canvas-grid: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in srgb, var(--foreground) 4%, transparent) 1px,
+    transparent 0
+  );
+  --canvas-vignette: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 72%,
+    color-mix(in srgb, var(--foreground) 4%, transparent) 100%
+  );
   --shadow-bento: 0 4px 24px -4px rgba(15, 23, 42, 0.08);
   --badge-success-bg: #dcfce7;
   --badge-success-fg: #14532d;
@@ -169,9 +192,32 @@
   --card-border-glow: color-mix(in srgb, var(--primary) 18%, var(--border));
   --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.28);
   --shadow-bento: 0 4px 24px -4px rgba(0, 0, 0, 0.4);
-  --mesh-primary: color-mix(in srgb, var(--primary) 32%, transparent);
-  --mesh-accent: color-mix(in srgb, var(--chart-2) 26%, transparent);
-  --mesh-teal: color-mix(in srgb, var(--chart-4) 20%, transparent);
+  --mesh-primary: color-mix(in srgb, var(--primary) 22%, transparent);
+  --mesh-accent: color-mix(in srgb, var(--chart-2) 16%, transparent);
+  --mesh-teal: color-mix(in srgb, var(--chart-4) 12%, transparent);
+  --canvas-base: #060a14;
+  --canvas-gradient: linear-gradient(
+    180deg,
+    #060a14 0%,
+    #0b1120 50%,
+    #0f172a 100%
+  );
+  --canvas-radial: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    color-mix(in srgb, var(--primary) 10%, transparent),
+    transparent 65%
+  );
+  --canvas-grid: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in srgb, var(--foreground) 5%, transparent) 1px,
+    transparent 0
+  );
+  --canvas-vignette: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 68%,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 100%
+  );
   --badge-success-bg: #14532d;
   --badge-success-fg: #bbf7d0;
   --badge-success-border: #166534;
@@ -413,10 +459,20 @@ html {
   border: 1px solid var(--badge-success-border);
 }
 
-/* Premium app canvas + mesh (login-inspired) */
+/* Premium app canvas + mesh */
 .app-surface {
   position: relative;
-  background: var(--background);
+  background: var(--canvas-gradient), var(--canvas-radial), var(--canvas-base);
+}
+.app-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--canvas-grid);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.85;
 }
 .app-mesh {
   position: absolute;
@@ -425,34 +481,41 @@ html {
   pointer-events: none;
   z-index: 0;
 }
+.app-mesh::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--canvas-vignette);
+  pointer-events: none;
+}
 .app-mesh-blob {
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  opacity: 0.22;
+  opacity: 0.16;
 }
 .dark .app-mesh-blob {
-  opacity: 0.28;
+  opacity: 0.22;
 }
 .app-mesh-blob--primary {
-  top: -6rem;
-  right: -4rem;
-  width: 26rem;
-  height: 26rem;
+  top: -8rem;
+  right: -5rem;
+  width: 28rem;
+  height: 28rem;
   background: var(--mesh-primary);
 }
 .app-mesh-blob--accent {
-  bottom: 10%;
-  left: -8rem;
-  width: 30rem;
-  height: 30rem;
+  bottom: -4rem;
+  left: -10rem;
+  width: 32rem;
+  height: 32rem;
   background: var(--mesh-accent);
 }
 .app-mesh-blob--teal {
-  top: 35%;
-  left: 45%;
-  width: 22rem;
-  height: 22rem;
+  top: 28%;
+  left: 8%;
+  width: 20rem;
+  height: 20rem;
   background: var(--mesh-teal);
 }
 
@@ -610,6 +673,7 @@ html {
     0 4px 24px -4px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent);
 }
+/* @deprecated Phase 13 — retained for contrast script; use BentoStatCard featured instead */
 .card-hero {
   position: relative;
   overflow: hidden;

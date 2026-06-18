@@ -9,9 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Loader2 } from 'lucide-react';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
-import { HeroMetricCard } from './dashboard/HeroMetricCard';
 
 const normalizeCompanyId = (value: string | number | null | undefined) => {
   if (value === null || value === undefined) {
@@ -215,6 +214,16 @@ export function SuperDashboard() {
     salesUsers: filteredUsers.filter(u => u.role === 'sales_user').length,
   };
 
+  usePageMeta({
+    title: 'Super Dashboard',
+    description: 'Platform-wide user overview across all companies',
+    actions: (
+      <Button variant="outline" onClick={resetFilters} className="gap-2">
+        Reset Filters
+      </Button>
+    ),
+  });
+
   // Show loading state
   if (isLoading) {
     return (
@@ -243,16 +252,6 @@ export function SuperDashboard() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <PageHeader
-        title="Super Dashboard"
-        description="Platform-wide user overview across all companies"
-        actions={
-          <Button variant="outline" onClick={resetFilters} className="gap-2">
-            Reset Filters
-          </Button>
-        }
-      />
-
       <div className="dashboard-bento">
         {/* Filter strip */}
         <div className="card-bento bento-span-full p-4 sm:p-5">
@@ -346,12 +345,14 @@ export function SuperDashboard() {
         </div>
         </div>
 
-        <HeroMetricCard
+        <BentoStatCard
           className="bento-span-2"
-          greeting="Platform overview"
+          eyebrow="Platform overview"
           label="Total Users"
           value={stats.totalUsers}
           subtitle={activeRate}
+          variant="primary"
+          featured
         />
 
         <BentoStatCard

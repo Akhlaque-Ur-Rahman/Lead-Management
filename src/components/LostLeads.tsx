@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
@@ -149,13 +149,13 @@ export function LostLeads() {
     return lostDate.getMonth() === now.getMonth() && lostDate.getFullYear() === now.getFullYear();
   }).length;
 
+  usePageMeta({
+    title: 'Lost Leads',
+    description: 'Manage leads marked as lost',
+  });
+
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
-        title="Lost Leads"
-        description="Manage leads marked as lost"
-      />
-
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>

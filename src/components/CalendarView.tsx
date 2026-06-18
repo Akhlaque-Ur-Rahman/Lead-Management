@@ -34,7 +34,7 @@ import { cn } from './ui/utils';
 import { getFollowUpStatusClasses } from '../utils/followUpStatusColors';
 import { toLocalDateKey } from '../utils/dates';
 import { LeadDetail } from './LeadDetail';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 
 interface FollowUpEntry {
   lead: Lead;
@@ -65,6 +65,11 @@ export function Calendar() {
   // Lead Detail Modal state
   const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [detailLead, setDetailLead] = useState<Lead | null>(null);
+
+  usePageMeta({
+    title: 'Follow-up Calendar',
+    description: 'Schedule and manage follow-ups with leads',
+  });
 
   if (!user) return null;
 
@@ -201,11 +206,6 @@ export function Calendar() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
-        title="Follow-up Calendar"
-        description="Schedule and manage follow-ups with leads"
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Calendar Section */}
         <div className="lg:col-span-2">

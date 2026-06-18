@@ -36,7 +36,7 @@ import { LeadDetail } from './LeadDetail';
 import { LeadForm } from './LeadForm';
 import { PaginationControls } from './ui/pagination-controls';
 import { usePagination } from '../hooks/usePagination';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 
 import { toast } from 'sonner';
@@ -61,6 +61,11 @@ export function AssignedLeads() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
+
+  usePageMeta({
+    title: 'Assigned Leads',
+    description: 'View and manage leads assigned to team members',
+  });
 
   if (!user) return null;
 
@@ -217,11 +222,6 @@ export function AssignedLeads() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <PageHeader
-        title="Assigned Leads"
-        description="View and manage leads assigned to team members"
-      />
-
       {/* Stats Cards */}
       <div className="dashboard-bento">
         <BentoStatCard

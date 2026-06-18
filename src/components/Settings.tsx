@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type FieldConfig } from './LeadsContext';
 import { useCompanies, type PlanPricing } from './CompanyContext';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -658,13 +658,13 @@ export function Settings() {
     }
   };
 
+  usePageMeta({
+    title: 'Settings',
+    description: 'Configure application settings and subscription plans',
+  });
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <PageHeader
-        title="Settings"
-        description="Configure application settings and subscription plans"
-      />
-
       <div className="flex flex-col space-y-4">
         <Tabs 
           value={activeTab} 

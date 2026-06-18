@@ -53,7 +53,7 @@ import { toast } from 'sonner';
 import FilterBadge from './ui/filter-badge';
 import { PaginationControls } from './ui/pagination-controls';
 import { EmptyState } from './layout/EmptyState';
-import { PageHeader } from './layout/PageHeader';
+import { usePageMeta } from './layout/PageMetaContext';
 import { BentoStatCard } from './dashboard/BentoStatCard';
 import { usePagination } from '../hooks/usePagination';
 
@@ -429,6 +429,22 @@ export function UserManagement() {
     return getAssignableRoles(user.role);
   }, [user]);
 
+  const deleteDialogUserCount = companyToDelete ? getUsersByCompany(companyToDelete.id).length : 0;
+
+  usePageMeta({
+    title: 'User Management',
+    description:
+      user?.role === 'super_admin'
+        ? 'Manage users across all companies'
+        : 'Manage users in your company',
+    actions: (
+      <Button onClick={() => setShowAddDialog(true)} size="sm" className="gap-1">
+        <Plus className="h-4 w-4" />
+        <span>Add User</span>
+      </Button>
+    ),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
@@ -457,21 +473,6 @@ export function UserManagement() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <PageHeader
-        title="User Management"
-        description={
-          user.role === 'super_admin'
-            ? 'Manage users across all companies'
-            : 'Manage users in your company'
-        }
-        actions={
-          <Button onClick={() => setShowAddDialog(true)} size="sm" className="gap-1">
-            <Plus className="h-4 w-4" />
-            <span>Add User</span>
-          </Button>
-        }
-      />
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <BentoStatCard
           label="Total Users"

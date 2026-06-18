@@ -35,6 +35,7 @@ Developer and user-facing reference for the LMS interface redesign (Phases 1–3
 | Phase 10 | Bento admin rollout, tablet spans, collapsed nav indicator | Shipped |
 | Phase 11 | Contrast hardening + pipeline bento rollout | Shipped |
 | Phase 12 | Premium card depth — stat variants + elevated panels | Shipped |
+| Phase 13 | Unified chrome — bento hero KPIs, canvas background, page meta header | Shipped |
 
 ---
 
@@ -433,8 +434,8 @@ Pipeline pages migrated to match admin/dashboard bento pattern:
 
 | Tier | Class | Use |
 |------|-------|-----|
-| Hero | `.card-hero` | One hero metric per dashboard (`HeroMetricCard`) — indigo gradient + circle blobs |
-| Stat variants | `.card-bento-v-{primary,teal,warm,rose,slate}` | All `BentoStatCard` KPI tiles — distinct accent each (no hero pattern repeat) |
+| Hero (deprecated) | `.card-hero` | Retired in Phase 13 — use `BentoStatCard` with `featured` + `eyebrow` |
+| Stat variants | `.card-bento-v-{primary,teal,warm,rose,slate}` | All `BentoStatCard` KPI tiles — distinct accent each |
 | Content panels | Enhanced `.card-bento` | Tables, charts, filter strips — border-glow, vertical gradient, top highlight |
 
 ### BentoStatCard variants
@@ -448,6 +449,34 @@ Pipeline pages migrated to match admin/dashboard bento pattern:
 - **slate** — neutral elevated + inset top highlight
 
 Applied across Super Dashboard, Company Dashboard, Reports, User/Company Management, and all pipeline pages.
+
+---
+
+## 12h. Unified chrome (Phase 13)
+
+### Hero KPI unification
+
+`HeroMetricCard` retired. Featured dashboard metrics use [`BentoStatCard`](../src/components/dashboard/BentoStatCard.tsx) with:
+
+- `featured` — larger value typography, 2-column span via `className="bento-span-2"`
+- `eyebrow` — contextual label (e.g. "Platform overview", "Hey, Name")
+
+### Canvas background
+
+Token-driven app canvas in [`globals.css`](../src/styles/globals.css):
+
+- `--canvas-base`, `--canvas-gradient`, `--canvas-radial`, `--canvas-grid`, `--canvas-vignette`
+- Layered `.app-surface` with dot grid + refined mesh blobs (light + dark)
+- Login mesh aligned to same tokens in [`login.css`](../src/styles/login.css)
+
+### Unified page header
+
+[`PageMetaContext`](../src/components/layout/PageMetaContext.tsx) + `usePageMeta({ title, description, actions })` replaces the former per-page `PageHeader` component.
+
+[`AppShell`](../src/components/layout/AppShell.tsx) renders a two-row sticky chrome:
+
+1. Breadcrumb (`Home / {title}`) + search pill + theme + help
+2. Page title, description, and actions
 
 ---
 
