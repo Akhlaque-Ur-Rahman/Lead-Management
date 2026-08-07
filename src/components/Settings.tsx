@@ -46,6 +46,11 @@ export function Settings() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [websiteAutoAssignEnabled, setWebsiteAutoAssignEnabled] = useState(false);
+  const [websiteAutoAssignUserId, setWebsiteAutoAssignUserId] = useState<string>('');
+  const [assignableUsers, setAssignableUsers] = useState<Array<{ id: string; name: string; role: string }>>([]);
+  const [websiteSettingsLoaded, setWebsiteSettingsLoaded] = useState(false);
+  const [savingWebsiteSettings, setSavingWebsiteSettings] = useState(false);
 
   const validTabs: SettingsTab[] = ['general', 'fields', 'subscription', 'billing'];
 
@@ -59,6 +64,38 @@ export function Settings() {
       setActiveTab(tabParam as SettingsTab);
     }
   }, [routeTab, searchParams]);
+
+  useEffect(() => {
+    if (!user?.companyId || !hasPermission(user.role, 'MANAGE_SETTINGS')) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [settingsRes, usersRes] = await Promise.all([
+          api.config.getWebsiteLeadSettings(user.companyId!),
+          api.users.list(),
+        ]);
+        if (cancelled) return;
+        setWebsiteAutoAssignEnabled(Boolean(settingsRes.autoAssignEnabled));
+        setWebsiteAutoAssignUserId(settingsRes.autoAssignUserId || '');
+        const users = (usersRes.users || [])
+          .filter(
+            (u: any) =>
+              u.companyId === user.companyId &&
+              u.isActive !== false &&
+              ['company_admin', 'team_lead', 'sales_user'].includes(u.role) &&
+              !String(u.email || '').startsWith('website-bot@')
+          )
+          .map((u: any) => ({ id: u.id, name: u.name, role: u.role }));
+        setAssignableUsers(users);
+        setWebsiteSettingsLoaded(true);
+      } catch {
+        if (!cancelled) setWebsiteSettingsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.companyId, user?.role]);
 
   const handleTabChange = (value: string) => {
     const tab = value as SettingsTab;
@@ -347,6 +384,78 @@ export function Settings() {
                       }}
                     >
                       Update
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {user.companyId && hasPermission(user.role, 'MANAGE_SETTINGS') && (
+                <div className="space-y-4 rounded-lg border border-border p-4">
+                  <div className="space-y-1">
+                    <Label>Website leads (edunexservices.in)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Contact and callback forms create Warm leads in the pool. Enable auto-assign to send them to one teammate automatically.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="website-auto-assign">Auto-assign new website leads</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Off = lead pool (unassigned). On = assign to the selected user.
+                      </p>
+                    </div>
+                    <Switch
+                      id="website-auto-assign"
+                      checked={websiteAutoAssignEnabled}
+                      disabled={!websiteSettingsLoaded || savingWebsiteSettings}
+                      onCheckedChange={setWebsiteAutoAssignEnabled}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website-auto-assign-user">Assign to</Label>
+                    <select
+                      id="website-auto-assign-user"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={websiteAutoAssignUserId}
+                      disabled={!websiteAutoAssignEnabled || !websiteSettingsLoaded || savingWebsiteSettings}
+                      onChange={(e) => setWebsiteAutoAssignUserId(e.target.value)}
+                    >
+                      <option value="">Select teammate…</option>
+                      {assignableUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.role.replace('_', ' ')})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={!websiteSettingsLoaded || savingWebsiteSettings}
+                      onClick={async () => {
+                        if (!user.companyId) return;
+                        if (websiteAutoAssignEnabled && !websiteAutoAssignUserId) {
+                          toast.error('Select a user for auto-assign');
+                          return;
+                        }
+                        setSavingWebsiteSettings(true);
+                        try {
+                          const saved = await api.config.setWebsiteLeadSettings(user.companyId, {
+                            autoAssignEnabled: websiteAutoAssignEnabled,
+                            autoAssignUserId: websiteAutoAssignEnabled ? websiteAutoAssignUserId : null,
+                          });
+                          setWebsiteAutoAssignEnabled(saved.autoAssignEnabled);
+                          setWebsiteAutoAssignUserId(saved.autoAssignUserId || '');
+                          toast.success('Website lead settings saved');
+                        } catch {
+                          toast.error('Failed to save website lead settings');
+                        } finally {
+                          setSavingWebsiteSettings(false);
+                        }
+                      }}
+                    >
+                      <Save className="mr-2 h-4 w-4" />
+                      {savingWebsiteSettings ? 'Saving…' : 'Save website lead settings'}
                     </Button>
                   </div>
                 </div>

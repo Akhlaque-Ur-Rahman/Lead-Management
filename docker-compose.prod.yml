@@ -17,7 +17,9 @@ services:
       NODE_ENV: production
       API_PORT: "4000"
     networks:
+      - lms_internal
       - edge_proxy
+      - postgres_shared
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4000/health"]
       interval: 30s
@@ -42,6 +44,7 @@ services:
       lms-api:
         condition: service_healthy
     networks:
+      - lms_internal
       - edge_proxy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
@@ -56,6 +59,10 @@ services:
         max-file: "5"
 
 networks:
+  lms_internal:
+    driver: bridge
   edge_proxy:
     external: true
-    name: green-city_default
+    name: vps_edge
+  postgres_shared:
+    external: true

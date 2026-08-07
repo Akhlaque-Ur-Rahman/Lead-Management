@@ -12,6 +12,7 @@ const companiesRoutes = require('./routes/companies');
 const leadsRoutes = require('./routes/leads');
 const eventsRoutes = require('./routes/events');
 const configRoutes = require('./routes/config');
+const webhooksRoutes = require('./routes/webhooks');
 
 const app = express();
 const PORT = process.env.API_PORT || 4000;
@@ -73,6 +74,7 @@ app.use('/api/companies', companiesRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/webhooks', webhooksRoutes);
 
 app.use((err, _req, res, next) => {
   if (err.message === 'Not allowed by CORS') {

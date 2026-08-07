@@ -167,5 +167,17 @@ export const api = {
     getPlanPricing: () => request<{ planPricing: any }>('/config/plan-pricing'),
     setPlanPricing: (planPricing: any) =>
       request('/config/plan-pricing', { method: 'PUT', body: JSON.stringify({ planPricing }) }),
+    getWebsiteLeadSettings: (companyId: string) =>
+      request<{ autoAssignEnabled: boolean; autoAssignUserId: string | null }>(
+        `/config/website-lead-settings/${companyId}`
+      ),
+    setWebsiteLeadSettings: (
+      companyId: string,
+      data: { autoAssignEnabled: boolean; autoAssignUserId: string | null }
+    ) =>
+      request<{ autoAssignEnabled: boolean; autoAssignUserId: string | null }>(
+        `/config/website-lead-settings/${companyId}`,
+        { method: 'PUT', body: JSON.stringify(data) }
+      ),
   },
 };

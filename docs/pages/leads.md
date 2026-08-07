@@ -11,6 +11,8 @@
 
 The Lead Pool is the primary workspace for viewing, creating, importing, exporting, and assigning unassigned leads. Users can search, filter by status, sort, open lead details, and bulk-import leads from Excel/CSV files.
 
+**Website leads (from 2026-08-07):** Contact and callback forms on edunexservices.in also land here as **Warm** / usually **Unassigned** via the [website inbound webhook](../website-inbound-webhook.md). Optional auto-assign is under Settings → General.
+
 ---
 
 ## User Guide

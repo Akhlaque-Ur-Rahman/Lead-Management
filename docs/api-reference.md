@@ -116,6 +116,22 @@ Emitted after lead mutations in `LeadsContext` (create, update, assign, follow-u
 | `PUT` | `/api/config/field-config/:companyId` | `MANAGE_SETTINGS` + company access | `api.config.setFieldConfig` | `{ fieldConfigs[] }` | `{ success: true }` |
 | `GET` | `/api/config/plan-pricing` | `MANAGE_SUBSCRIPTION_PLANS` | `api.config.getPlanPricing` | — | `{ planPricing }` |
 | `PUT` | `/api/config/plan-pricing` | `MANAGE_SUBSCRIPTION_PLANS` | `api.config.setPlanPricing` | `{ planPricing }` | `{ success: true }` |
+| `GET` | `/api/config/website-lead-settings/:companyId` | `MANAGE_SETTINGS` + company access | `api.config.getWebsiteLeadSettings` | — | `{ autoAssignEnabled, autoAssignUserId }` |
+| `PUT` | `/api/config/website-lead-settings/:companyId` | `MANAGE_SETTINGS` + company access | `api.config.setWebsiteLeadSettings` | `{ autoAssignEnabled, autoAssignUserId }` | same |
+
+---
+
+## Webhooks — `/api/webhooks` (no JWT)
+
+Machine-to-machine inbound from **edunexservices.in**. Auth via `WEBHOOK_API_KEY` (`X-API-Key` or Bearer). Rate limit: 60/min.
+
+| Method | Path | Auth | Request | Response |
+|--------|------|------|---------|----------|
+| `POST` | `/api/webhooks/website-leads` | API key | Website lead payload (`type`: `contact` \| `callback`) | `201` `{ ok, leadId, assigned, assignedTo }` or `200` duplicate |
+
+Creates a **Warm** lead for `WEBSITE_LEAD_COMPANY_ID`, `uploaded_by = WEBSITE_BOT_USER_ID`. Assignment follows `websiteLeadSettings:{companyId}` (default unassigned).
+
+Full payload + ops notes: [Website inbound webhook](website-inbound-webhook.md).
 
 ---
 

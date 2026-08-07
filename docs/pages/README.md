@@ -33,6 +33,7 @@ Comprehensive documentation for every routable page and major modal in the Lead 
 | Resource | Path |
 |----------|------|
 | UI/UX improvements guide | [UI_UX_IMPROVEMENTS.md](../UI_UX_IMPROVEMENTS.md) |
+| Website inbound webhook (2026-08-07) | [website-inbound-webhook.md](../website-inbound-webhook.md) |
 
 ### Modal Overlays
 

@@ -33,6 +33,7 @@ Tab changes update the URL with `replace: true` so browser back/forward works wi
 **General tab:**
 1. Super admin: Edit global system name → Save (updates login page branding)
 2. Company admin: Edit custom company display name shown in sidebar
+3. Company admin / settings roles: **Website leads** — toggle auto-assign for edunexservices.in inbound leads and pick the teammate (default: leave in Lead Pool unassigned)
 
 **Field Settings tab:**
 1. Toggle fields on/off for lead form and Excel import/export
@@ -50,7 +51,7 @@ Tab changes update the URL with `replace: true` so browser back/forward works wi
 |------|----------------|
 | super_admin | General (branding), Field Settings, Subscription Plans |
 | platform_admin | General (company name), Field Settings |
-| company_admin | General (company name), Field Settings |
+| company_admin | General (company name + website lead auto-assign), Field Settings |
 
 ### Tips & Constraints
 
@@ -58,6 +59,7 @@ Tab changes update the URL with `replace: true` so browser back/forward works wi
 - Field config is per-company (`field-config/:companyId`)
 - Branding changes appear on login page after refresh
 - `MANAGE_BRANDING` is super_admin only on the API
+- Website inbound leads are always created as **Warm**; auto-assign is optional (see [Website inbound webhook](../website-inbound-webhook.md))
 
 ---
 
@@ -111,11 +113,15 @@ Settings.tsx
 | `PUT` | `/api/config/plan-pricing` | Save subscription plans | `CompanyContext.updatePlanPricing` |
 | `PATCH` | `/api/companies/:id` | Save company display name | `Settings.tsx` → `api.companies.update` |
 | `GET` | `/api/companies/:id` | Display name refresh | `AuthContext.refreshCompanyDisplay` |
+| `GET` | `/api/config/website-lead-settings/:companyId` | Load website auto-assign prefs | `Settings.tsx` |
+| `PUT` | `/api/config/website-lead-settings/:companyId` | Save website auto-assign prefs | `Settings.tsx` |
+| `GET` | `/api/users` | Populate auto-assign user dropdown | `Settings.tsx` |
 
 ---
 
 ## Related Pages
 
 - [Login](login.md) — displays global branding
-- [Lead Pool](leads.md) — field config affects Lead Form and Excel columns
+- [Lead Pool](leads.md) — field config affects Lead Form and Excel columns; website leads land here when unassigned
 - [Companies](companies.md) — subscription plans applied to companies
+- [Website inbound webhook](../website-inbound-webhook.md) — edunexservices.in → LMS
