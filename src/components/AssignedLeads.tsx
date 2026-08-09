@@ -116,12 +116,7 @@ export function AssignedLeads() {
     totalPages,
     setPage,
     setPageSize,
-    resetPage,
-  } = usePagination(displayLeads);
-
-  useEffect(() => {
-    resetPage();
-  }, [searchQuery, selectedUser, sortOption, resetPage]);
+  } = usePagination(displayLeads, 25, `${searchQuery}|${selectedUser}|${sortOption}`);
 
   if (!user) return null;
 

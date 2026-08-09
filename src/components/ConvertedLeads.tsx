@@ -106,12 +106,7 @@ export function ConvertedLeads() {
     totalPages,
     setPage,
     setPageSize,
-    resetPage,
-  } = usePagination(sortedLeads);
-
-  useEffect(() => {
-    resetPage();
-  }, [searchTerm, sortBy, sortOrder, resetPage]);
+  } = usePagination(sortedLeads, 25, `${searchTerm}|${sortBy}|${sortOrder}`);
 
   const canViewFinancialData = Boolean(user?.role && hasPermission(user.role, 'VIEW_FINANCIAL_DATA'));
 

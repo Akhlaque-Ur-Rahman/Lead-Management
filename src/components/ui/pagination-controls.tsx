@@ -57,6 +57,7 @@ export function PaginationControls({
 
       <div className="flex items-center gap-2">
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={() => onPageChange(currentPage - 1)}
@@ -76,6 +77,7 @@ export function PaginationControls({
                 pages.push(
                   <Button
                     key={i}
+                    type="button"
                     variant={currentPage === i ? "default" : "outline"}
                     size="sm"
                     className="w-8 h-8 p-0"
@@ -91,6 +93,7 @@ export function PaginationControls({
               pages.push(
                 <Button
                   key={0}
+                  type="button"
                   variant={currentPage === 0 ? "default" : "outline"}
                   size="sm"
                   className="w-8 h-8 p-0"
@@ -116,6 +119,7 @@ export function PaginationControls({
                 pages.push(
                   <Button
                     key={i}
+                    type="button"
                     variant={currentPage === i ? "default" : "outline"}
                     size="sm"
                     className="w-8 h-8 p-0"
@@ -138,6 +142,7 @@ export function PaginationControls({
               pages.push(
                 <Button
                   key={totalPages - 1}
+                  type="button"
                   variant={currentPage === totalPages - 1 ? "default" : "outline"}
                   size="sm"
                   className="w-8 h-8 p-0"
@@ -153,6 +158,7 @@ export function PaginationControls({
           })()}
         </div>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={() => onPageChange(currentPage + 1)}

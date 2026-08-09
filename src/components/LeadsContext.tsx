@@ -306,7 +306,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       return cached.data;
     }
 
-    setIsLoading(true);
+    const showFullLoading = leads.length === 0;
+    if (showFullLoading) setIsLoading(true);
     try {
       const { leads: fetchedLeads } = await api.leads.list(view, limitOverride);
 

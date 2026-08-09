@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useLeads, type Lead } from './LeadsContext';
@@ -87,25 +87,33 @@ export function LeadManagement() {
   }, [user, statusFilter, sortOption, refreshFlag]);
 
   // Client-side search and assignment filtering
-  const filteredLeads = leads.filter(lead => {
-    if (searchTerm) {
-      const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (lead.cin || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (lead.directors && lead.directors.some(d => 
-                            d.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            d.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            d.mobile.includes(searchTerm) ||
-                            d.email.toLowerCase().includes(searchTerm.toLowerCase())
-                          ));
-      if (!matchesSearch) return false;
-    }
+  const filteredLeads = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return leads.filter((lead) => {
+      if (q) {
+        const matchesSearch =
+          lead.companyName.toLowerCase().includes(q) ||
+          (lead.cin || '').toLowerCase().includes(q) ||
+          (lead.directors &&
+            lead.directors.some(
+              (d) =>
+                d.firstName.toLowerCase().includes(q) ||
+                d.lastName.toLowerCase().includes(q) ||
+                d.mobile.includes(searchTerm.trim()) ||
+                d.email.toLowerCase().includes(q),
+            ));
+        if (!matchesSearch) return false;
+      }
 
-    const isAssigned = Boolean(lead.isAssigned && lead.assignedTo);
-    if (assignmentFilter === 'assigned' && !isAssigned) return false;
-    if (assignmentFilter === 'unassigned' && isAssigned) return false;
+      const isAssigned = Boolean(lead.isAssigned && lead.assignedTo);
+      if (assignmentFilter === 'assigned' && !isAssigned) return false;
+      if (assignmentFilter === 'unassigned' && isAssigned) return false;
 
-    return true;
-  });
+      return true;
+    });
+  }, [leads, searchTerm, assignmentFilter]);
+
+  const paginationResetKey = `${searchTerm}|${statusFilter}|${assignmentFilter}|${sortOption}`;
 
   const {
     paginatedItems: paginatedLeads,
@@ -115,12 +123,18 @@ export function LeadManagement() {
     totalPages,
     setPage,
     setPageSize,
-    resetPage,
-  } = usePagination(filteredLeads);
+  } = usePagination(filteredLeads, 25, paginationResetKey);
 
-  useEffect(() => {
-    resetPage();
-  }, [searchTerm, statusFilter, assignmentFilter, sortOption, leads.length, resetPage]);
+  const handlePageChange = useCallback(
+    (page: number) => {
+      setPage(page);
+      // Keep the table in view after page changes (controls sit below a long list)
+      requestAnimationFrame(() => {
+        document.getElementById('lead-pool-table')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    },
+    [setPage],
+  );
 
   const leadIdParam = searchParams.get('leadId');
 
@@ -1173,7 +1187,7 @@ export function LeadManagement() {
           </div>
 
           {/* Table */}
-          {isLoading ? (
+          {isLoading && filteredLeads.length === 0 ? (
             <>
               <LoadingCardList className="md:hidden" />
               <LoadingTable columns={8} rows={6} className="hidden md:block" />
@@ -1191,6 +1205,7 @@ export function LeadManagement() {
             />
           ) : (
           <>
+          <div id="lead-pool-table" className="space-y-3">
           <div className="md:hidden space-y-3">
             {paginatedLeads.map((lead) => (
               <Card key={lead.id} className="card-bento border-0 gap-0 p-4">
@@ -1253,12 +1268,13 @@ export function LeadManagement() {
               </TableBody>
             </Table>
           </BentoTable>
+          </div>
           <PaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
             pageSize={pageSize}
             totalCount={totalCount}
-            onPageChange={setPage}
+            onPageChange={handlePageChange}
             onPageSizeChange={setPageSize}
             isLoading={isLoading}
             itemLabel="leads"

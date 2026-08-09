@@ -231,12 +231,11 @@ export function UserManagement() {
     totalPages,
     setPage,
     setPageSize,
-    resetPage,
-  } = usePagination(displayUsers);
-
-  useEffect(() => {
-    resetPage();
-  }, [filters, resetPage]);
+  } = usePagination(
+    displayUsers,
+    25,
+    `${filters.company}|${filters.role}|${filters.status}|${filters.search}`,
+  );
 
   // Get available companies for user creation
   const availableCompanies = useMemo(() => {

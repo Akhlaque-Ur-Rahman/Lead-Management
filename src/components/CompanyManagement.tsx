@@ -148,12 +148,7 @@ export function CompanyManagement() {
     totalPages,
     setPage,
     setPageSize,
-    resetPage,
-  } = usePagination(filteredCompanies);
-
-  useEffect(() => {
-    resetPage();
-  }, [statusFilter, planFilter, searchTerm, resetPage]);
+  } = usePagination(filteredCompanies, 25, `${statusFilter}|${planFilter}|${searchTerm}`);
 
   const stats = useMemo(
     () => ({

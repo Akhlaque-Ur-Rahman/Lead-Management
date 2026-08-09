@@ -87,12 +87,7 @@ export function LostLeads() {
     totalPages,
     setPage,
     setPageSize,
-    resetPage,
-  } = usePagination(filteredLostLeads);
-
-  useEffect(() => {
-    resetPage();
-  }, [searchTerm, resetPage]);
+  } = usePagination(filteredLostLeads, 25, searchTerm);
 
   usePageMeta({
     title: 'Lost Leads',
