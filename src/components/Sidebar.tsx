@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { useAuth } from './AuthContext';
+import { useCompanies } from './CompanyContext';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
@@ -58,6 +59,7 @@ function filterByRole(items: MenuItem[], role: string, allowedIds: Set<string>) 
 
 export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) {
   const { user, logout, systemName, systemLogoUrl, companyDisplayName } = useAuth();
+  const { getCompany } = useCompanies();
   const [collapsedInternal, setCollapsedInternal] = useState(() => {
     try {
       return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
@@ -111,6 +113,23 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
 
   const nameToShow = user.role === 'super_admin' ? systemName : (companyDisplayName || 'Dashboard');
   const initials = user.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  const company = user.companyId ? getCompany(user.companyId) : undefined;
+  const brandLogoSrc =
+    (user.role === 'super_admin' || user.role === 'platform_admin'
+      ? systemLogoUrl
+      : company?.logo || company?.favicon || systemLogoUrl) || null;
+
+  const brandLogo = brandLogoSrc ? (
+    <img
+      src={brandLogoSrc}
+      alt=""
+      className="h-9 w-9 rounded-lg object-cover border border-sidebar-border flex-shrink-0 bg-sidebar-accent"
+    />
+  ) : (
+    <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+      <FileSpreadsheet className="h-5 w-5 text-primary-foreground" />
+    </div>
+  );
 
   const CollapseToggle = ({ className }: { className?: string }) => (
     <Button
@@ -192,19 +211,6 @@ export function Sidebar({ activeTab, setActiveTab, collapsed: collapsedProp, onC
       </div>
     );
   };
-
-  const brandLogo =
-    user.role === 'super_admin' && systemLogoUrl ? (
-      <img
-        src={systemLogoUrl}
-        alt=""
-        className="h-9 w-9 rounded-lg object-cover border border-sidebar-border flex-shrink-0"
-      />
-    ) : (
-      <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-        <FileSpreadsheet className="h-5 w-5 text-primary-foreground" />
-      </div>
-    );
 
   return (
     <TooltipProvider delayDuration={0}>
