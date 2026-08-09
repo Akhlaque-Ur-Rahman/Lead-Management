@@ -70,6 +70,7 @@ export function LeadManagement() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [sortOption, setSortOption] = useState<"latest" | "oldest">("latest");
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showLeadDetail, setShowLeadDetail] = useState(false);
@@ -85,9 +86,8 @@ export function LeadManagement() {
     }
   }, [user, statusFilter, sortOption, refreshFlag]);
 
-  // Client-side search and status filtering
+  // Client-side search and assignment filtering
   const filteredLeads = leads.filter(lead => {
-    // Search Filter
     if (searchTerm) {
       const matchesSearch = lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (lead.cin || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -99,8 +99,10 @@ export function LeadManagement() {
                           ));
       if (!matchesSearch) return false;
     }
-    
 
+    const isAssigned = Boolean(lead.isAssigned && lead.assignedTo);
+    if (assignmentFilter === 'assigned' && !isAssigned) return false;
+    if (assignmentFilter === 'unassigned' && isAssigned) return false;
 
     return true;
   });
@@ -118,7 +120,7 @@ export function LeadManagement() {
 
   useEffect(() => {
     resetPage();
-  }, [searchTerm, statusFilter, sortOption, leads.length, resetPage]);
+  }, [searchTerm, statusFilter, assignmentFilter, sortOption, leads.length, resetPage]);
 
   const leadIdParam = searchParams.get('leadId');
 
@@ -1144,6 +1146,19 @@ export function LeadManagement() {
                 <SelectItem value="Cold">Cold</SelectItem>
                 <SelectItem value="Converted">Converted</SelectItem>
                 <SelectItem value="Lost">Lost</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={assignmentFilter}
+              onValueChange={(value: 'all' | 'assigned' | 'unassigned') => setAssignmentFilter(value)}
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Assignment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Assignment</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                <SelectItem value="assigned">Assigned</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortOption} onValueChange={(value: "latest" | "oldest") => setSortOption(value)}>

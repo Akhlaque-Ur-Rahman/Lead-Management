@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 export function usePagination<T>(items: T[], initialPageSize = 25) {
   const [currentPage, setCurrentPage] = useState(0);
@@ -14,16 +14,16 @@ export function usePagination<T>(items: T[], initialPageSize = 25) {
     return items.slice(start, start + pageSize);
   }, [items, safePage, pageSize]);
 
-  const setPage = (page: number) => {
+  const setPage = useCallback((page: number) => {
     setCurrentPage(Math.max(0, Math.min(page, totalPages - 1)));
-  };
+  }, [totalPages]);
 
-  const setSize = (size: number) => {
+  const setSize = useCallback((size: number) => {
     setPageSize(size);
     setCurrentPage(0);
-  };
+  }, []);
 
-  const resetPage = () => setCurrentPage(0);
+  const resetPage = useCallback(() => setCurrentPage(0), []);
 
   return {
     paginatedItems,

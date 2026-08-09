@@ -48,7 +48,9 @@ import {
   CheckCircle2,
   User as UserIcon,
   ChevronDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import FilterBadge from './ui/filter-badge';
@@ -76,6 +78,8 @@ export function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -253,6 +257,8 @@ export function UserManagement() {
       password: '',
       isActive: true,
     });
+    setShowAddPassword(false);
+    setShowEditPassword(false);
   };
 
   const handleAdd = async () => {
@@ -845,13 +851,28 @@ export function UserManagement() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Enter password"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showAddPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Enter password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAddPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                  aria-label={showAddPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showAddPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -957,13 +978,28 @@ export function UserManagement() {
 
             <div className="space-y-2">
               <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
-              <Input
-                id="edit-password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Enter new password"
-              />
+              <div className="relative">
+                <Input
+                  id="edit-password"
+                  type={showEditPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Enter new password"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                  aria-label={showEditPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showEditPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">

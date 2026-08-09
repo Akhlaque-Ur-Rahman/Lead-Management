@@ -163,10 +163,11 @@ export const getAllRoles = (): RoleConfig[] => {
   return Object.values(ROLES);
 };
 
-// Get roles available for a user to assign
+// Get roles available for a user to assign (user management create/edit dropdowns).
+// Note: Super Admin option is added separately in the UI for super_admin actors.
 export const getAssignableRoles = (userRole: RoleKey): RoleConfig[] => {
   if (userRole === 'super_admin') {
-    return []; // Super Admin is read-only
+    return [ROLES.PLATFORM_ADMIN, ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'platform_admin') {
     return [ROLES.PLATFORM_ADMIN, ROLES.COMPANY_ADMIN, ROLES.TEAM_LEAD, ROLES.SALES_USER];
   } else if (userRole === 'company_admin') {
