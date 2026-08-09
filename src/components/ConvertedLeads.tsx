@@ -49,7 +49,7 @@ export function ConvertedLeads() {
 
   usePageMeta({
     title: 'Converted Leads',
-    description: 'Successfully converted opportunities with financial details',
+    description: 'Successfully converted opportunities with financial details and export options',
     actions: (
       <Button onClick={handleExport} className="gap-2 w-full sm:w-auto">
         <Download className="h-4 w-4" />

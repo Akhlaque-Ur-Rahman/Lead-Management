@@ -445,8 +445,8 @@ export function UserManagement() {
     title: 'User Management',
     description:
       user?.role === 'super_admin'
-        ? 'Manage users across all companies'
-        : 'Manage users in your company',
+        ? 'Create and manage users, roles, and access across all companies'
+        : 'Create and manage users, roles, and access in your company',
     actions: (
       <Button onClick={() => setShowAddDialog(true)} size="sm" className="gap-1">
         <Plus className="h-4 w-4" />

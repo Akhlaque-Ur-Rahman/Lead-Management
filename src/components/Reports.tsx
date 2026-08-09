@@ -93,7 +93,7 @@ export function Reports() {
 
   usePageMeta({
     title: 'Reports & Analytics',
-    description: 'Comprehensive insights into your lead management performance',
+    description: 'Pipeline performance, team productivity, conversion rates, and trends',
     actions: (
       <>
         <CompanyFilter value={selectedCompany} onChange={setSelectedCompany} hideIfCompanyAdmin={true} />

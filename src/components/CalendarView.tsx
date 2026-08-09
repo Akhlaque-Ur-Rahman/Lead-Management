@@ -261,7 +261,7 @@ export function Calendar() {
 
   usePageMeta({
     title: 'Follow-up Calendar',
-    description: `${stats.thisMonth} follow-up${stats.thisMonth === 1 ? '' : 's'} this month`,
+    description: `${stats.thisMonth} follow-up${stats.thisMonth === 1 ? '' : 's'} this month — plan callbacks and never miss a touchpoint`,
   });
 
   const monthName = currentDate.toLocaleDateString('en-IN', {

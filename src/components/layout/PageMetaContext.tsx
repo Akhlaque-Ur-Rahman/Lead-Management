@@ -83,7 +83,8 @@ export function usePageMetaState() {
   };
 }
 
-/** Sets page title, description, and actions for the unified AppShell header. */
+/** Sets page title, description, and actions for the unified AppShell header.
+ *  Document <title>/meta tags are owned by DocumentSeo (route-based). */
 export function usePageMeta(meta: PageMeta) {
   const { actionsRef, setMeta, notify } = usePageMetaContext();
 

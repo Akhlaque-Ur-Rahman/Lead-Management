@@ -166,7 +166,7 @@ export function CompanyManagement() {
 
   usePageMeta({
     title: 'Company Management',
-    description: 'Manage all companies in the multi-tenant system',
+    description: 'Manage tenants, subscription plans, and organization settings',
     actions: (
       <Button onClick={() => setShowAddDialog(true)} className="gap-2">
         <Plus className="h-4 w-4" />

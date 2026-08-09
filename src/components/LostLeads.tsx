@@ -91,7 +91,7 @@ export function LostLeads() {
 
   usePageMeta({
     title: 'Lost Leads',
-    description: 'Manage leads marked as lost',
+    description: 'Manage lost opportunities, restore recoverable leads, and audit loss reasons',
   });
 
   const lostThisMonth = filteredLostLeads.filter((lead) => {

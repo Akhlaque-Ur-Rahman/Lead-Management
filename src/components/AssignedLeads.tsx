@@ -68,7 +68,7 @@ export function AssignedLeads() {
 
   usePageMeta({
     title: 'Assigned Leads',
-    description: 'View and manage leads assigned to team members',
+    description: 'View and manage leads assigned to sales users and team members',
   });
 
   // 1. Load Leads (Server-Side)

@@ -769,7 +769,7 @@ export function Settings() {
 
   usePageMeta({
     title: 'Settings',
-    description: 'Configure application settings and subscription plans',
+    description: 'Branding, website inbound leads, subscription plans, and app preferences',
   });
 
   return (

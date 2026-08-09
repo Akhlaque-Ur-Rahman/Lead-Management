@@ -226,7 +226,7 @@ export function SuperDashboard() {
 
   usePageMeta({
     title: 'Super Dashboard',
-    description: 'Platform-wide user overview across all companies',
+    description: 'Platform-wide overview of users, companies, and activity across tenants',
     actions: (
       <Button variant="outline" onClick={resetFilters} className="gap-2">
         Reset Filters

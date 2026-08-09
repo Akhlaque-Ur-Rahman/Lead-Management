@@ -7,7 +7,7 @@ import { Keyboard, BookOpen, HelpCircle } from 'lucide-react';
 export function HelpPage() {
   usePageMeta({
     title: 'Help & Shortcuts',
-    description: 'Quick reference for navigating the Lead Management System',
+    description: 'Keyboard shortcuts, workflows, and tips for navigating EDUNEX LMS',
   });
 
   return (
