@@ -40,7 +40,14 @@ export function applyDocumentSeo(input: DocumentSeoInput) {
   const description = (input.description || SEO_SITE.description).trim();
   const path = input.path || (typeof window !== 'undefined' ? window.location.pathname : '/');
   const url = `${SEO_SITE.url}${path.startsWith('/') ? path : `/${path}`}`;
-  const image = input.image || undefined;
+  // Prefer absolute HTTP(S) images for OG/Twitter; skip huge data: URLs
+  const rawImage = input.image || SEO_SITE.defaultImage;
+  const image =
+    rawImage && !rawImage.startsWith('data:')
+      ? rawImage.startsWith('http')
+        ? rawImage
+        : `${SEO_SITE.url}${rawImage.startsWith('/') ? rawImage : `/${rawImage}`}`
+      : SEO_SITE.defaultImage;
   const robots = input.robots || 'noindex, nofollow';
 
   document.title = title;
@@ -58,13 +65,13 @@ export function applyDocumentSeo(input: DocumentSeoInput) {
   upsertMeta('property', 'og:title', title);
   upsertMeta('property', 'og:description', description);
   upsertMeta('property', 'og:url', url);
-  if (image) upsertMeta('property', 'og:image', image);
+  upsertMeta('property', 'og:image', image);
 
-  upsertMeta('name', 'twitter:card', image ? 'summary_large_image' : 'summary');
+  upsertMeta('name', 'twitter:card', 'summary');
   upsertMeta('name', 'twitter:title', title);
   upsertMeta('name', 'twitter:description', description);
   if (SEO_SITE.twitterHandle) upsertMeta('name', 'twitter:site', SEO_SITE.twitterHandle);
-  if (image) upsertMeta('name', 'twitter:image', image);
+  upsertMeta('name', 'twitter:image', image);
 
   upsertLink('canonical', url);
 }

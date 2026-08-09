@@ -9,6 +9,8 @@ export const SEO_SITE = {
   locale: 'en_IN',
   twitterHandle: '@edunexservices',
   themeColor: '#0f172a',
+  /** Static favicon/brand mark served from /public */
+  defaultImage: 'https://lms.edunexservices.com/edunex-logo.png',
 } as const;
 
 export type PageSeoConfig = {

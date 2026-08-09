@@ -22,6 +22,7 @@ export interface Company {
   phone: string;
   address: string;
   logo?: string;
+  favicon?: string;
   createdAt: string | Date;
   updatedAt?: string | Date;
   isActive: boolean;

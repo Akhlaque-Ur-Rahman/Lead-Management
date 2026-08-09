@@ -55,9 +55,9 @@ router.post('/', requirePermission('MANAGE_COMPANIES'), async (req, res) => {
     const dupEmail = await query('SELECT id FROM companies WHERE LOWER(email) = LOWER($1) AND is_deleted = FALSE', [c.email]);
     if (dupEmail.rows.length) return res.status(409).json({ error: 'Company email already exists' });
     const result = await query(
-      `INSERT INTO companies (id, name, email, phone, address, logo, is_active, subscription_plan, max_users, monthly_price)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [id, c.name, c.email, c.phone || '', c.address || '', c.logo || null, c.isActive !== false,
+      `INSERT INTO companies (id, name, email, phone, address, logo, favicon, is_active, subscription_plan, max_users, monthly_price)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [id, c.name, c.email, c.phone || '', c.address || '', c.logo || null, c.favicon || c.logo || null, c.isActive !== false,
         c.subscriptionPlan || 'basic', c.maxUsers || 10, c.monthlyPrice || null]
     );
     res.status(201).json({ company: mapCompanyRow(result.rows[0]) });
@@ -82,7 +82,7 @@ router.patch('/:id', async (req, res) => {
     const values = [];
     let i = 1;
     const map = {
-      name: 'name', email: 'email', phone: 'phone', address: 'address', logo: 'logo',
+      name: 'name', email: 'email', phone: 'phone', address: 'address', logo: 'logo', favicon: 'favicon',
       blockReason: 'block_reason', companyNameCustom: 'company_name_custom',
     };
 

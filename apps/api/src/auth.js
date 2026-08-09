@@ -56,6 +56,7 @@ function mapCompanyRow(row) {
     phone: row.phone,
     address: row.address,
     logo: row.logo || undefined,
+    favicon: row.favicon || undefined,
     createdAt: row.created_at?.toISOString?.() || row.created_at,
     updatedAt: row.updated_at?.toISOString?.() || row.updated_at,
     isActive: row.is_active,
